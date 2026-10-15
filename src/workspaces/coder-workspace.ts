@@ -13,8 +13,12 @@ import {
   WorkspaceRunOptions,
   WorkspaceState,
 } from './task-workspace';
-/** Printed by the coder CLI itself; a command's own failure never carries it. */
-const CODER_ERROR = /Encountered an error running "coder/;
+/**
+ * The transport failed (the coder CLI behind ssh, or ssh losing it); a command's own failure never
+ * carries it. `coder gitssh` (git in the workspace) is the command's own business, not the Coder's.
+ */
+const CODER_ERROR =
+  /Encountered an error running "coder ssh"|kex_exchange_identification|Connection closed by UNKNOWN/;
 const START_TIMEOUT_MS = 5 * 60 * 1000;
 const UPLOAD_MAX_BYTES = 200 * 1024 * 1024;
 /** One line per repository (depth ≤ 2) under each folder: path HEAD branch status-hash. */
@@ -95,8 +99,28 @@ export class CoderWorkspace implements TaskWorkspace {
     const at = opts.at ?? 'task';
     const dir = at === 'task' ? this.path : at === 'root' ? this.root : undefined;
     const command = `${dir ? `cd ${shellQuote(dir)} && ` : ''}exec ${shellLine(argv, opts.env)}`;
-    // coder ssh joins its arguments for the remote shell, like ssh: one quoted line.
-    return this.runner.run(this.bin, ['ssh', this.target, '--', `sh -c ${shellQuote(command)}`], {
+    // `coder ssh <workspace> -- cmd` always gives the remote side a terminal: stdin never ends
+    // (uploads, hooks and prompts hang) and output comes back with \r\n. OpenSSH through
+    // `coder ssh --stdio` (as coder config-ssh does) runs the command without one (-T). The channel
+    // is authenticated by Coder itself, hence no host key check, and no user ssh config (-F).
+    const ssh = [
+      '-T',
+      '-F',
+      '/dev/null',
+      '-o',
+      `ProxyCommand=${shellQuote(this.bin)} ssh --stdio ${this.target}`,
+      '-o',
+      'BatchMode=yes',
+      '-o',
+      'StrictHostKeyChecking=no',
+      '-o',
+      'UserKnownHostsFile=/dev/null',
+      '-o',
+      'LogLevel=ERROR',
+      `coder.${this.target}`,
+    ];
+    // ssh joins its arguments for the remote shell: one quoted line.
+    return this.runner.run('ssh', [...ssh, `sh -c ${shellQuote(command)}`], {
       cwd: '/',
       env: cliEnv(),
       taskId: opts.taskId ?? this.taskId,

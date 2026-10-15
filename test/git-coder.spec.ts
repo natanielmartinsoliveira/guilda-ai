@@ -15,7 +15,7 @@ const cfg = {
 function setup(answers: [string, string][] = []) {
   const lines: string[] = [];
   const run = jest.fn(async (_bin: string, args: string[]) => {
-    const line = args[3] ?? args.join(' ');
+    const line = args.at(-1) ?? args.join(' ');
     lines.push(line);
     for (const [k, v] of answers)
       if (line.includes(k)) return { success: true, exitCode: 0, stdout: v, stderr: '' };

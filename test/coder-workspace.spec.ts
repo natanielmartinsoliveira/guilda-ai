@@ -26,7 +26,7 @@ function make(...results: unknown[]) {
   run.mockResolvedValue(ok());
   return { run, ws: new CoderWorkspace({ run } as any, cfg, ID, '/usr/bin/coder') };
 }
-const line = (run: jest.Mock, call = 0) => run.mock.calls[call][1][3] as string;
+const line = (run: jest.Mock, call = 0) => run.mock.calls[call][1].at(-1) as string;
 test('run: one quoted line through coder ssh, cd into the task folder, audit without content', async () => {
   const { run, ws } = make(ok('x'));
   const r = await ws.run(['git', 'commit', '-m', "it's done"], {
@@ -36,21 +36,53 @@ test('run: one quoted line through coder ssh, cd into the task folder, audit wit
   });
   expect(r.stdout).toBe('x');
   const [bin, args, opts] = run.mock.calls[0];
-  expect(bin).toBe('/usr/bin/coder');
-  expect(args).toEqual([
-    'ssh',
-    'dev-ws.main',
-    '--',
+  expect(bin).toBe('ssh');
+  expect(args[args.length - 1]).toBe(
     `sh -c ${shellQuote(`cd ${shellQuote(DIR)} && exec ${shellLine(['git', 'commit', '-m', "it's done"], { A: '1' })}`)}`,
-  ]);
+  );
   expect(opts).toMatchObject({ input: 'prompt', auditContent: false, taskId: ID });
   expect(opts.displayCommand).not.toContain('prompt');
 });
 test('the coder CLI gets the operator HOME (its saved login), and only that, in every call', async () => {
   const { run, ws } = make(coderFail('workspace "dev-ws" is not running'), ok());
   await ws.run(['ls'], { timeoutMs: 1, env: { A: '1' } });
-  expect(run.mock.calls.map((c) => c[1][0])).toEqual(['ssh', 'start', 'ssh']);
+  expect(run.mock.calls.map((c) => c[0])).toEqual(['ssh', '/usr/bin/coder', 'ssh']);
   for (const [, , opts] of run.mock.calls) expect(opts.env).toEqual({ HOME: process.env.HOME });
+});
+test('the transport is OpenSSH without a terminal through coder ssh --stdio: stdin closes, output is byte for byte', async () => {
+  const { run, ws } = make(ok());
+  await ws.run(['python3', 'hook.py'], { timeoutMs: 1, input: '{}' });
+  const [bin, args, opts] = run.mock.calls[0];
+  expect(bin).toBe('ssh');
+  expect(args.slice(0, -2)).toEqual([
+    '-T',
+    '-F',
+    '/dev/null',
+    '-o',
+    `ProxyCommand=${shellQuote('/usr/bin/coder')} ssh --stdio dev-ws.main`,
+    '-o',
+    'BatchMode=yes',
+    '-o',
+    'StrictHostKeyChecking=no',
+    '-o',
+    'UserKnownHostsFile=/dev/null',
+    '-o',
+    'LogLevel=ERROR',
+  ]);
+  expect(args.at(-2)).toBe('coder.dev-ws.main');
+  expect(args[args.length - 1]).toBe(
+    `sh -c ${shellQuote(`cd ${shellQuote(DIR)} && exec ${shellLine(['python3', 'hook.py'])}`)}`,
+  );
+  expect(opts.input).toBe('{}');
+});
+test('a git ssh failure (coder gitssh) is not a Coder failure', async () => {
+  const { ws } = make(
+    failed(
+      'Encountered an error running "coder gitssh", see "coder gitssh --help" for more information\nerror: exit status 255\nfatal: Could not read from remote repository.',
+    ),
+  );
+  const r = await ws.run(['git', 'ls-remote', 'x'], { timeoutMs: 1 });
+  expect(r.success).toBe(false);
 });
 test('at root / none', async () => {
   const { run, ws } = make(ok(), ok());
@@ -150,9 +182,9 @@ test('upload: base64 tar on stdin, .ai-dev-team kept out of git; symlinks refuse
     const { run, ws } = make(ok());
     await ws.upload(dir, '.ai-dev-team/attachments');
     const [, args, opts] = run.mock.calls[0];
-    expect(args[3]).toContain('base64 -d');
-    expect(args[3]).toContain('.git/info/exclude');
-    expect(args[3]).toContain('.ai-dev-team/attachments');
+    expect(args[args.length - 1]).toContain('base64 -d');
+    expect(args[args.length - 1]).toContain('.git/info/exclude');
+    expect(args[args.length - 1]).toContain('.ai-dev-team/attachments');
     expect(Buffer.from(opts.input, 'base64').length).toBeGreaterThan(512);
     await symlink('/etc/passwd', `${dir}/figma/link`);
     await expect(ws.upload(dir, 'x')).rejects.toThrow(/link/);
@@ -183,7 +215,7 @@ test('the line sent to coder ssh really works in a shell: upload, state, snapsho
   const run = jest.fn(
     (_bin: string, args: string[], opts: { input?: string }) =>
       new Promise((done) => {
-        const child = execFile('sh', ['-c', args[3]], (error, stdout, stderr) =>
+        const child = execFile('sh', ['-c', args[args.length - 1]], (error, stdout, stderr) =>
           done({ success: !error, exitCode: error ? 1 : 0, stdout, stderr }),
         );
         child.stdin!.end(opts.input ?? '');
@@ -240,9 +272,9 @@ test('the cleanup line really kills what runs in the task folder, and only there
   const inside = spawn('sleep', ['30'], { cwd: dir });
   const outside = spawn('sleep', ['30'], { cwd: root });
   const run = jest.fn((_bin: string, args: string[]) =>
-    args[3].includes('/proc')
+    args[args.length - 1].includes('/proc')
       ? new Promise((done) =>
-          execFile('sh', ['-c', args[3]], () =>
+          execFile('sh', ['-c', args[args.length - 1]], () =>
             done({ success: true, exitCode: 0, stdout: '', stderr: '' }),
           ),
         )
