@@ -93,3 +93,22 @@ test('a task of a coder company that was never bound is refused, never cloned he
     workspaces.of({ id: ID, tenantId: 'acme', workspace: workspace('acme', ID) } as any).kind,
   ).toBe('local');
 });
+test('a remote with its own ssh command: git in the workspace uses it (no host key prompt)', async () => {
+  const { git, task, lines } = setup([
+    ['echo missing', 'missing\n'],
+    ['--show-current', '49145-fix'],
+  ]);
+  await git.prepare(
+    task,
+    'homolog',
+    {
+      url: 'ssh://git@git.example.com:2244/shop/svc.git',
+      authHeader: '',
+      sshCommand: 'coder gitssh -- -o BatchMode=yes',
+    },
+    { newBranch: true },
+  );
+  const clone = lines.find((l) => l.includes('clone'))!;
+  expect(clone).toContain('GIT_SSH_COMMAND=');
+  expect(clone).toContain('BatchMode=yes');
+});

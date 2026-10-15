@@ -101,3 +101,22 @@ test('coder accepts security checks (they run in the workspace)', () => {
   const [t] = loadTenants(yaml(`${CODER_PROJECT}\n        checks: { tools: [gitleaks] }`));
   expect(t.projects[0].checks?.tools).toEqual(['gitleaks']);
 });
+
+test('gitlab sshUrl may name the ssh user; sshHostKey must be one public key line', () => {
+  const withUser = yaml('').replace('ssh://git.example.com:2244', 'ssh://git@git.example.com:2244');
+  expect(() => loadTenants(withUser)).not.toThrow();
+  const pinned = withUser.replace(
+    'sshUrl: ssh://git@git.example.com:2244',
+    'sshUrl: ssh://git@git.example.com:2244\n        sshHostKey: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyOnlyForTestsXXXXXXXXXXXXXXXXXXX',
+  );
+  expect(pinned).toContain('sshHostKey');
+  expect(() => loadTenants(pinned)).not.toThrow();
+  expect(() =>
+    loadTenants(
+      pinned.replace(
+        'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyOnlyForTestsXXXXXXXXXXXXXXXXXXX',
+        'not a key; rm -rf /',
+      ),
+    ),
+  ).toThrow(/sshHostKey/);
+});

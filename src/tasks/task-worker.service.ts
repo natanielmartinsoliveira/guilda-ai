@@ -545,7 +545,12 @@ export class TaskWorkerService implements OnModuleInit {
       throw new TaskError('Task, issue and project belong to different tenants');
     // Provider policy (ai.providers) is enforced per credential by the AgentRouter.
     const { tenant, project: cfg, host } = this.tenants.project(task.tenantId, project.key);
-    const remote = { url: host.cloneUrl(cfg.repository), authHeader: host.gitAuthHeader() };
+    const ssh = host.gitSshCommand?.();
+    const remote = {
+      url: host.cloneUrl(cfg.repository),
+      authHeader: host.gitAuthHeader(),
+      ...(ssh ? { sshCommand: ssh } : {}),
+    };
     // Before any git work: the git service runs every command in this workspace.
     const ws = this.workspaces.bind(task, cfg.workspace);
     return { tenant, cfg, host, issue, project, remote, ws };

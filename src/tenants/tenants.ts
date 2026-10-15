@@ -41,7 +41,20 @@ const gitlabHost = z.object({
     .url()
     .refine((u) => u.startsWith('https://'), 'must use https')
     .transform((u) => u.replace(/\/+$/, '')),
-  sshUrl: z.string().regex(/^ssh:\/\/[A-Za-z0-9.-]+(:\d+)?$/, 'ssh://host[:port]'),
+  sshUrl: z
+    .string()
+    .regex(/^ssh:\/\/([A-Za-z0-9._-]+@)?[A-Za-z0-9.-]+(:\d+)?$/, 'ssh://[user@]host[:port]'),
+  /**
+   * The server's public key (as ssh-keyscan prints it, without the host): git in the workspace
+   * accepts exactly this key, without prompting and without touching the workspace's ~/.ssh.
+   */
+  sshHostKey: z
+    .string()
+    .regex(
+      /^(ssh-ed25519|ssh-rsa|ecdsa-sha2-nistp(256|384|521)) [A-Za-z0-9+/]+={0,3}$/,
+      'sshHostKey: one public key line ("ssh-ed25519 AAAA...")',
+    )
+    .optional(),
   token: secret,
   /** How often open MRs are read for "/ai ..." comments (the GitLab cannot call us). */
   pollSeconds: z.number().int().min(30).default(60),

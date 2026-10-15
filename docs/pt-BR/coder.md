@@ -12,7 +12,8 @@ Para empresas cujo código **não pode ficar na máquina do operador**. A Guilda
    ~/.local/bin/coder login https://<coder>
    ```
    Se o `coder` não estiver no PATH do serviço, aponte no `.env`: `CODER_BIN=/home/<usuário>/.local/bin/coder`.
-3. **Claude logado dentro do workspace**, com a conta da empresa: abra o terminal do workspace (VS Code → Coder), rode `claude` e `/login`. A Guilda AI **não** copia credencial para lá nem traz a de lá para cá.
+3. **A chave git do workspace no GitLab:** `coder publickey` mostra a chave que o Coder usa para o git em todo workspace; cadastre-a na sua conta do GitLab (Preferences → SSH Keys). Sem ela, clone e push falham com "Could not read from remote repository".
+4. **Claude logado dentro do workspace**, com a conta da empresa: abra o terminal do workspace (VS Code → Coder), rode `claude` e `/login`. A Guilda AI **não** copia credencial para lá nem traz a de lá para cá.
 
 ## Configuração (pacote da empresa ou `tenants.yaml`)
 
@@ -21,7 +22,10 @@ hosts:
   - id: gitlab
     type: gitlab
     baseUrl: https://git.initech.example
-    sshUrl: ssh://git.initech.example:2244 # o clone acontece no workspace, por ssh
+    sshUrl: ssh://git@git.initech.example:2244 # o clone acontece no workspace, por ssh
+    # A chave do servidor (ssh-keyscan -p 2244 git.initech.example, sem o host); confira a impressão
+    # digital com quem administra o GitLab. Só essa chave é aceita, nunca uma pergunta.
+    sshHostKey: ssh-ed25519 AAAA…
     token: ${INITECH_GITLAB_TOKEN}
 projects:
   - id: orders
@@ -64,13 +68,13 @@ O fluxo inteiro roda (agente → testes → revisão → commit **local** na bra
 
 ## Erros e o que fazer
 
-| Mensagem                                              | O que fazer                                                                   |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Coder inacessível — a VPN está ligada?                | Ligue a VPN; a tarefa tenta de novo sozinha.                                  |
+| Mensagem                                              | O que fazer                                                                     |
+| ----------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Coder inacessível — a VPN está ligada?                | Ligue a VPN; a tarefa tenta de novo sozinha.                                    |
 | Workspace … parado                                    | A Guilda AI roda `coder start` sozinha; se não subir, ela tenta de novo depois. |
-| Sessão do Coder expirada                              | Rode `coder login <url>` no WSL e repita a tarefa.                            |
-| Claude sem login no workspace                         | Faça `/login` no Claude dentro do workspace e repita.                         |
-| O agente alterou repositórios fora da pasta da tarefa | Confira os repositórios citados; repita.                                      |
+| Sessão do Coder expirada                              | Rode `coder login <url>` no WSL e repita a tarefa.                              |
+| Claude sem login no workspace                         | Faça `/login` no Claude dentro do workspace e repita.                           |
+| O agente alterou repositórios fora da pasta da tarefa | Confira os repositórios citados; repita.                                        |
 
 ## Harness do repositório
 

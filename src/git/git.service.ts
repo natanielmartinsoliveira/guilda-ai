@@ -12,6 +12,8 @@ export interface GitRemote {
   url: string;
   /** Full HTTP header, e.g. "Authorization: Basic ...". Passed through env, never persisted. */
   authHeader: string;
+  /** GIT_SSH_COMMAND for ssh remotes (the host decides: its key, never a prompt). */
+  sshCommand?: string;
 }
 export interface GitAuthor {
   name: string;
@@ -82,6 +84,7 @@ export class GitService {
         GIT_COMMITTER_NAME: author.name,
         GIT_COMMITTER_EMAIL: author.email,
       });
+    if (remote?.sshCommand) env.GIT_SSH_COMMAND = remote.sshCommand;
     // ssh remotes (a Coder workspace's own key) carry no HTTP header.
     if (remote?.authHeader)
       Object.assign(env, {

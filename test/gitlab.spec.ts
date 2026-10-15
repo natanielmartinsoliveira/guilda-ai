@@ -245,3 +245,30 @@ test('merge request state, and comment authors carry their username', async () =
     authorId: 'pat.doe',
   });
 });
+
+describe('git over ssh from the workspace (review of the first real run)', () => {
+  const KEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExampleKeyOnlyForTestsXXXXXXXXXXXXXXXXXXX';
+  test('with the server key pinned: the Coder key, never a prompt, only that server key', () => {
+    const h = new GitlabHost('gl', {
+      baseUrl: 'https://git.example.com',
+      sshUrl: 'ssh://git@git.example.com:2244',
+      sshHostKey: KEY,
+      token: 't',
+    });
+    expect(h.cloneUrl('shop/svc')).toBe('ssh://git@git.example.com:2244/shop/svc.git');
+    expect(h.gitSshCommand()).toBe(
+      `coder gitssh -- -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null -o 'KnownHostsCommand=/bin/echo [git.example.com]:2244 ${KEY}'`,
+    );
+  });
+  test('the default port needs no brackets; without a pinned key it still never prompts', () => {
+    const h = (sshHostKey?: string) =>
+      new GitlabHost('gl', {
+        baseUrl: 'https://git.example.com',
+        sshUrl: 'ssh://git@git.example.com',
+        sshHostKey,
+        token: 't',
+      });
+    expect(h(KEY).gitSshCommand()).toContain(`/bin/echo git.example.com ${KEY}'`);
+    expect(h().gitSshCommand()).toBe('coder gitssh -- -o BatchMode=yes');
+  });
+});

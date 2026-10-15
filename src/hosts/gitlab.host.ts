@@ -3,6 +3,7 @@ import { ChangeRequest, CodeHost, PullRequestInput, ReviewComment } from './code
 interface GitlabConfig {
   baseUrl: string;
   sshUrl: string;
+  sshHostKey?: string;
   token: string;
 }
 interface GitlabMR {
@@ -38,6 +39,18 @@ export class GitlabHost implements CodeHost {
   ) {}
   cloneUrl(repository: string) {
     return `${this.cfg.sshUrl}/${repository}.git`;
+  }
+  /**
+   * ssh as git runs it in the workspace: the Coder's own key (coder gitssh), never a prompt
+   * (BatchMode: a missing key or an unknown server fails at once), and, with sshHostKey, only that
+   * server key is accepted (nothing is written to the workspace's known_hosts).
+   */
+  gitSshCommand() {
+    const ssh = 'coder gitssh -- -o BatchMode=yes';
+    if (!this.cfg.sshHostKey) return ssh;
+    const { hostname, port } = new URL(this.cfg.sshUrl);
+    const host = port && port !== '22' ? `[${hostname}]:${port}` : hostname;
+    return `${ssh} -o StrictHostKeyChecking=yes -o UserKnownHostsFile=/dev/null -o GlobalKnownHostsFile=/dev/null -o 'KnownHostsCommand=/bin/echo ${host} ${this.cfg.sshHostKey}'`;
   }
   /** Clones go over ssh with the workspace's key: no HTTP header. */
   gitAuthHeader() {

@@ -12,7 +12,8 @@ For companies whose code **may not be on the operator's machine**. Guilda AI kee
    ~/.local/bin/coder login https://<coder>
    ```
    When `coder` is not on the service's PATH, set it in `.env`: `CODER_BIN=/home/<user>/.local/bin/coder`.
-3. **Claude logged in inside the workspace**, with the company account: open the workspace terminal (VS Code → Coder), run `claude` and `/login`. Guilda AI **never** copies credentials there nor brings them back.
+3. **The workspace's git key in GitLab:** `coder publickey` prints the key Coder uses for git in every workspace; add it to your GitLab account (Preferences → SSH Keys). Without it, clone and push fail with "Could not read from remote repository".
+4. **Claude logged in inside the workspace**, with the company account: open the workspace terminal (VS Code → Coder), run `claude` and `/login`. Guilda AI **never** copies credentials there nor brings them back.
 
 ## Configuration (company pack or `tenants.yaml`)
 
@@ -21,7 +22,10 @@ hosts:
   - id: gitlab
     type: gitlab
     baseUrl: https://git.initech.example
-    sshUrl: ssh://git.initech.example:2244 # the clone happens in the workspace, over ssh
+    sshUrl: ssh://git@git.initech.example:2244 # the clone happens in the workspace, over ssh
+    # The server's key (ssh-keyscan -p 2244 git.initech.example, without the host); check its
+    # fingerprint with whoever runs the GitLab. Only this key is accepted, never a prompt.
+    sshHostKey: ssh-ed25519 AAAA…
     token: ${INITECH_GITLAB_TOKEN}
 projects:
   - id: orders
@@ -64,13 +68,13 @@ The whole flow runs (agent → tests → review → a **local** commit on the ta
 
 ## Errors and what to do
 
-| Message                                            | What to do                                                    |
-| -------------------------------------------------- | ------------------------------------------------------------- |
-| Coder unreachable — is the VPN on?                 | Turn the VPN on; the task retries by itself.                  |
-| Workspace … stopped                                | Guilda AI runs `coder start` itself; if it does not come up, it retries later. |
-| Coder session expired                              | Run `coder login <url>` in WSL and retry the task.            |
-| Claude not logged in in the workspace              | Run `/login` in Claude inside the workspace and retry.        |
-| The agent changed repositories outside the task folder | Check the repositories named; retry.                      |
+| Message                                                | What to do                                                                     |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------ |
+| Coder unreachable — is the VPN on?                     | Turn the VPN on; the task retries by itself.                                   |
+| Workspace … stopped                                    | Guilda AI runs `coder start` itself; if it does not come up, it retries later. |
+| Coder session expired                                  | Run `coder login <url>` in WSL and retry the task.                             |
+| Claude not logged in in the workspace                  | Run `/login` in Claude inside the workspace and retry.                         |
+| The agent changed repositories outside the task folder | Check the repositories named; retry.                                           |
 
 ## The repository's harness
 

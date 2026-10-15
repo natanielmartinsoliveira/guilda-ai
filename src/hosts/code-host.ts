@@ -37,6 +37,8 @@ export interface CodeHost {
   cloneUrl(repository: string): string;
   /** HTTP header git sends for clone/push; never written to disk or remotes. */
   gitAuthHeader(): string;
+  /** For ssh remotes cloned in a workspace: the command git uses for ssh (GIT_SSH_COMMAND). */
+  gitSshCommand?(): string;
   /** Idempotent: returns the existing pull request for the branch when there is one. */
   ensurePullRequest(repository: string, input: PullRequestInput): Promise<ChangeRequest>;
   commentOnPullRequest(repository: string, number: number, body: string): Promise<void>;
