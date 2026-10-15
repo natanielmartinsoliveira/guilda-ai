@@ -1,0 +1,1 @@
+Escopo desta fase: implemente tudo o que o card pede, EXCETO a seção "Front-end" (telas, templates, componentes Vue, estilos). Ela será feita logo em seguida, nesta mesma branch, por outra fase. Se a tela vai precisar de algo do back (rota, campo, dado), entregue isso aqui.

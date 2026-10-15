@@ -1,0 +1,21 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+/workspaces/
+coverage/
+*.log
+.agent-home/
+tenants.yaml
+attachments/
+templates/
+__pycache__/
+
+# Extra terms of public:check (one per line)
+.public-deny
+
+# Design notes and plans of the operator (kept local, never published)
+docs/superpowers/
+# Local sandbox configuration of the operator
+.ai-jail

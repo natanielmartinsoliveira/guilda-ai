@@ -1,0 +1,185 @@
+# Copy to tenants.yaml (ignored by git), or better, split it into company packs (docs/packs.md).
+# Secrets live in .env and are referenced here as ${NAME}; a missing or empty variable stops the
+# application from starting. ids: lowercase letters, digits and "-". They become paths and URLs:
+#   webhook:   POST /webhooks/<tenant.id>/<source.id>
+#   workspace: $WORKSPACE_ROOT/<tenant.id>/<task>
+#   CLI login: $AGENT_HOME/<tenant.id>/<codex|claude>/
+# The companies below are fictitious.
+tenants:
+  - id: acme
+    name: Acme
+    # Identity of the automatic commits in this company.
+    git: { authorName: Pat (Guilda AI), authorEmail: pat@acme.example }
+    ai:
+      # Providers the company's contract allows to receive its code.
+      providers: [codex, claude, gemini] # add openrouter only if the contract allows it
+      # Tried in this order. When tokens/credits/usage limits run out, on a rate limit or an
+      # invalid key, the credential waits and the next one takes over.
+      # Without apiKey: login saved in $AGENT_HOME/acme/<id>/ (ChatGPT/Claude subscription).
+      credentials:
+        - id: claude-max
+          provider: claude
+          model: claude-sonnet-5
+        - id: openai-main
+          provider: codex
+          apiKey: ${ACME_OPENAI_API_KEY}
+        - id: openai-backup
+          provider: codex
+          apiKey: ${ACME_OPENAI_API_KEY_2}
+          # Defaults: quota 360, rate limit 5, auth 1440 minutes. The wait the CLI reports
+          # ("try again in 2 hours") wins, except for auth.
+          cooldown: { quotaMinutes: 120 }
+        - id: anthropic-api
+          provider: claude
+          apiKey: ${ACME_ANTHROPIC_API_KEY}
+        # Gemini CLI (Google AI Studio key); needs Node 20+ as the system node.
+        - {
+            id: gemini-1,
+            provider: gemini,
+            apiKey: '${ACME_GEMINI_API_KEY}',
+            model: gemini-3.5-flash,
+          }
+      # Roles (optional): without them, coder and fixer use the credentials in order and there
+      # is no planner/reviewer. Item = credential id or { credential, model, effort }.
+      roles:
+        coder: [{ credential: claude-max, effort: high }, openai-main, openai-backup]
+        fixer: [{ credential: claude-max, effort: medium }, openai-main]
+        # Plans cards without sub-tasks; read-only. Never a weak model.
+        planner: [{ credential: claude-max, effort: high }]
+        # Reviews the diff before the PR; read-only. A different model from the coder.
+        reviewer: [{ credential: openai-main, effort: medium }, gemini-1]
+      review: { rounds: 1 }
+    hosts:
+      # Fine-grained token: Contents and Pull requests read/write, Metadata read.
+      - { id: github, type: github, token: '${ACME_GITHUB_TOKEN}' }
+    sources:
+      - id: github
+        type: github-issues
+        webhookSecret: ${ACME_GITHUB_WEBHOOK_SECRET}
+        allowedAssociations: [OWNER, MEMBER, COLLABORATOR]
+    projects:
+      - id: site
+        host: github
+        repository: acme/site
+        defaultBranch: main
+        # Fixed argv, no shell, run in the sandbox without network.
+        test: [npm, test, --, --runInBand]
+        # Optional, with network, before the agent. [] disables it.
+        prepare: [npm, ci, --ignore-scripts]
+
+  - id: initech
+    name: Initech
+    git: { authorName: Pat (Guilda AI), authorEmail: pat@initech.example }
+    ai:
+      providers: [claude]
+      credentials:
+        - { id: anthropic, provider: claude, apiKey: '${INITECH_ANTHROPIC_API_KEY}' }
+    hosts:
+      - { id: github, type: github, token: '${INITECH_GITHUB_TOKEN}' }
+    sources:
+      - id: jira
+        type: jira
+        # Cloud: https://<company>.atlassian.net + the account e-mail + an API token
+        # (id.atlassian.com → Security → API tokens). Data Center: deployment: datacenter, the
+        # server baseUrl and a Personal Access Token in token (no email).
+        baseUrl: https://initech.atlassian.net
+        deployment: cloud
+        email: pat@initech.example
+        token: ${INITECH_JIRA_TOKEN}
+        # Cards matching the JQL become tasks (once per card). Take them out of the JQL when they
+        # start (transitions.start) so the search stays light.
+        jql: 'labels = ai-dev AND status = "To Do" ORDER BY created ASC'
+        pollSeconds: 60
+        # Jira project key → project (repository) id here.
+        projects: { API: api }
+        # defaultProject: api
+        # Transition name OR target status name; leave out to never move the card.
+        transitions: { start: In Progress, review: In Review }
+        comments: true
+      # Tasks come from Jira; this GitHub webhook only serves "/ai ..." comments on the PRs.
+      - id: github
+        type: github-issues
+        webhookSecret: ${INITECH_GITHUB_WEBHOOK_SECRET}
+        createFromIssues: false
+    projects:
+      - id: api
+        host: github
+        repository: initech/api
+        test: [npm, test]
+
+  - id: globex
+    name: Globex
+    git: { authorName: Pat (Guilda AI), authorEmail: pat@globex.example }
+    # The company's AI harness: a clone of its skills/agents repository.
+    # Read on every run: a `git pull` in it counts on the next task, nothing to restart.
+    harness:
+      path: /home/you/globex-harness
+      skills: [products/reviews/skills, common/skills] # the first folder wins on repeated names
+      agents: [products/reviews/agents, common/agents]
+      # instructions: common/prompts/rules.md             # optional, appended to the instructions
+    ai:
+      providers: [claude] # the harness was made for Claude Code
+      credentials:
+        - { id: anthropic, provider: claude, apiKey: '${GLOBEX_ANTHROPIC_API_KEY}' }
+    hosts:
+      # Bitbucket Cloud. access-token: an access token of the repository/project/workspace
+      # (Repository settings → Access tokens; Repositories write + Pull requests write).
+      # Or auth: api-token + email: an Atlassian account API token with the scopes
+      # read/write:repository:bitbucket and read/write:pullrequest:bitbucket.
+      - { id: bitbucket, type: bitbucket, auth: access-token, token: '${GLOBEX_BITBUCKET_TOKEN}' }
+    sources:
+      - id: jira
+        type: jira
+        baseUrl: https://globex.atlassian.net
+        email: pat@globex.example
+        token: ${GLOBEX_JIRA_TOKEN}
+        # Trigger: a card assigned to you AND labelled [ai-dev]. Sub-tasks stay out of the search:
+        # they are steps of the parent card (subtasks: same-pr).
+        jql: >-
+          assignee = currentUser() AND labels = "[ai-dev]"
+          AND issuetype not in subTaskIssueTypes() AND status in (Backlog, "To Do")
+          ORDER BY created ASC
+        projects: { PF: portal }
+        # The workflow's real statuses: start, PR opened, and the reviewer asking for changes.
+        # New comments on a card in "Change request" become a revision of the same PR.
+        transitions: { start: IN PROGRESS, review: In Review, changeRequest: Change request }
+        # same-pr: one PR per story, one commit per sub-task, in the card's order.
+        # branch-per-subtask: the story branch from master and, for each sub-task, a branch
+        # stacked on the previous one with a PR into the story branch.
+        subtasks: branch-per-subtask
+      # "/ai ..." comments on the Bitbucket PRs (Repository settings → Webhooks, event
+      # "Pull request: Comment created", URL /webhooks/globex/bitbucket, with this secret).
+      - id: bitbucket
+        type: bitbucket
+        webhookSecret: ${GLOBEX_BITBUCKET_WEBHOOK_SECRET}
+        # allowedUsers: [<account id or nickname>]   # empty: anyone who comments on the repo
+    projects:
+      - id: portal
+        host: bitbucket
+        repository: globex-workspace/portal
+        defaultBranch: master
+        branch: 'feature/{key}' # {key}: the card key; {id}: the task id
+        # The team's PR template (relative to this file) and each branch's environment URL.
+        pullRequest:
+          template: templates/pr.md
+          branchUrl: 'https://{key_lower}.dev.globex.example/home'
+        # Rules added to every prompt of this project.
+        instructions: |
+          - Every new or changed interface text needs a translation in PT, EN and ES
+            (src/public/i18n/translate/{pt_BR,en_US,es_ES}/<module>).
+        # prepare/test run in a throwaway container of the team's image, with the task
+        # workspace mounted on the app path and access to the services of the compose network.
+        runner:
+          type: docker
+          image: portal_app # already built; never built from the repository
+          network: portal_default # `docker network ls`; "host" is refused
+          workdir: /var/www/portal
+          env: { APP_ENV: testing }
+        prepare: [php, composer.phar, install, --no-interaction]
+        test: [./run-tests.sh]
+        # Local security checks; only what the change introduces blocks.
+        checks:
+          tools: [gitleaks, semgrep, osv]
+          scope: '(^|/)[^/]*review[^/]*(/|$)' # Semgrep only on the team's module
+          semgrep: { configs: [p/php, p/javascript] }
+          reportOnly: [osv]

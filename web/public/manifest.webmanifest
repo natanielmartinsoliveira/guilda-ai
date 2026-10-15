@@ -1,0 +1,10 @@
+{
+  "name": "AI Dev Team",
+  "short_name": "AI Dev",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "background_color": "#1d2433",
+  "theme_color": "#1d2433",
+  "icons": [{ "src": "/app/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

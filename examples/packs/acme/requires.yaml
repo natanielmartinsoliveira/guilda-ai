@@ -1,0 +1,19 @@
+# What each dev provides to use this pack (in their own .env, never in the pack).
+- name: ACME_GIT_NAME
+  description: Name on the commits the AI makes for you
+  example: Jane Doe (AI)
+- name: ACME_GIT_EMAIL
+  description: E-mail on those commits (your company e-mail)
+  example: jane@acme.example
+- name: ACME_GITHUB_TOKEN
+  description: GitHub fine-grained token (Contents and Pull requests read/write)
+  secret: true
+  example: github_pat_example
+- name: ACME_GITHUB_WEBHOOK_SECRET
+  description: Secret of the repository webhook (at least 16 characters)
+  secret: true
+  example: example-webhook-secret-32-chars!
+- name: ACME_OPENAI_API_KEY
+  description: OpenAI API key used as reviewer
+  secret: true
+  example: sk-example

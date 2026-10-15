@@ -1,0 +1,13 @@
+[Unit]
+Description=AI Dev Team API (webhooks, operator API, Jira polling, outbox)
+After=network-online.target docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/ai-dev-team
+ExecStart=/usr/bin/env bash %h/ai-dev-team/scripts/service.sh api
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

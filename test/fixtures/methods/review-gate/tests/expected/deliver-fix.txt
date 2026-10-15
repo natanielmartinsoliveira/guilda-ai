@@ -1,0 +1,16 @@
+Deliver the scope below end to end: plan it, implement each step, review it, and commit your
+own work.
+
+The person's authorization, quoted literally: «Deliver the scope 1234-order-discount end to end (plan, implementation of each step and review)»
+
+Slug: 1234-order-discount
+Route chosen by the person: fix
+
+Scope:
+corrective increment — a wrong behaviour in code already delivered:
+Card: show the plan name on the order.
+Criteria: X.
+
+When you finish, last and with nothing after it: if your report leaves nothing for the person to decide or do, write <resultado>concluido</resultado>. If it does (a stop, a decision, a step only the person can take), write <resultado>parado</resultado> and, in <pendencias>…</pendencias>, copy the first lines of the report — what the person needs to do — without summarising.
+
+Do not git push and do not create branches; Guilda AI handles the delivery.

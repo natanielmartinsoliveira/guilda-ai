@@ -1,0 +1,13 @@
+[Unit]
+Description=AI Dev Team public webhook tunnel (ngrok static domain -> :3000)
+After=network-online.target ai-dev-team-api.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/ai-dev-team
+ExecStart=/usr/bin/env bash %h/ai-dev-team/scripts/service.sh ngrok
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

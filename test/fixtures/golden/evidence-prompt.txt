@@ -1,0 +1,17 @@
+Você já entregou a mudança do pedido abaixo (rota fact). Agora gere a evidência de teste exigida pela auditoria da empresa: prints do sistema rodando que mostram o resultado pedido.
+
+1. Suba o sistema do projeto aqui no workspace (docker, com banco descartável) e crie os dados de teste necessários. Nunca use homologação nem produção.
+2. Escreva .ai-dev-team/evidence/roteiro.cjs (CommonJS, require('playwright')) e faça TODOS os prints com o kit .ai-dev-team/evidence/evidence-kit.cjs (const { shot, apiShot } = require('./evidence-kit.cjs')):
+   - tela: await shot(page, 'o que esta tela prova');
+   - API: faça a chamada e registre com await apiShot(page, { title, method, url, headers, body, status, response }).
+   Grave o trace: await context.tracing.start({ screenshots: true, snapshots: true }) no início e await context.tracing.stop({ path: 'out/trace.zip' }) no fim.
+3. Rode: sh .ai-dev-team/evidence/run.sh (Playwright 1.48.2). Ajuste e rode de novo até os prints mostrarem o resultado.
+4. Pare tudo o que você subiu. Não altere, não crie e não commite nenhum arquivo do projeto fora de .ai-dev-team/evidence.
+
+Responda <resultado>concluido</resultado> quando os prints mostrarem o resultado pedido. Se não conseguir, responda <resultado>pendente</resultado> e explique em <pendencias>…</pendencias> o que faltou (por exemplo, dados que só a pessoa pode fornecer).
+
+Pedido:
+Mostrar o nome do plano
+
+Orientações do operador para a evidência:
+- use a venda 1

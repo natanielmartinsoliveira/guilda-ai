@@ -1,0 +1,3 @@
+Review gate — ready for review (route: comment cleanup).
+Check the files the request lists: only their comments will be removed.
+Check it in the task folder of the workspace. To authorize the delivery, choose the option; to adjust, answer with what to change.

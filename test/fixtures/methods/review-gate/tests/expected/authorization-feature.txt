@@ -1,0 +1,1 @@
+Commit the specification and deliver the scope 1234-order-discount end to end (plan, implementation of each step and review)

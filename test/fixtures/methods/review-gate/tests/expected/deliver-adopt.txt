@@ -1,0 +1,14 @@
+Adopt the existing code the request describes: survey it, write down in the specification what
+it does today, and commit your own work.
+
+The person's authorization, quoted literally: «Adopt the context 1234-order-discount end to end as requested (survey, specification and adoption)»
+
+Slug: 1234-order-discount
+
+The context to adopt, its areas and what stays out, in the person's words:
+Card: show the plan name on the order.
+Criteria: X.
+
+When you finish, last and with nothing after it: if your report leaves nothing for the person to decide or do, write <resultado>concluido</resultado>. If it does (a stop, a decision, a step only the person can take), write <resultado>parado</resultado> and, in <pendencias>…</pendencias>, copy the first lines of the report — what the person needs to do — without summarising.
+
+Do not git push and do not create branches; Guilda AI handles the delivery.

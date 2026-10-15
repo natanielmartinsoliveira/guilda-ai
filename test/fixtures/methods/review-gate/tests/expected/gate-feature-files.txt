@@ -1,0 +1,5 @@
+Review gate — ready for review (route: new feature).
+Files the specification step changed:
+- docs/spec/rules/discount.md
+- docs/spec/x.md
+Check it in the task folder of the workspace. To authorize the delivery, choose the option; to adjust, answer with what to change.

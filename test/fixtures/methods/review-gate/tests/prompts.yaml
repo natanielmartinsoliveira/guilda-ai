@@ -1,0 +1,184 @@
+# Every prompt of the method, rendered by the engine, compared with its expected text.
+# Run: npm run method:check -- <pack folder> review-gate
+slug: 1234-order-discount
+material: 'Card: show the plan name on the order.
+
+  Criteria: X.'
+cases:
+- name: specify
+  route: feature
+  prompt: prompts/specify.md
+  expect: expected/specify.txt
+- name: specify with the gate adjustments
+  route: feature
+  prompt: prompts/specify.md
+  expect: expected/specify-notes.txt
+  state:
+    notes: &id001
+    - include the business customer case
+    - do not change the API
+- name: deliver (feature)
+  route: feature
+  prompt: prompts/deliver-{{route}}.md
+  expect: expected/deliver-feature.txt
+  state:
+    authorization: Commit the specification and deliver the scope 1234-order-discount end to end (plan, implementation of each step and review)
+- name: deliver with notes and answers (feature)
+  route: feature
+  prompt: prompts/deliver-{{route}}.md
+  expect: expected/deliver-feature-full.txt
+  state:
+    authorization: Commit the specification and deliver the scope 1234-order-discount end to end (plan, implementation of each step and review)
+    notes: *id001
+    answers: &id002
+    - use the name field
+- name: deliver (screen)
+  route: screen
+  prompt: prompts/deliver-{{route}}.md
+  expect: expected/deliver-screen.txt
+  state:
+    authorization: Deliver the scope 1234-order-discount end to end (plan, implementation of each step and review)
+- name: deliver with notes and answers (screen)
+  route: screen
+  prompt: prompts/deliver-{{route}}.md
+  expect: expected/deliver-screen-full.txt
+  state:
+    authorization: Deliver the scope 1234-order-discount end to end (plan, implementation of each step and review)
+    notes: *id001
+    answers: *id002
+- name: deliver (fix)
+  route: fix
+  prompt: prompts/deliver-{{route}}.md
+  expect: expected/deliver-fix.txt
+  state:
+    authorization: Deliver the scope 1234-order-discount end to end (plan, implementation of each step and review)
+- name: deliver with notes and answers (fix)
+  route: fix
+  prompt: prompts/deliver-{{route}}.md
+  expect: expected/deliver-fix-full.txt
+  state:
+    authorization: Deliver the scope 1234-order-discount end to end (plan, implementation of each step and review)
+    notes: *id001
+    answers: *id002
+- name: deliver (adopt)
+  route: adopt
+  prompt: prompts/deliver-{{route}}.md
+  expect: expected/deliver-adopt.txt
+  state:
+    authorization: Adopt the context 1234-order-discount end to end as requested (survey, specification and adoption)
+- name: deliver with notes and answers (adopt)
+  route: adopt
+  prompt: prompts/deliver-{{route}}.md
+  expect: expected/deliver-adopt-full.txt
+  state:
+    authorization: Adopt the context 1234-order-discount end to end as requested (survey, specification and adoption)
+    notes: *id001
+    answers: *id002
+- name: deliver (cleanup)
+  route: cleanup
+  prompt: prompts/deliver-{{route}}.md
+  expect: expected/deliver-cleanup.txt
+  state:
+    authorization: Remove the comments and commit the requested files (1234-order-discount)
+- name: deliver with notes and answers (cleanup)
+  route: cleanup
+  prompt: prompts/deliver-{{route}}.md
+  expect: expected/deliver-cleanup-full.txt
+  state:
+    authorization: Remove the comments and commit the requested files (1234-order-discount)
+    notes: *id001
+    answers: *id002
+- name: gate words (feature)
+  route: feature
+  prompt: prompts/authorization-{{route}}.md
+  expect: expected/authorization-feature.txt
+  trim: true
+- name: gate words (screen)
+  route: screen
+  prompt: prompts/authorization-{{route}}.md
+  expect: expected/authorization-screen.txt
+  trim: true
+- name: gate words (fix)
+  route: fix
+  prompt: prompts/authorization-{{route}}.md
+  expect: expected/authorization-fix.txt
+  trim: true
+- name: gate words (adopt)
+  route: adopt
+  prompt: prompts/authorization-{{route}}.md
+  expect: expected/authorization-adopt.txt
+  trim: true
+- name: gate words (cleanup)
+  route: cleanup
+  prompt: prompts/authorization-{{route}}.md
+  expect: expected/authorization-cleanup.txt
+  trim: true
+- name: gate words (direct)
+  route: direct
+  prompt: prompts/authorization-{{route}}.md
+  expect: expected/authorization-direct.txt
+  trim: true
+- name: gate question (feature)
+  route: feature
+  prompt: prompts/gate-{{route}}.md
+  expect: expected/gate-feature.txt
+  values:
+    FILES: []
+- name: gate question (screen)
+  route: screen
+  prompt: prompts/gate-{{route}}.md
+  expect: expected/gate-screen.txt
+  values:
+    FILES: []
+- name: gate question (fix)
+  route: fix
+  prompt: prompts/gate-{{route}}.md
+  expect: expected/gate-fix.txt
+  values:
+    FILES: []
+- name: gate question (adopt)
+  route: adopt
+  prompt: prompts/gate-{{route}}.md
+  expect: expected/gate-adopt.txt
+  values:
+    FILES: []
+- name: gate question (cleanup)
+  route: cleanup
+  prompt: prompts/gate-{{route}}.md
+  expect: expected/gate-cleanup.txt
+  values:
+    FILES: []
+- name: gate question with the files of the specification step
+  route: feature
+  prompt: prompts/gate-{{route}}.md
+  expect: expected/gate-feature-files.txt
+  values:
+    FILES:
+    - docs/spec/rules/discount.md
+    - docs/spec/x.md
+- name: stop question
+  route: feature
+  prompt: prompts/stop-question.md
+  expect: expected/stop.txt
+  values:
+    PENDING: Decide the field name
+- name: stop option
+  route: feature
+  prompt: prompts/stop-option.md
+  expect: expected/stop-option.txt
+- name: outside question
+  route: feature
+  prompt: prompts/outside-question.md
+  expect: expected/outside.txt
+  values:
+    FILES:
+    - src/a.ts
+    - README.md
+- name: outside option
+  route: feature
+  prompt: prompts/outside-option.md
+  expect: expected/outside-option.txt
+- name: direct rule
+  route: direct
+  prompt: prompts/direct-rule.md
+  expect: expected/direct-rule.txt

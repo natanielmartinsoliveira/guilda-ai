@@ -1,0 +1,95 @@
+# Review gate — an example method. The agent writes a specification, the person reviews it at a
+# gate, then the agent delivers what the person authorized. It uses every feature of the method
+# engine; copy it into methods/<name>/ of your company pack to start your own method.
+# Check it with: npm run method:check -- <pack folder> review-gate
+name: review-gate
+workspace: coder
+options:
+  # Where the operator keeps review-gate.json (the prepare hook copies it into each task).
+  configFrom: { default: "{{workspace.reference}}", required: true }
+  pythonPath: {}
+env:
+  # The agent commits its own work; the workspace has no git identity of its own.
+  GIT_AUTHOR_NAME: "{{git.name}}"
+  GIT_AUTHOR_EMAIL: "{{git.email}}"
+  GIT_COMMITTER_NAME: "{{git.name}}"
+  GIT_COMMITTER_EMAIL: "{{git.email}}"
+  PYTHONPATH: "{{options.pythonPath}}"
+timeoutMinutes: 240
+commits: method
+revisions: refuse
+hooks:
+  prepare: hooks/prepare.py
+  advance: hooks/advance.py
+messages:
+  noRoute: "Review gate: the task has no route (feature, screen or fix)"
+  noSpecRoot: "review-gate.json has no spec_root: add it to the file in your clone"
+  failed: "Review gate failed: "
+  leftovers: "The agent left changes outside its own commits (Guilda AI does not commit for it):"
+  noChanges: "NO_CHANGES: the delivery produced no changes"
+  finishNoChanges: "NO_CHANGES: nothing changed in the requested files"
+  revisionRefused: 'Review gate: create a new task with the "fix" route'
+routes:
+  feature:
+    label: { en: "New feature (specification → delivery)", pt-BR: "Funcionalidade nova (especificação → entrega)" }
+    start: spec
+    evidence: true
+    vars: { ROUTE_NAME: "new feature", SCOPE_PREFIX: "" }
+  screen:
+    label: { en: "Screen already specified (delivery)", pt-BR: "Tela já especificada (entrega)" }
+    start: gate
+    evidence: true
+    vars: { ROUTE_NAME: "screen already specified", SCOPE_PREFIX: "" }
+  fix:
+    label: { en: "Fix to something already delivered", pt-BR: "Correção de algo já entregue" }
+    start: gate
+    evidence: true
+    vars:
+      ROUTE_NAME: "fix"
+      SCOPE_PREFIX: "corrective increment — a wrong behaviour in code already delivered:\n"
+  adopt:
+    label: { en: "Adopt existing code (context, areas, what stays out)", pt-BR: "Adotar código existente (contexto, áreas, o que fica fora)" }
+    start: gate
+    tests: false
+    vars: { ROUTE_NAME: "adoption of existing code" }
+  cleanup:
+    label: { en: "Remove comments (listed files)", pt-BR: "Remover comentários (arquivos listados)" }
+    start: gate
+    finish: { commit: "cleanup {{slug}}" }
+    vars: { ROUTE_NAME: "comment cleanup" }
+  direct:
+    label: { en: "Direct edit (core flow, surface only)", pt-BR: "Edição direta (fluxo do núcleo, só superfície)" }
+    flow: standard
+    before: [hooks/direct.py]
+    append: prompts/direct-rule.md
+    evidence: true
+phases:
+  spec:
+    steps:
+      - require: { var: spec_root, message: noSpecRoot }
+      - discard: "{{vars.spec_root}}"
+      - agent: prompts/specify.md
+        answersTo: notes
+      - within:
+          path: "{{vars.spec_root}}"
+          question: prompts/outside-question.md
+          option: prompts/outside-option.md
+    next: gate
+  gate:
+    steps:
+      - ask:
+          question: prompts/gate-{{route}}.md
+          option: prompts/authorization-{{route}}.md
+          files: { path: "{{vars.spec_root}}", routes: [feature] }
+          chosen:
+            commit:
+              paths: ["{{vars.spec_root}}"]
+              message: "spec {{slug}}"
+              routes: [feature]
+            next: deliver
+          other:
+            next: { feature: spec, default: gate }
+  deliver:
+    steps:
+      - agent: prompts/deliver-{{route}}.md
+    next: done

@@ -1,0 +1,1 @@
+Direct route: this change is surface only — label, colour, spacing, column order, icon. If it changes what a person can know or do in the system (a refusal, new data, a rule), it is not surface: stop and say so instead of implementing it. No new domain facts in the code, and no comments.

@@ -1,0 +1,59 @@
+# Example company pack. Copy this folder to a private git repository of your company,
+# adjust it and point GUILDA_PACKS (in your .env) at the clone. Everything personal or
+# secret comes from requires.yaml, filled by each dev in their own .env.
+id: acme
+name: Acme
+git: { authorName: '${ACME_GIT_NAME}', authorEmail: '${ACME_GIT_EMAIL}' }
+ai:
+  # Providers the company's contract allows to receive its code.
+  providers: [claude, codex]
+  credentials:
+    # Without apiKey the CLI uses each dev's own login (subscription).
+    - { id: claude-login, provider: claude }
+    - { id: openai, provider: codex, apiKey: '${ACME_OPENAI_API_KEY}' }
+  roles:
+    coder: [claude-login, openai]
+    reviewer: [openai]
+hosts:
+  # Fine-grained token: Contents and Pull requests read/write, Metadata read.
+  - { id: github, type: github, token: '${ACME_GITHUB_TOKEN}' }
+sources:
+  - id: github
+    type: github-issues
+    webhookSecret: '${ACME_GITHUB_WEBHOOK_SECRET}'
+projects:
+  - id: site
+    host: github
+    repository: acme/site
+    defaultBranch: main
+    branch: '{key}-{slug}'
+    test: [npm, test]
+    prepare: [npm, ci, --ignore-scripts]
+# Company formats (optional): what the company's tools and reviewers expect.
+formats:
+  card:
+    frontTitles: [front-end, ui]
+  pullRequest:
+    sections:
+      - {
+          tag: problem,
+          placeholder: PROBLEM,
+          ask: 'the problem or need behind the change',
+          fallback: card,
+        }
+      - { tag: solution, placeholder: SOLUTION, ask: 'what was done', fallback: '(see commits)' }
+      - {
+          tag: how_to_test,
+          placeholder: HOW_TO_TEST,
+          ask: 'step by step to validate it',
+          fallback: '(to be filled)',
+        }
+      - {
+          tag: risks,
+          placeholder: RISKS,
+          ask: 'risks of the change and how to roll it back',
+          fallback: 'None',
+        }
+  evidence:
+    comment: formats/evidence.md
+    timezone: UTC

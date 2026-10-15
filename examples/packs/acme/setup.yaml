@@ -1,0 +1,5 @@
+# Baseline scripts the company recommends on every developer machine. npm run setup describes
+# each one and runs it (bash, in this folder) only after the developer confirms.
+scripts:
+  - run: scripts/check-tools.sh
+    description: Checks that git, node and docker are installed (installs nothing)

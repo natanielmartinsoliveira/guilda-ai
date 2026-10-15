@@ -1,0 +1,9 @@
+Teste desenvolvedor:
+Execução: ( ) Manual   (x) Automática
+Ambiente: (x) Desenvolvimento   ( ) Homologação   ( ) Beta   ( ) Produção
+
+1. Contrato com o nome do plano — http://localhost:3000/c — 14/10/2026 17:25:03 (America/Sao_Paulo)
+[imagem 01-tela.png]
+
+2. GET contrato — http://localhost:3001/orders/1/contract — 14/10/2026 17:25:09 (America/Sao_Paulo)
+[imagem 02-get-contrato.png]

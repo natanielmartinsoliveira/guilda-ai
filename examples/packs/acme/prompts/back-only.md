@@ -1,0 +1,1 @@
+Scope of this phase: implement everything the card asks EXCEPT its "Front-end" section (screens, components, styles). Another phase does it right after, on this same branch. If the screen will need something from the back end (route, field, data), deliver it here.

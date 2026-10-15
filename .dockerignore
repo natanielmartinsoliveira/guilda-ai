@@ -1,0 +1,8 @@
+node_modules
+dist
+.git
+.env
+workspaces
+.agent-home
+tenants.yaml
+attachments

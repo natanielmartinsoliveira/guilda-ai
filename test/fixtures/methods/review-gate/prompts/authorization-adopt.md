@@ -1,0 +1,1 @@
+Adopt the context {{SLUG}} end to end as requested (survey, specification and adoption)

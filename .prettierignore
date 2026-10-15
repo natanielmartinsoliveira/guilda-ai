@@ -1,0 +1,8 @@
+node_modules
+dist
+package-lock.json
+docs/cli
+# Prompt templates and golden texts are content: byte-exact, never reformatted.
+prompts/
+test/fixtures/golden/
+test/fixtures/methods/

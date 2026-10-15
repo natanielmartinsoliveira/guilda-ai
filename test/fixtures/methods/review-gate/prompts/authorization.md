@@ -1,0 +1,1 @@
+Deliver the scope {{SLUG}} end to end (plan, implementation of each step and review)

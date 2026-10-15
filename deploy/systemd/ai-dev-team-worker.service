@@ -1,0 +1,15 @@
+[Unit]
+Description=AI Dev Team worker (agents, tests, git, pull requests)
+After=network-online.target docker.service ai-dev-team-api.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/ai-dev-team
+ExecStart=/usr/bin/env bash %h/ai-dev-team/scripts/service.sh worker
+Restart=on-failure
+RestartSec=10
+# A task can run for a long time; let it finish its current step on stop.
+TimeoutStopSec=60
+
+[Install]
+WantedBy=default.target

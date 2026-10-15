@@ -1,0 +1,3 @@
+Review gate — ready for review (route: fix).
+The current specification applies to this delivery.
+Check it in the task folder of the workspace. To authorize the delivery, choose the option; to adjust, answer with what to change.
