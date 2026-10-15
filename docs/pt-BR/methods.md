@@ -104,7 +104,7 @@ phases:
 ## Prompts
 
 - `prompts/x-{{route}}.md` é o da rota; se não existir, vale `prompts/x.md`.
-- Placeholders: `{{MATERIAL}}` (o card), `{{SLUG}}`, `{{ROUTE}}`, `{{AUTHORIZATION}}`, `{{NOTES}}`, `{{ANSWERS}}`, `{{FILES}}`, `{{PENDING}}` e os `vars` da rota.
+- Placeholders: `{{MATERIAL}}` (o card), `{{SLUG}}`, `{{ROUTE}}`, `{{AUTHORIZATION}}`, `{{NOTES}}`, `{{ANSWERS}}`, `{{FILES}}`, `{{PENDING}}`, `{{REPORT}}` (o último relatório do agente, por exemplo para a pessoa revisar as decisões dele no portão) e os `vars` da rota.
 - Listas viram linhas `- item`. `{{#NOTES}}…{{/NOTES}}` só aparece se houver itens; `{{^FILES}}…{{/FILES}}` só se não houver.
 
 ## Scripts (hooks)

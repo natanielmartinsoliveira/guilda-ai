@@ -4,10 +4,10 @@ import { EXAMPLE_METHOD, METHOD_PACK } from './fixtures/method-ws';
 /** How the engine renders a method's prompts (every text, byte for byte: method-check.spec). */
 const SLUG = '1234-order-discount';
 const MATERIAL = 'Card: show the plan name on the order.\nCriteria: X.';
-function runner(route: string, ws: Record<string, unknown> = {}) {
+function runner(route: string, ws: Record<string, unknown> = {}, result?: Record<string, unknown>) {
   return new MethodRunner(
     {} as never,
-    { id: 't1', branch: SLUG, instructions: MATERIAL, tenantId: 'acme' } as never,
+    { id: 't1', branch: SLUG, instructions: MATERIAL, tenantId: 'acme', result } as never,
     {
       tenant: { packDir: METHOD_PACK, git: { authorName: 'AI', authorEmail: 'ai@x' } },
       cfg: {
@@ -155,4 +155,18 @@ describe('review fixes', () => {
     expect(methodState({ flow: { phase: 'gate', asked: 'Q' } })).toBeUndefined();
     expect(methodState({})).toBeUndefined();
   });
+});
+
+test("the gate can show the agent's last report ({{REPORT}}); without one the text is unchanged", () => {
+  const report = 'Decisions:\n1. {{SLUG}} stays literal\n2. b';
+  const withReport = runner('feature', {}, { message: report }).render(
+    'prompts/gate-{{route}}.md',
+    {
+      FILES: [],
+    },
+  );
+  expect(withReport).toContain(`Report of the specification step:\n${report}`);
+  expect(runner('feature').render('prompts/gate-{{route}}.md', { FILES: [] })).not.toContain(
+    'Report of the specification step',
+  );
 });

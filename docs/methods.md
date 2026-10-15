@@ -100,7 +100,7 @@ phases:
 ## Prompts
 
 - `prompts/x-{{route}}.md` is the route's own; when it does not exist, `prompts/x.md` applies.
-- Placeholders: `{{MATERIAL}}` (the card), `{{SLUG}}`, `{{ROUTE}}`, `{{AUTHORIZATION}}`, `{{NOTES}}`, `{{ANSWERS}}`, `{{FILES}}`, `{{PENDING}}` and the route's `vars`.
+- Placeholders: `{{MATERIAL}}` (the card), `{{SLUG}}`, `{{ROUTE}}`, `{{AUTHORIZATION}}`, `{{NOTES}}`, `{{ANSWERS}}`, `{{FILES}}`, `{{PENDING}}`, `{{REPORT}}` (the agent's last report, e.g. for the person to review its decisions at a gate) and the route's `vars`.
 - Lists become `- item` lines. `{{#NOTES}}…{{/NOTES}}` appears only when there are items; `{{^FILES}}…{{/FILES}}` only when there are none.
 - The tags the engine reads (`<resultado>`, `<pendencias>`) are the same in every language.
 

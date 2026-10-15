@@ -160,6 +160,8 @@ export class MethodRunner {
       AUTHORIZATION: state?.authorization ?? '',
       NOTES: state?.notes ?? [],
       ANSWERS: state?.answers ?? [],
+      // The agent's last report (its decisions), for the person to review at a gate.
+      REPORT: typeof this.task.result?.message === 'string' ? this.task.result.message : '',
       ...this.route.vars,
       ...values,
     });
