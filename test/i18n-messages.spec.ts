@@ -47,7 +47,7 @@ test('question and failure messages in English', () => {
     link: 'https://panel/d1',
   });
   expect(q.text).toBe(
-    '❓ Acme · task\nThe AI has 1 question(s) and the task is waiting for you:\n1. Which field?\n\nAnswer: https://panel/d1',
+    '❓ Acme · task\nThe AI has 1 question(s) and the task is waiting for you:\n1. Which field?\n\nTo answer here: tap an option or use "Reply" on this message with your text.\nAnswer: https://panel/d1',
   );
   const f = decisionMessage({
     decision: { id: 'd1', type: 'failure', questions: null, reason: null } as never,

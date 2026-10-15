@@ -145,13 +145,21 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       );
     }
   }
-  /** Button clicks from the operator's chat answer failure decisions; anything else is ignored. */
+  /**
+   * From the operator's chat only: buttons answer decisions (retry/cancel a failure, or an option
+   * of a question), and "Reply" to a decision warning answers its questions with the text.
+   */
   async handleUpdate(update: TelegramUpdate) {
     const chat = config().TELEGRAM_CHAT_ID!;
     const query = update.callback_query;
     if (!query) {
-      if (update.message && String(update.message.chat.id) !== chat)
-        log('telegram.foreign_chat', { chat: update.message.chat.id });
+      const message = update.message;
+      if (!message) return;
+      if (String(message.chat.id) !== chat || (message.from && String(message.from.id) !== chat)) {
+        log('telegram.foreign_chat', { chat: message.chat.id });
+        return;
+      }
+      if (message.reply_to_message) await this.reply(chat, message);
       return;
     }
     if (String(query.from.id) !== chat || String(query.message?.chat.id) !== chat) {
@@ -167,15 +175,81 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     // Answered already (another click, the VS Code, the front): no need to wait on the task.
     if (decision.status !== 'open')
       return this.client().answerCallbackQuery(query.id, t('telegram.callback.alreadyAnswered'));
+    let answer: { action: 'retry' | 'cancel' } | { answers: string[] };
+    let shown: string;
+    if (parsed.action === 'option') {
+      const options = decision.questions?.length === 1 ? (decision.questions[0].options ?? []) : [];
+      const option = options[parsed.option];
+      if (decision.type !== 'question' || option === undefined)
+        return this.client().answerCallbackQuery(query.id, t('telegram.callback.unknownButton'));
+      answer = { answers: [option] };
+      shown = t('telegram.callback.viaTelegramAnswer', { answer: option.slice(0, 300) });
+    } else {
+      answer = { action: parsed.action };
+      shown = t('telegram.callback.viaTelegram', {
+        label:
+          parsed.action === 'retry'
+            ? t('telegram.callback.labelRetry')
+            : t('telegram.callback.labelCancel'),
+      });
+    }
+    const refused = await this.submit(decision, answer);
+    if (refused) return this.client().answerCallbackQuery(query.id, refused);
+    await this.client().answerCallbackQuery(
+      query.id,
+      parsed.action === 'option'
+        ? t('telegram.callback.doneAnswer')
+        : parsed.action === 'retry'
+          ? t('telegram.callback.doneRetry')
+          : t('telegram.callback.doneCancel'),
+    );
+    if (query.message)
+      await this.client()
+        .editMessageText(
+          chat,
+          String(query.message.message_id),
+          `${query.message.text ?? ''}\n\n${shown}`.slice(0, 4096),
+        )
+        .catch(() => undefined);
+  }
+  /** "Reply" to a decision warning: the text answers its questions (one numbered line each). */
+  private async reply(chat: string, message: NonNullable<TelegramUpdate['message']>) {
+    const to = message.reply_to_message!;
+    const sent = await this.db.getRepository(Notification).findOneBy({
+      kind: 'decision',
+      messageId: String(to.message_id),
+    });
+    if (!sent?.decisionId) return;
+    const decision = await this.db.getRepository(Decision).findOneBy({ id: sent.decisionId });
+    if (!decision) return;
+    const say = (text: string) => this.client().sendMessage(chat, text);
+    if (decision.status !== 'open') return say(t('telegram.callback.alreadyAnswered'));
+    if (decision.type !== 'question') return say(t('telegram.reply.useButtons'));
+    const count = decision.questions?.length ?? 0;
+    const answers = replyAnswers(message.text ?? '', count);
+    if (!answers) return say(t('telegram.reply.format', { count }));
+    const refused = await this.submit(decision, { answers });
+    if (refused) return say(refused);
+    await say(t('telegram.reply.done'));
+    await this.client()
+      .editMessageText(
+        chat,
+        String(to.message_id),
+        `${to.text ?? ''}\n\n${t('telegram.callback.viaTelegramAnswer', {
+          answer: answers.join(' / ').slice(0, 300),
+        })}`.slice(0, 4096),
+      )
+      .catch(() => undefined);
+  }
+  /** Answers the decision via Telegram; returns why it was refused, if it was. */
+  private async submit(
+    decision: Decision,
+    answer: { action: 'retry' | 'cancel' } | { answers: string[] },
+  ): Promise<string | undefined> {
     for (let attempt = 1; ; attempt++) {
       try {
-        await this.orchestrator.answerDecision(
-          decision.tenantId,
-          decision.id,
-          { action: parsed.action },
-          'telegram',
-        );
-        break;
+        await this.orchestrator.answerDecision(decision.tenantId, decision.id, answer, 'telegram');
+        return undefined;
       } catch (error) {
         if (!(error instanceof JobRejected)) throw error;
         const running = /running right now/.test(error.message);
@@ -183,36 +257,33 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
           await this.wait(2000);
           continue;
         }
-        return this.client().answerCallbackQuery(
-          query.id,
-          running
-            ? t('telegram.callback.running')
-            : /already answered/.test(error.message)
-              ? t('telegram.callback.alreadyAnswered')
-              : error.message.slice(0, 180),
-        );
+        return running
+          ? t('telegram.callback.running')
+          : /already answered/.test(error.message)
+            ? t('telegram.callback.alreadyAnswered')
+            : error.message.slice(0, 180);
       }
     }
-    const label =
-      parsed.action === 'retry'
-        ? t('telegram.callback.labelRetry')
-        : t('telegram.callback.labelCancel');
-    await this.client().answerCallbackQuery(
-      query.id,
-      parsed.action === 'retry'
-        ? t('telegram.callback.doneRetry')
-        : t('telegram.callback.doneCancel'),
-    );
-    if (query.message)
-      await this.client()
-        .editMessageText(
-          chat,
-          String(query.message.message_id),
-          `${query.message.text ?? ''}\n\n${t('telegram.callback.viaTelegram', { label })}`.slice(
-            0,
-            4096,
-          ),
-        )
-        .catch(() => undefined);
   }
+}
+/**
+ * The answers in a reply: the whole text for one question; for several, one numbered line each
+ * ("1. …" or "1) …", continuation lines kept with their answer). Undefined when any is missing.
+ */
+export function replyAnswers(text: string, count: number): string[] | undefined {
+  const body = text.trim();
+  if (!body || count < 1) return undefined;
+  if (count === 1) return [body.slice(0, 4000)];
+  const answers: string[] = [];
+  let current = -1;
+  for (const line of body.split('\n')) {
+    const numbered = /^\s*(\d{1,2})\s*[.)]\s*(.*)$/.exec(line);
+    if (numbered && Number(numbered[1]) === current + 2) {
+      current++;
+      answers[current] = numbered[2];
+    } else if (current >= 0) answers[current] += `\n${line}`;
+    else return undefined;
+  }
+  const trimmed = answers.map((a) => a.trim().slice(0, 4000));
+  return trimmed.length === count && trimmed.every(Boolean) ? trimmed : undefined;
 }

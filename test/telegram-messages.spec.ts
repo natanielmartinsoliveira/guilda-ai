@@ -49,6 +49,7 @@ test('question: card, title, numbered questions with options, no buttons', () =>
       '1. Motivo obrigatório? (Sim / Não)',
       '2. Qual tela?',
       '',
+      'Para responder aqui: use "Responder" nesta mensagem, uma linha por pergunta (1. …, 2. …).',
       `Responder: https://x.ngrok-free.dev/app/decisoes/${id}`,
     ].join('\n'),
   );
@@ -96,7 +97,11 @@ test('a huge question list is cut to the Telegram limit', () => {
   });
   expect(m.text.length).toBeLessThanOrEqual(TELEGRAM_MAX);
   // The questions are cut; how to answer is always kept.
-  expect(m.text.endsWith('\n\nResponder: https://x/app/decisoes/1')).toBe(true);
+  expect(
+    m.text.endsWith(
+      '\n\nPara responder aqui: use "Responder" nesta mensagem, uma linha por pergunta (1. …, 2. …).\nResponder: https://x/app/decisoes/1',
+    ),
+  ).toBe(true);
   expect(m.text).toContain('…');
 });
 test('a task without card or title still reads well', () => {
@@ -162,4 +167,23 @@ test('a rehearsal is announced with where to look, and only when Telegram is on'
   await notifyRehearsal({ save } as any, payload);
   expect(save.mock.calls[0][1]).toMatchObject({ kind: 'text', status: 'pending' });
   expect(save.mock.calls[0][1].payload.text).toContain('Ensaio concluído — nada foi publicado');
+});
+test('one question with options: a button per option, the option index in the callback', () => {
+  const m = decisionMessage({
+    decision: {
+      id,
+      type: 'question',
+      reason: null,
+      questions: [{ text: 'Portão', options: ['Entregue o escopo', 'Outra'] }],
+    },
+    tenantName: 'A',
+    card: 'B-1',
+    title: 'T',
+  });
+  expect(m.keyboard!.inline_keyboard.map((row) => row[0].callback_data)).toEqual([
+    `d:${id}:o0`,
+    `d:${id}:o1`,
+  ]);
+  expect(parseCallback(`d:${id}:o1`)).toEqual({ decisionId: id, action: 'option', option: 1 });
+  expect(parseCallback(`d:${id}:o123`)).toBeUndefined();
 });

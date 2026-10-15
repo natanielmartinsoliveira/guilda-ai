@@ -29,6 +29,16 @@ export const ptBR = {
   'telegram.callback.labelRetry': 'Repetir',
   'telegram.callback.labelCancel': 'Cancelar',
   'telegram.callback.viaTelegram': '→ {label} (pelo Telegram)',
+  'telegram.callback.viaTelegramAnswer': '→ Respondida pelo Telegram: {answer}',
+  'telegram.callback.doneAnswer': 'Feito: resposta registrada.',
+  'telegram.question.answerHere':
+    'Para responder aqui: toque numa opção ou use "Responder" nesta mensagem com o texto.',
+  'telegram.question.answerHereMany':
+    'Para responder aqui: use "Responder" nesta mensagem, uma linha por pergunta (1. …, 2. …).',
+  'telegram.reply.done': '✅ Resposta registrada.',
+  'telegram.reply.format':
+    'Responda uma linha por pergunta, numeradas de 1 a {count} (1. …, 2. …). Nada foi registrado.',
+  'telegram.reply.useButtons': 'Essa decisão é uma falha: use os botões Repetir ou Cancelar.',
   'evidence.question':
     'Evidência de teste: os prints não mostram o resultado pedido.\n{pending}\nResponda com orientações (dados de teste, tela, rota) para a IA tentar de novo.',
   'evidence.retry': 'Tentar de novo',

@@ -30,6 +30,16 @@ export const en: Record<MessageKey, string> = {
   'telegram.callback.labelRetry': 'Retry',
   'telegram.callback.labelCancel': 'Cancel',
   'telegram.callback.viaTelegram': '→ {label} (from Telegram)',
+  'telegram.callback.viaTelegramAnswer': '→ Answered from Telegram: {answer}',
+  'telegram.callback.doneAnswer': 'Done: answer recorded.',
+  'telegram.question.answerHere':
+    'To answer here: tap an option or use "Reply" on this message with your text.',
+  'telegram.question.answerHereMany':
+    'To answer here: use "Reply" on this message, one line per question (1. …, 2. …).',
+  'telegram.reply.done': '✅ Answer recorded.',
+  'telegram.reply.format':
+    'Answer one line per question, numbered 1 to {count} (1. …, 2. …). Nothing was recorded.',
+  'telegram.reply.useButtons': 'This decision is a failure: use the Retry or Cancel buttons.',
   'evidence.question':
     'Test evidence: the prints do not show the requested result.\n{pending}\nReply with guidance (test data, screen, route) for the AI to try again.',
   'evidence.retry': 'Try again',

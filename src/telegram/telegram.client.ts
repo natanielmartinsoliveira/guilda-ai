@@ -1,7 +1,14 @@
 import { InlineKeyboard } from './messages';
 export interface TelegramUpdate {
   update_id: number;
-  message?: { chat: { id: number }; text?: string };
+  message?: {
+    message_id?: number;
+    chat: { id: number };
+    from?: { id: number };
+    text?: string;
+    /** Set when the operator used "Reply" on one of our messages. */
+    reply_to_message?: { message_id: number; chat: { id: number }; text?: string };
+  };
   callback_query?: {
     id: string;
     data?: string;

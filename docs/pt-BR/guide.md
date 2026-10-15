@@ -12,21 +12,21 @@ Implementação NestJS de card/Issue (GitHub Issues, Jira, API/VS Code) → Post
 
 A visão original do projeto: agentes especializados (Architect, Coder, Tester, Reviewer, Security, Notifier) trabalhando por filas, com estado, revisão e controle no orchestrator. **O que já existe hoje** em relação a ele:
 
-| No modelo | Hoje |
-| --- | --- |
-| GitHub (issues, branches, PRs) | GitHub e Bitbucket Cloud como hosts; GitHub Issues, Jira e API/VS Code (MCP) como fontes |
-| n8n recebendo webhooks | Webhooks assinados e polling do Jira direto no NestJS (sem n8n) |
-| NestJS Orchestrator | Sim: aceita tarefas, controla estado, tentativas, revisões, sub-tarefas e relatos ao tracker |
-| RabbitMQ com uma fila por agente | Uma fila de tarefas (`ai-dev-tasks`) + DLQ, alimentada por outbox |
-| Coder Agent | Sim (Codex ou Claude CLI, isolados, com fallback entre credenciais) |
-| Tester Agent | Testes do projeto rodam após o agente, no container do projeto; falhas voltam ao agente para correção |
-| Reviewer / Security Agent | Revisor de IA antes do PR (papel `reviewer`), checagens de segurança locais (`checks`) e revisão humana no PR (`/ai` ou Change request no Jira) |
-| Architect Agent | Ainda não; o plano vem das sub-tarefas do card |
-| Notifier Agent | Comentários e transições no Jira; respostas no PR |
-| PostgreSQL | Sim: estado, auditoria e outbox |
-| Redis | Não usado: locks via advisory locks do PostgreSQL |
-| OpenRouter / Ollama | Não; assinaturas/chaves Codex e Claude por empresa |
-| Docker | Containers descartáveis para preparar e testar o projeto; agentes em sandbox (bubblewrap) |
+| No modelo                        | Hoje                                                                                                                                            |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| GitHub (issues, branches, PRs)   | GitHub e Bitbucket Cloud como hosts; GitHub Issues, Jira e API/VS Code (MCP) como fontes                                                        |
+| n8n recebendo webhooks           | Webhooks assinados e polling do Jira direto no NestJS (sem n8n)                                                                                 |
+| NestJS Orchestrator              | Sim: aceita tarefas, controla estado, tentativas, revisões, sub-tarefas e relatos ao tracker                                                    |
+| RabbitMQ com uma fila por agente | Uma fila de tarefas (`ai-dev-tasks`) + DLQ, alimentada por outbox                                                                               |
+| Coder Agent                      | Sim (Codex ou Claude CLI, isolados, com fallback entre credenciais)                                                                             |
+| Tester Agent                     | Testes do projeto rodam após o agente, no container do projeto; falhas voltam ao agente para correção                                           |
+| Reviewer / Security Agent        | Revisor de IA antes do PR (papel `reviewer`), checagens de segurança locais (`checks`) e revisão humana no PR (`/ai` ou Change request no Jira) |
+| Architect Agent                  | Ainda não; o plano vem das sub-tarefas do card                                                                                                  |
+| Notifier Agent                   | Comentários e transições no Jira; respostas no PR                                                                                               |
+| PostgreSQL                       | Sim: estado, auditoria e outbox                                                                                                                 |
+| Redis                            | Não usado: locks via advisory locks do PostgreSQL                                                                                               |
+| OpenRouter / Ollama              | Não; assinaturas/chaves Codex e Claude por empresa                                                                                              |
+| Docker                           | Containers descartáveis para preparar e testar o projeto; agentes em sandbox (bubblewrap)                                                       |
 
 ### Fluxo implementado
 
@@ -121,8 +121,8 @@ Credenciais são **por empresa**, em `ai.credentials` do `tenants.yaml`: lista *
 ai:
   providers: [claude, codex]
   credentials:
-    - { id: claude-max, provider: claude }                                  # assinatura (login)
-    - { id: chatgpt, provider: codex }                                      # assinatura ChatGPT (login)
+    - { id: claude-max, provider: claude } # assinatura (login)
+    - { id: chatgpt, provider: codex } # assinatura ChatGPT (login)
     # - { id: anthropic-api, provider: claude, apiKey: '${EMPRESA_ANTHROPIC_API_KEY}' }
     # - { id: openai-api, provider: codex, apiKey: '${EMPRESA_OPENAI_API_KEY}' }
 ```
@@ -162,12 +162,12 @@ O sandbox copia apenas esse arquivo para o home temporário de cada execução; 
 Sem `ai.roles`, implementação e correção de testes usam as credenciais na ordem, e não há planner nem revisor. Para ligar os papéis (detalhes em [Papéis de IA](#papéis-de-ia-e-escolha-de-modelos-airoles)):
 
 ```yaml
-  roles:
-    coder: [claude-max, chatgpt]                              # Claude implementa; Codex se o Claude esgotar
-    fixer: [{ credential: claude-max, effort: medium }, chatgpt]
-    planner: [{ credential: claude-max, effort: high }]       # cards sem sub-tarefas
-    reviewer: [{ credential: chatgpt, effort: medium }]       # outro modelo revisa antes do PR
-  review: { rounds: 1 }
+roles:
+  coder: [claude-max, chatgpt] # Claude implementa; Codex se o Claude esgotar
+  fixer: [{ credential: claude-max, effort: medium }, chatgpt]
+  planner: [{ credential: claude-max, effort: high }] # cards sem sub-tarefas
+  reviewer: [{ credential: chatgpt, effort: medium }] # outro modelo revisa antes do PR
+review: { rounds: 1 }
 ```
 
 ### 5. Aplicar e verificar
@@ -184,12 +184,12 @@ Homologado neste ambiente, sempre pelo sandbox real (criar um arquivo, como um c
 
 O worker tenta as credenciais na ordem configurada, pulando as que estão em espera:
 
-| Falha da CLI | O que acontece |
-|---|---|
+| Falha da CLI                                     | O que acontece                                                                                                                           |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Tokens/créditos/limite de uso acabaram (`quota`) | Credencial em espera por `cooldown.quotaMinutes` (padrão 6 h) ou pelo prazo que a CLI informar ("try again in 2 days"); a próxima assume |
-| Rate limit / sobrecarga (`rate_limit`) | Espera `rateLimitMinutes` (padrão 5 min) ou o prazo informado; a próxima assume |
-| Chave inválida / login expirado (`auth`) | Espera `authMinutes` (padrão 24 h) até você corrigir; a próxima assume |
-| Qualquer outra falha (código, testes, timeout) | **Não** troca de credencial: é problema da tarefa, e repetir com todas só multiplicaria custo |
+| Rate limit / sobrecarga (`rate_limit`)           | Espera `rateLimitMinutes` (padrão 5 min) ou o prazo informado; a próxima assume                                                          |
+| Chave inválida / login expirado (`auth`)         | Espera `authMinutes` (padrão 24 h) até você corrigir; a próxima assume                                                                   |
+| Qualquer outra falha (código, testes, timeout)   | **Não** troca de credencial: é problema da tarefa, e repetir com todas só multiplicaria custo                                            |
 
 Antes de cada execução da IA o workspace volta ao commit base, descartando edições parciais de uma execução interrompida. O estado das credenciais fica no banco (`ai_credential_states`) e vale para todas as tarefas da empresa: uma chave esgotada não é tentada de novo até o prazo passar. Se **todas** estiverem em espera, a tarefa não falha: fica `PENDING` na etapa `WAITING_CAPACITY` e volta sozinha quando a primeira credencial liberar, sem consumir tentativas. `get_task`/`GET .../tasks/:id` mostram `agentAttempts` (qual credencial rodou e por que as anteriores falharam), e `ai_status`/`GET /api/tenants/:empresa/ai` mostram quais estão disponíveis e até quando. Cada credencial lista também os papéis que atende, com modelo e esforço.
 
@@ -197,12 +197,12 @@ Antes de cada execução da IA o workspace volta ao commit base, descartando edi
 
 Cada execução de IA tem um papel, e cada papel tem sua lista de credenciais (com o mesmo fallback acima), seu modelo e seu esforço de raciocínio:
 
-| Papel | Quando roda | Padrão sem `roles` |
-|---|---|---|
-| `coder` | Implementação, revisões (`/ai`, Change request) e ajustes pedidos pelo revisor | Todas as credenciais, na ordem |
-| `fixer` | Corrigir a suíte oficial que falhou depois do coder | Igual ao `coder` |
-| `planner` | Antes do coder, em cards **sem sub-tarefas** (as sub-tarefas já são o plano); lê o projeto e escreve um plano | **Desligado** |
-| `reviewer` | Depois dos testes passarem e antes do commit; revisa o diff | **Desligado** |
+| Papel      | Quando roda                                                                                                   | Padrão sem `roles`             |
+| ---------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `coder`    | Implementação, revisões (`/ai`, Change request) e ajustes pedidos pelo revisor                                | Todas as credenciais, na ordem |
+| `fixer`    | Corrigir a suíte oficial que falhou depois do coder                                                           | Igual ao `coder`               |
+| `planner`  | Antes do coder, em cards **sem sub-tarefas** (as sub-tarefas já são o plano); lê o projeto e escreve um plano | **Desligado**                  |
+| `reviewer` | Depois dos testes passarem e antes do commit; revisa o diff                                                   | **Desligado**                  |
 
 `planner` e `reviewer` só rodam quando listados: assim nunca caem, sem você decidir, numa IA fraca ou cara. Os dois rodam com o workspace **montado somente leitura** (e o Claude sem as ferramentas de edição; o Codex com `--sandbox read-only`; o Gemini em modo `plan`). São opcionais: sem capacidade ou com resposta ilegível, a entrega segue sem eles e o PR registra isso.
 
@@ -210,15 +210,20 @@ Cada execução de IA tem um papel, e cada papel tem sua lista de credenciais (c
 ai:
   providers: [claude, codex, openrouter]
   credentials:
-    - { id: claude-max, provider: claude }                    # assinatura
-    - { id: chatgpt, provider: codex }                        # assinatura ChatGPT
-    - { id: router, provider: openrouter, apiKey: '${OPENROUTER_API_KEY}', model: deepseek/deepseek-chat }
+    - { id: claude-max, provider: claude } # assinatura
+    - { id: chatgpt, provider: codex } # assinatura ChatGPT
+    - {
+        id: router,
+        provider: openrouter,
+        apiKey: '${OPENROUTER_API_KEY}',
+        model: deepseek/deepseek-chat,
+      }
   roles:
-    coder:    [{ credential: claude-max, model: opus, effort: high }, chatgpt]
-    fixer:    [{ credential: claude-max, model: sonnet, effort: medium }, chatgpt]
-    planner:  [{ credential: claude-max, model: opus, effort: high }]   # nunca um modelo fraco
-    reviewer: [{ credential: chatgpt, effort: medium }]                 # outro modelo que o coder
-  review: { rounds: 1 }   # passadas do revisor que podem devolver ao coder (1 a 3)
+    coder: [{ credential: claude-max, model: opus, effort: high }, chatgpt]
+    fixer: [{ credential: claude-max, model: sonnet, effort: medium }, chatgpt]
+    planner: [{ credential: claude-max, model: opus, effort: high }] # nunca um modelo fraco
+    reviewer: [{ credential: chatgpt, effort: medium }] # outro modelo que o coder
+  review: { rounds: 1 } # passadas do revisor que podem devolver ao coder (1 a 3)
 ```
 
 - Um item de papel é o id da credencial ou `{ credential, model, effort }`; `model`/`effort` da credencial valem quando o papel não define. `effort`: `low`, `medium`, `high`, `xhigh`, `max` (Claude `--effort`; Codex `model_reasoning_effort`, com `max` → `xhigh`; ignorado no Gemini).
@@ -251,10 +256,20 @@ roles:
 ```yaml
 providers: [claude, codex, openrouter]
 credentials:
-  - { id: openrouter-1, provider: openrouter, apiKey: '${OPENROUTER_API_KEY_1}', model: 'cohere/north-mini-code:free' }
-  - { id: openrouter-2, provider: openrouter, apiKey: '${OPENROUTER_API_KEY_2}', model: 'poolside/laguna-s-2.1:free' }
+  - {
+      id: openrouter-1,
+      provider: openrouter,
+      apiKey: '${OPENROUTER_API_KEY_1}',
+      model: 'cohere/north-mini-code:free',
+    }
+  - {
+      id: openrouter-2,
+      provider: openrouter,
+      apiKey: '${OPENROUTER_API_KEY_2}',
+      model: 'poolside/laguna-s-2.1:free',
+    }
 roles:
-  reviewer: [openrouter-1, openrouter-2]   # 429 põe a chave em espera e a próxima assume
+  reviewer: [openrouter-1, openrouter-2] # 429 põe a chave em espera e a próxima assume
 ```
 
 - **Homologado pelo sandbox** (criar um arquivo com as ferramentas do Codex, como um coder, e responder no formato do revisor): `cohere/north-mini-code:free` e `poolside/laguna-s-2.1:free`. O OpenRouter aceita a requisição do Codex sem ajustes.
@@ -264,10 +279,10 @@ roles:
 
 **Groq** e **Gemini** foram testados pelo Codex 0.160, que só fala a API Responses e sempre envia campos próprios:
 
-| Serviço | Resultado do teste | Situação |
-|---|---|---|
-| Groq | Recusa `client_metadata`, ferramentas não-`function` (`web_search`, `namespace`) e `reasoning.summary`; no plano gratuito, o limite (8.000 tokens/min) é menor que uma única requisição do Codex (~5.800 tokens só de instruções) | Não suportado |
-| Gemini (AI Studio) | Não tem API Responses (404); só chat completions, que o Codex não usa mais | Suportado pelo **Gemini CLI** (`provider: gemini`, acima) |
+| Serviço            | Resultado do teste                                                                                                                                                                                                                | Situação                                                  |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Groq               | Recusa `client_metadata`, ferramentas não-`function` (`web_search`, `namespace`) e `reasoning.summary`; no plano gratuito, o limite (8.000 tokens/min) é menor que uma única requisição do Codex (~5.800 tokens só de instruções) | Não suportado                                             |
+| Gemini (AI Studio) | Não tem API Responses (404); só chat completions, que o Codex não usa mais                                                                                                                                                        | Suportado pelo **Gemini CLI** (`provider: gemini`, acima) |
 
 A classificação lê apenas o canal de erro da CLI (eventos de erro do JSON do Codex, resultado de erro do Claude e o final do stderr), nunca a saída do agente: um teste que imprime "429" não parece chave esgotada. Mensagens de erro de provedores mudam; se uma falha de capacidade cair como falha comum, o padrão fica em `src/agents/failure.ts`. `ai.providers` continua sendo a política do contrato: credencial de provedor fora da lista impede a aplicação de subir.
 
@@ -289,22 +304,22 @@ Isolamento entre empresas: workspaces em `WORKSPACE_ROOT/<empresa>/<task>`, logi
 
 ## Variáveis `.env`
 
-| Variável | Finalidade |
-|---|---|
-| NODE_ENV, PORT | Ambiente e porta da API (3000) |
-| DATABASE_HOST, DATABASE_PORT | PostgreSQL, padrão localhost:5432 |
-| DATABASE_NAME, DATABASE_USER, DATABASE_PASSWORD | Banco e credenciais |
-| RABBITMQ_URL | Broker, padrão local `amqp://guest:guest@localhost:5672` |
-| TENANTS_FILE | Caminho do `tenants.yaml` |
-| WORKSPACE_ROOT | Diretório dedicado, padrão `./workspaces` |
-| CODEX_BIN, CLAUDE_BIN | Executáveis instalados em diretórios visíveis no sandbox |
-| CODEX_TIMEOUT_MS, CLAUDE_TIMEOUT_MS | 1.800.000 ms cada |
-| AGENT_HOME | Raiz dedicada de autenticação: `<empresa>/<codex\|claude>` |
-| BWRAP_BIN | Executável `bwrap` obrigatório |
-| MAX_OUTPUT_BYTES | Limite por stream, padrão 1 MiB; excesso mata o processo |
-| MAX_ATTEMPTS, RETRY_DELAY_MS | 3 tentativas, intervalo de 30 s × tentativa |
-| TEST_TIMEOUT_MS | 600.000 ms |
-| `<EMPRESA>_*` | Segredos referenciados pelo `tenants.yaml` |
+| Variável                                        | Finalidade                                                 |
+| ----------------------------------------------- | ---------------------------------------------------------- |
+| NODE_ENV, PORT                                  | Ambiente e porta da API (3000)                             |
+| DATABASE_HOST, DATABASE_PORT                    | PostgreSQL, padrão localhost:5432                          |
+| DATABASE_NAME, DATABASE_USER, DATABASE_PASSWORD | Banco e credenciais                                        |
+| RABBITMQ_URL                                    | Broker, padrão local `amqp://guest:guest@localhost:5672`   |
+| TENANTS_FILE                                    | Caminho do `tenants.yaml`                                  |
+| WORKSPACE_ROOT                                  | Diretório dedicado, padrão `./workspaces`                  |
+| CODEX_BIN, CLAUDE_BIN                           | Executáveis instalados em diretórios visíveis no sandbox   |
+| CODEX_TIMEOUT_MS, CLAUDE_TIMEOUT_MS             | 1.800.000 ms cada                                          |
+| AGENT_HOME                                      | Raiz dedicada de autenticação: `<empresa>/<codex\|claude>` |
+| BWRAP_BIN                                       | Executável `bwrap` obrigatório                             |
+| MAX_OUTPUT_BYTES                                | Limite por stream, padrão 1 MiB; excesso mata o processo   |
+| MAX_ATTEMPTS, RETRY_DELAY_MS                    | 3 tentativas, intervalo de 30 s × tentativa                |
+| TEST_TIMEOUT_MS                                 | 600.000 ms                                                 |
+| `<EMPRESA>_*`                                   | Segredos referenciados pelo `tenants.yaml`                 |
 
 Os comandos `test` e `prepare` de cada projeto são arrays de argv, executados sem shell e dentro do sandbox; `test` roda sem rede. `prepare: [npm, ci, --ignore-scripts]` instala dependências sem lifecycle scripts; pacotes nativos podem exigir preparação específica confiável. Não copie comandos de Issues para esses campos.
 
@@ -316,7 +331,7 @@ Para uma GitHub App, configure essas permissões, assine Issues e instale a App 
 
 ## Usar pelo VS Code (MCP) e enviar arquivos
 
-Além de Issues, tarefas podem ser criadas pela API do operador, com anexos (prints, PDFs, logs, specs). O jeito prático é o servidor MCP: no Claude Code do VS Code você diz *"manda pro time da acme: corrige o bug X, anexa esse print"* e ele chama a ferramenta.
+Além de Issues, tarefas podem ser criadas pela API do operador, com anexos (prints, PDFs, logs, specs). O jeito prático é o servidor MCP: no Claude Code do VS Code você diz _"manda pro time da acme: corrige o bug X, anexa esse print"_ e ele chama a ferramenta.
 
 1. No `.env`, defina `API_TOKEN` (`openssl rand -hex 32`) e rode `npm run build`.
 2. Mantenha a API (`npm run start`) e o worker ligados.
@@ -361,11 +376,11 @@ Projetos cujo ambiente é Docker (serviços do compose, versão específica da l
 
 Depois que os testes passam (e de novo depois de cada ajuste do revisor), três ferramentas gratuitas rodam em containers descartáveis, **na sua máquina**: nenhum código sai dela.
 
-| Ferramenta | O que pega | Rede |
-|---|---|---|
-| `gitleaks` | Senhas, tokens e chaves no código | Nenhuma |
-| `semgrep` (Community Edition) | Falhas de segurança no código (SQL injection, XSS, `eval`, criptografia fraca...) | Só para baixar as regras (`--metrics=off`) |
-| `osv` (osv-scanner) | Dependências com vulnerabilidade conhecida, quando a mudança altera um lockfile | Consulta o osv.dev com nome e versão dos pacotes |
+| Ferramenta                    | O que pega                                                                        | Rede                                             |
+| ----------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `gitleaks`                    | Senhas, tokens e chaves no código                                                 | Nenhuma                                          |
+| `semgrep` (Community Edition) | Falhas de segurança no código (SQL injection, XSS, `eval`, criptografia fraca...) | Só para baixar as regras (`--metrics=off`)       |
+| `osv` (osv-scanner)           | Dependências com vulnerabilidade conhecida, quando a mudança altera um lockfile   | Consulta o osv.dev com nome e versão dos pacotes |
 
 **Só o que a mudança introduz conta.** Os arquivos alterados são copiados como estão agora e como eram no commit base, a mesma ferramenta roda nos dois, e o que já existia é descartado (comparando a regra e o trecho de código, não o número da linha: código legado que só mudou de lugar não vira "novo"). Assim, código legado nunca trava uma entrega, e o custo acompanha o tamanho da mudança, não do repositório (num projeto real: 98 arquivos em ~1 min).
 
@@ -381,8 +396,8 @@ projects:
       # Regex (sem distinguir maiúsculas) dos caminhos analisados pelo Semgrep: o escopo do time.
       # Segredos são checados em qualquer arquivo alterado.
       scope: '(^|/)[^/]*review[^/]*(/|$)'
-      semgrep: { configs: [p/php, p/javascript] }   # conjuntos de regras do registro do Semgrep
-      reportOnly: [osv]   # só informa (atualizar dependências está fora do escopo do time)
+      semgrep: { configs: [p/php, p/javascript] } # conjuntos de regras do registro do Semgrep
+      reportOnly: [osv] # só informa (atualizar dependências está fora do escopo do time)
       # blocking: false   # tudo só informativo
       # images: { semgrep: semgrep/semgrep:1.178.0 }   # para fixar versões
 ```
@@ -418,7 +433,7 @@ Ambiguidade é grave: se algo do card pode mudar o resultado e não está claro,
 
 ### Avisos no Telegram
 
-Com `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID` no `.env`, o bot avisa cada decisão nova (dúvida da IA ou falha) e cada PR aberto (`TELEGRAM_NOTIFY_PR=false` desliga os de PR). Nas falhas, os botões **Repetir** e **Cancelar** respondem a decisão direto do Telegram; dúvidas e "repetir com instrução" são respondidas pelo VS Code (e pelo front, a partir da etapa 3).
+Com `TELEGRAM_BOT_TOKEN` e `TELEGRAM_CHAT_ID` no `.env`, o bot avisa cada decisão nova (dúvida da IA ou falha) e cada PR aberto (`TELEGRAM_NOTIFY_PR=false` desliga os de PR). Nas falhas, os botões **Repetir** e **Cancelar** respondem a decisão direto do Telegram. Nas dúvidas também: uma pergunta com opções (o portão de um método, por exemplo) traz um botão por opção, e qualquer dúvida é respondida com **Responder** na mensagem do aviso — o texto inteiro para uma pergunta, uma linha numerada por pergunta (`1. …`, `2. …`) para várias; fora desse formato o bot explica e nada é registrado. "Repetir com instrução" continua pelo front e pelo VS Code.
 
 - Para configurar: crie o bot com o @BotFather (`/newbot`), coloque o token no `.env`, mande "oi" ao bot e pegue o id do seu chat (`https://api.telegram.org/bot<token>/getUpdates`, campo `chat.id`). Reinicie a API.
 - Só esse chat é aceito: mensagens e cliques de qualquer outro são ignorados.
@@ -458,18 +473,18 @@ As unidades (`deploy/systemd/`) reiniciam sozinhas em caso de falha e usam o Nod
 
 Quando o PR não ficou como esperado, o revisor pede o ajuste do jeito que já trabalha, e a IA aplica num novo commit no mesmo PR:
 
-| Onde | Como o pedido chega |
-|---|---|
-| **GitHub** | Review com **"Request changes"**: o texto da revisão e todos os comentários dela nas linhas do código (arquivo, linha, respostas) viram uma revisão. Aprovações e reviews só com comentário não disparam nada. Precisa do evento **Pull request reviews** no webhook (ou "Send me everything"). |
+| Onde                                                     | Como o pedido chega                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **GitHub**                                               | Review com **"Request changes"**: o texto da revisão e todos os comentários dela nas linhas do código (arquivo, linha, respostas) viram uma revisão. Aprovações e reviews só com comentário não disparam nada. Precisa do evento **Pull request reviews** no webhook (ou "Send me everything").                                                                                                                                                            |
 | **Jira + Bitbucket/GitHub** (sem webhook do repositório) | Card movido para o status de **Change request**: os comentários novos **do card e do PR** — inclusive os feitos nas linhas do código, com arquivo e linha — viram uma única revisão. Comentários resolvidos, rascunhos (ainda não publicados), apagados e os do próprio AI Dev Team ficam de fora; cada comentário é usado uma vez. Se o PR não puder ser lido naquele momento, o card fica para a próxima leitura, em vez de aplicar só metade do pedido. |
-| **Comentário `/ai ...`** | Pedido avulso, a qualquer momento (GitHub; Bitbucket só com webhook). |
+| **Comentário `/ai ...`**                                 | Pedido avulso, a qualquer momento (GitHub; Bitbucket só com webhook).                                                                                                                                                                                                                                                                                                                                                                                      |
 
 - **Comentários de bots** (contas de aplicativo, como o agente de qualidade do pipeline) são ignorados por padrão: são longos, se repetem a cada execução do pipeline e vão além do card. Para incluí-los no projeto: `pullRequest: { botComments: true }`.
 - O agente trata cada ponto; conversa sem pedido de mudança não exige alteração. O que estiver errado, ambíguo ou fora do escopo ele **não aplica às cegas**: explica.
 - **Resposta no PR:** o AI Dev Team comenta o commit aplicado e, ponto a ponto, o que foi feito e o que não foi aplicado (com o motivo).
 
 - **`/ai` no PR do GitHub:** comente `/ai troque o nome da função para greet e cubra o caso vazio`. O comentário precisa começar com `/ai`, ser de um autor em `allowedAssociations` e não vir de bot. O webhook precisa do evento **Issue comments**, além de Issues.
-- **No VS Code:** *"pede pro time ajustar o PR da tarefa X: ..."* → ferramenta `revise_task` (aceita `files`). Serve para tarefas de qualquer origem, inclusive Jira e API.
+- **No VS Code:** _"pede pro time ajustar o PR da tarefa X: ..."_ → ferramenta `revise_task` (aceita `files`). Serve para tarefas de qualquer origem, inclusive Jira e API.
 - **API:** `POST /api/tenants/:empresa/tasks/:id/revisions` (multipart: `instructions`, `files`).
 
 Como funciona:
@@ -546,7 +561,7 @@ Payload reduzido de exemplo:
     "name": "demo",
     "full_name": "example/demo",
     "default_branch": "main",
-    "owner": {"login": "example"}
+    "owner": { "login": "example" }
   },
   "issue": {
     "id": 123,
@@ -603,27 +618,27 @@ Logs JSON incluem evento, taskId, issueId nas etapas, provider, status e duraç�
 
 O mascaramento remove secrets conhecidos e padrões comuns; não garante detectar todo segredo que o repositório ou a IA invente. Evite dados sensíveis no repositório alvo e restrinja acesso ao banco de auditoria.
 
-| Sintoma | Verificação/ação |
-|---|---|
-| HTTP 401 | Secret ou bytes do corpo alterados pelo proxy |
-| HTTP 403 | Owner/repo ou associação do autor não permitidos |
-| HTTP 400/413 | Formato inválido ou corpo acima do limite |
-| PENDING sem execução | Broker/worker fora do ar; confira outbox não publicada e logs |
-| Worker recusa inicialização | Linux e usuário não root são obrigatórios |
-| bwrap “Operation not permitted” | Host bloqueia user namespaces; use VM Linux compatível, sem desligar sandbox |
-| CLI não encontrada | Instale em /usr ou /usr/local e configure caminho absoluto |
-| Codex/Claude sem autenticação | `apiKey` da credencial válida ou login em `AGENT_HOME/<empresa>/<credencial>`; a credencial fica em espera `auth` até corrigir. Veja `ai_status` |
-| Tarefa parada em `WAITING_CAPACITY` | Todas as credenciais da empresa em espera; `ai_status` mostra até quando e o último erro. Adicione outra credencial ou aguarde |
-| API/worker não sobem: `tenants: ...` | Campo inválido ou variável `${...}` ausente; a mensagem indica o caminho. Rode `npm run doctor` |
-| `credential "x" uses provider "y", not in ai.providers` | Credencial de provedor que o contrato da empresa não permite; ajuste a config, não o código |
-| HTTP 404 no webhook | Empresa ou fonte da URL não existe no `tenants.yaml` |
-| Claude não executa um comando | Política acceptEdits é conservadora; testes continuam sob responsabilidade do worker |
-| NO_CHANGES | A IA não produziu diff; revise a Issue e AgentRun |
-| Testes falham | Corrija o projeto/ambiente/comando; não é feito push |
-| Git push falha | Token, regras da organização, rede e branch remota; nunca é feito force push |
-| Falha durante clone | Workspace parcial falha com segurança; preserve-o para diagnóstico e abra nova Issue após corrigir |
-| PR criado mas resposta perdida | Próxima tentativa procura PR existente pela branch |
-| Task FAILED | Terminal no MVP; não há endpoint de retry manual. Corrija a causa e abra nova Issue |
+| Sintoma                                                 | Verificação/ação                                                                                                                                 |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| HTTP 401                                                | Secret ou bytes do corpo alterados pelo proxy                                                                                                    |
+| HTTP 403                                                | Owner/repo ou associação do autor não permitidos                                                                                                 |
+| HTTP 400/413                                            | Formato inválido ou corpo acima do limite                                                                                                        |
+| PENDING sem execução                                    | Broker/worker fora do ar; confira outbox não publicada e logs                                                                                    |
+| Worker recusa inicialização                             | Linux e usuário não root são obrigatórios                                                                                                        |
+| bwrap “Operation not permitted”                         | Host bloqueia user namespaces; use VM Linux compatível, sem desligar sandbox                                                                     |
+| CLI não encontrada                                      | Instale em /usr ou /usr/local e configure caminho absoluto                                                                                       |
+| Codex/Claude sem autenticação                           | `apiKey` da credencial válida ou login em `AGENT_HOME/<empresa>/<credencial>`; a credencial fica em espera `auth` até corrigir. Veja `ai_status` |
+| Tarefa parada em `WAITING_CAPACITY`                     | Todas as credenciais da empresa em espera; `ai_status` mostra até quando e o último erro. Adicione outra credencial ou aguarde                   |
+| API/worker não sobem: `tenants: ...`                    | Campo inválido ou variável `${...}` ausente; a mensagem indica o caminho. Rode `npm run doctor`                                                  |
+| `credential "x" uses provider "y", not in ai.providers` | Credencial de provedor que o contrato da empresa não permite; ajuste a config, não o código                                                      |
+| HTTP 404 no webhook                                     | Empresa ou fonte da URL não existe no `tenants.yaml`                                                                                             |
+| Claude não executa um comando                           | Política acceptEdits é conservadora; testes continuam sob responsabilidade do worker                                                             |
+| NO_CHANGES                                              | A IA não produziu diff; revise a Issue e AgentRun                                                                                                |
+| Testes falham                                           | Corrija o projeto/ambiente/comando; não é feito push                                                                                             |
+| Git push falha                                          | Token, regras da organização, rede e branch remota; nunca é feito force push                                                                     |
+| Falha durante clone                                     | Workspace parcial falha com segurança; preserve-o para diagnóstico e abra nova Issue após corrigir                                               |
+| PR criado mas resposta perdida                          | Próxima tentativa procura PR existente pela branch                                                                                               |
+| Task FAILED                                             | Terminal no MVP; não há endpoint de retry manual. Corrija a causa e abra nova Issue                                                              |
 
 O timeout de acknowledgement do RabbitMQ no Compose é 6h. Uma entrega pode rodar a IA uma vez por credencial disponível, então mantenha `consumer_timeout` acima de `nº de credenciais × timeout do agente + prepare + testes` da maior empresa (padrão: 3 × 30 min + 2 × 10 min). Anexos também não são removidos automaticamente. As linhas de outbox/DLQ/auditoria e os workspaces não são removidos automaticamente. Defina retenção operacional.
 

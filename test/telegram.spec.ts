@@ -213,4 +213,118 @@ describe('TelegramService', () => {
     expect(x.orchestrator.answerDecision).toHaveBeenCalledTimes(2);
     expect(x.fake.answerCallbackQuery).toHaveBeenCalledWith('cb1', 'Feito: repetindo a tarefa.');
   });
+
+  async function asked(
+    orchestrator: OrchestratorService,
+    questions: { text: string; options?: string[] }[],
+  ) {
+    const task = await orchestrator.accept('acme', item);
+    await db.getRepository(Task).update(task.id, { status: 'WAITING', stage: 'WAITING_INPUT' });
+    const decision = await db.getRepository(Decision).save({
+      tenantId: 'acme',
+      taskId: task.id,
+      revisionId: null,
+      type: 'question',
+      status: 'open',
+      questions,
+    });
+    await db
+      .getRepository(Notification)
+      .save({ kind: 'decision', decisionId: decision.id, status: 'sent', messageId: '88' });
+    return { task, decision };
+  }
+  const reply = (text: string, to = 88, from = Number(chat)) => ({
+    update_id: 2,
+    message: {
+      message_id: 90,
+      chat: { id: from },
+      from: { id: from },
+      text,
+      reply_to_message: { message_id: to, chat: { id: from }, text: '❓ Acme · #7' },
+    },
+  });
+  describe('answering questions from Telegram', () => {
+    test('a single question with options gets one button per option', async () => {
+      const x = setup();
+      const { decision } = await asked(x.orchestrator, [
+        { text: 'Portão', options: ['Entregue o escopo 7', 'Outra'] },
+      ]);
+      await db
+        .getRepository(Notification)
+        .update({ decisionId: decision.id }, { status: 'pending' });
+      await x.service.sendPending();
+      const keyboard = x.fake.sendMessage.mock.calls[0][2];
+      expect(keyboard.inline_keyboard).toEqual([
+        [{ text: 'Entregue o escopo 7', callback_data: `d:${decision.id}:o0` }],
+        [{ text: 'Outra', callback_data: `d:${decision.id}:o1` }],
+      ]);
+      expect(x.fake.sendMessage.mock.calls[0][1]).toContain('Responder');
+    });
+    test('an option button answers with the exact option text', async () => {
+      const x = setup();
+      const { task, decision } = await asked(x.orchestrator, [
+        { text: 'Portão', options: ['Entregue o escopo 7'] },
+      ]);
+      await x.service.handleUpdate({
+        update_id: 3,
+        callback_query: {
+          id: 'cb2',
+          data: `d:${decision.id}:o0`,
+          from: { id: Number(chat) },
+          message: { message_id: 88, chat: { id: Number(chat) }, text: '❓ Acme · #7' },
+        },
+      });
+      expect(await db.getRepository(Decision).findOneByOrFail({ id: decision.id })).toMatchObject({
+        status: 'answered',
+        answeredVia: 'telegram',
+        answer: { answers: ['Entregue o escopo 7'] },
+      });
+      expect((await db.getRepository(Task).findOneByOrFail({ id: task.id })).status).toBe(
+        'PENDING',
+      );
+      expect(x.fake.editMessageText).toHaveBeenCalledWith(
+        chat,
+        '88',
+        expect.stringContaining('Entregue o escopo 7'),
+      );
+    });
+    test('replying to the warning answers a single question with the whole text', async () => {
+      const x = setup();
+      const { decision } = await asked(x.orchestrator, [{ text: 'Qual tela?' }]);
+      await x.service.handleUpdate(reply('A de perfil,\ncom o botão novo'));
+      expect(await db.getRepository(Decision).findOneByOrFail({ id: decision.id })).toMatchObject({
+        status: 'answered',
+        answeredVia: 'telegram',
+        answer: { answers: ['A de perfil,\ncom o botão novo'] },
+      });
+      expect(x.fake.sendMessage).toHaveBeenCalledWith(chat, '✅ Resposta registrada.');
+    });
+    test('several questions: one numbered line each; anything else explains the format', async () => {
+      const x = setup();
+      const { decision } = await asked(x.orchestrator, [{ text: 'A?' }, { text: 'B?' }]);
+      await x.service.handleUpdate(reply('só uma resposta'));
+      expect((await db.getRepository(Decision).findOneByOrFail({ id: decision.id })).status).toBe(
+        'open',
+      );
+      expect(x.fake.sendMessage).toHaveBeenLastCalledWith(chat, expect.stringMatching(/1\./));
+      await x.service.handleUpdate(reply('1. sim\n2) não, use o campo name'));
+      expect(
+        (await db.getRepository(Decision).findOneByOrFail({ id: decision.id })).answer,
+      ).toEqual({
+        answers: ['sim', 'não, use o campo name'],
+      });
+    });
+    test('replies from another chat, to another message or to an answered decision do nothing', async () => {
+      const x = setup();
+      const { decision } = await asked(x.orchestrator, [{ text: 'Qual tela?' }]);
+      await x.service.handleUpdate(reply('perfil', 88, 111));
+      await x.service.handleUpdate(reply('perfil', 5));
+      expect((await db.getRepository(Decision).findOneByOrFail({ id: decision.id })).status).toBe(
+        'open',
+      );
+      await db.getRepository(Decision).update(decision.id, { status: 'answered' });
+      await x.service.handleUpdate(reply('perfil'));
+      expect(x.fake.sendMessage).toHaveBeenLastCalledWith(chat, 'Essa decisão já foi respondida.');
+    });
+  });
 });
