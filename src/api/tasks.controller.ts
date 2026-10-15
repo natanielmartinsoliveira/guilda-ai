@@ -488,16 +488,25 @@ export class TasksController {
         key: z.string().max(100),
         // A sub-task started on its own: the branch it starts from (checked by the source).
         base: z.string().trim().max(200).regex(BRANCH).optional(),
+        // The route of the project's method, stated by the operator (sources without route tags).
+        route: z
+          .string()
+          .regex(/^[a-z][a-z0-9-]*$/)
+          .optional(),
       })
       .safeParse(body);
     const key = parsed.success ? normalizeCardKey(starter.key, parsed.data.key) : undefined;
     if (!parsed.success || !key)
       throw new BadRequestException(`Use a chave do card, ex.: ${starter.example}`);
-    const base = parsed.data.base;
+    const { base, route } = parsed.data;
+    if (route && !starter.routes)
+      throw new BadRequestException('Esta origem não recebe rota ao iniciar o card');
     return this.jira(async () => {
-      const result = await (base
-        ? starter.start(tenant, source, key, base)
-        : starter.start(tenant, source, key));
+      const result = await (route
+        ? starter.start(tenant, source, key, base, route)
+        : base
+          ? starter.start(tenant, source, key, base)
+          : starter.start(tenant, source, key));
       res.status('skipped' in result ? 200 : 202);
       return result;
     });

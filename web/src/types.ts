@@ -12,6 +12,8 @@ export interface Tenant {
     key: 'jira' | 'number';
     example: string;
     bases: boolean;
+    /** The operator may state the route of the project's method when starting a card. */
+    routes?: boolean;
   }[];
   /** A project with a company method: the operator picks one of its routes for each change. */
   projects: {

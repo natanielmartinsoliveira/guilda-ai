@@ -141,6 +141,7 @@ export const en: Record<Key, string> = {
   'new.seeTask': 'See the task',
   'new.pickProject': 'Pick the project',
   'new.route': 'Route ({method})',
+  'new.routeByTag': 'From the card tag',
   'new.pickRoute': 'Pick the route',
   'new.title': 'Title',
   'new.description': 'Description',

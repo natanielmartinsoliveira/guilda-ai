@@ -10,7 +10,15 @@ export interface CardStarter {
   label: string;
   key: KeyFormat;
   example: string;
-  start(tenant: Tenant, source: TenantSource, key: string, base?: string): Promise<IngestResult>;
+  /** Whether the operator may state the route of the project's method when starting a card. */
+  routes: boolean;
+  start(
+    tenant: Tenant,
+    source: TenantSource,
+    key: string,
+    base?: string,
+    route?: string,
+  ): Promise<IngestResult>;
   /** For sources with sub-tasks on their own: the branches one may start from. */
   bases?(tenant: Tenant, source: TenantSource, key: string): Promise<SubtaskBases>;
 }
@@ -38,6 +46,7 @@ export class CardStarters {
         label: 'Jira',
         key: 'jira',
         example: 'PF-123',
+        routes: false,
         start: (tenant, source, key, base) => jira.startIn(tenant, source as JiraSource, key, base),
         bases: (tenant, source, key) => jira.basesIn(tenant, source as JiraSource, key),
       },
@@ -46,8 +55,9 @@ export class CardStarters {
         label: 'Businessmap',
         key: 'number',
         example: '48816',
-        start: (tenant, source, key) =>
-          businessmap.startById(tenant, source as BusinessmapSource, Number(key)),
+        routes: true,
+        start: (tenant, source, key, _base, route) =>
+          businessmap.startById(tenant, source as BusinessmapSource, Number(key), route),
       },
     };
   }
@@ -69,6 +79,7 @@ export class CardStarters {
               key: starter.key,
               example: starter.example,
               bases: !!starter.bases,
+              routes: starter.routes,
             },
           ]
         : [];

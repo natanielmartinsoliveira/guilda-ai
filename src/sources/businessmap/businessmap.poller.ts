@@ -86,6 +86,8 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
     client: BusinessmapClient,
     ref: BmCard,
     tags: Map<number, string>,
+    /** The route the operator chose when starting the card by hand. */
+    chosen?: string,
   ): Promise<IngestResult> {
     const externalId = String(ref.card_id);
     // Cards stay in the trigger column after being taken: already accepted ones cost one lookup.
@@ -144,13 +146,28 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
           externalId,
           `Tag de rota sem rota no método ${project.method.name}: ${unknown.join(', ')}`,
         );
-      const routes = tagged;
+      // The operator's choice, when starting by hand, stands in for a missing tag (never against one).
+      if (chosen && !known.includes(chosen))
+        return this.skip(
+          tenant,
+          source,
+          externalId,
+          `Rota ${chosen} não existe no método ${project.method.name}`,
+        );
+      if (chosen && tagged.length && (tagged.length > 1 || tagged[0] !== chosen))
+        return this.skip(
+          tenant,
+          source,
+          externalId,
+          `O card tem a tag de rota ${tagged.join(', ')}; a rota escolhida foi ${chosen}`,
+        );
+      const routes = chosen ? [chosen] : tagged;
       if (!routes.length)
         return this.skip(
           tenant,
           source,
           externalId,
-          'Card sem tag de rota: escolha a rota no card',
+          'Card sem tag de rota: escolha a rota no card ou ao iniciá-lo pelo painel',
         );
       if (routes.length > 1)
         return this.skip(
@@ -193,7 +210,12 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
    * The operator picked this card (front): taken like a polled one, whatever its column, tags
    * or section — the repository and route rules still apply. Still read-only on the board.
    */
-  async startById(tenant: Tenant, source: BusinessmapSource, id: number): Promise<IngestResult> {
+  async startById(
+    tenant: Tenant,
+    source: BusinessmapSource,
+    id: number,
+    route?: string,
+  ): Promise<IngestResult> {
     const client = this.client(source);
     const card = await client.card(id);
     // Only cards of this source's board: another board's card belongs to another source.
@@ -201,7 +223,7 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
       return { skipped: `O card ${id} não é do quadro desta origem (quadro ${source.boardId})` };
     const tags = await client.tags();
     return this.exclusive(`${tenant.id}/${source.id}`, () =>
-      this.ingest(tenant, source, client, card, tags),
+      this.ingest(tenant, source, client, card, tags, route),
     );
   }
   private skip(tenant: Tenant, source: BusinessmapSource, card: string, reason: string) {

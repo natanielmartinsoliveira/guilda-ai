@@ -139,6 +139,7 @@ export const ptBR = {
   'new.seeTask': 'Ver a tarefa',
   'new.pickProject': 'Escolha o projeto',
   'new.route': 'Rota ({method})',
+  'new.routeByTag': 'Pela tag do card',
   'new.pickRoute': 'Escolha a rota',
   'new.title': 'Título',
   'new.description': 'Descrição',

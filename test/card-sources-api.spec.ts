@@ -13,16 +13,23 @@ const auth = {
   Authorization: `Bearer ${process.env.API_TOKEN}`,
   'Content-Type': 'application/json',
 };
-const calls: { source: string; key: string; base?: string }[] = [];
+const calls: { source: string; key: string; base?: string; route?: string }[] = [];
 let failWith: string | undefined;
 const starter = {
   type: 'jira',
   label: 'Jira',
   key: 'jira',
   example: 'PF-123',
-  start: async (_t: unknown, source: { id: string }, key: string, base?: string) => {
+  routes: false,
+  start: async (
+    _t: unknown,
+    source: { id: string },
+    key: string,
+    base?: string,
+    route?: string,
+  ) => {
     if (failWith) throw new Error(failWith);
-    calls.push({ source: source.id, key, ...(base ? { base } : {}) });
+    calls.push({ source: source.id, key, ...(base ? { base } : {}), ...(route ? { route } : {}) });
     return key === 'PF-9'
       ? { skipped: 'Esse card já tem tarefa', taskId: 't-old' }
       : { taskId: 't-new' };
@@ -45,6 +52,7 @@ const starters = {
 };
 beforeEach(async () => {
   calls.length = 0;
+  starter.routes = false;
   failWith = undefined;
   db = await database();
   @Module({
@@ -119,4 +127,14 @@ test('bases: answered by sources that offer them, 404 otherwise', async () => {
   expect(
     (await fetch(`${url}/tenants/acme/sources/github/cards/PF-1/bases`, { headers: auth })).status,
   ).toBe(404);
+});
+
+test('a route goes to sources that take one; others refuse it; a bad name is a 400', async () => {
+  expect((await start('acme', 'jira', { key: 'PF-12', route: 'fix' })).status).toBe(400);
+  expect(calls).toEqual([]);
+  starter.routes = true;
+  expect((await start('acme', 'jira', { key: 'PF-12', route: 'Not A Route' })).status).toBe(400);
+  const r = await start('acme', 'jira', { key: 'PF-12', route: 'fix' });
+  expect(r.status).toBe(202);
+  expect(calls).toEqual([{ source: 'jira', key: 'PF-12', route: 'fix' }]);
 });

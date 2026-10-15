@@ -16,6 +16,7 @@ const JIRA = {
   key: 'jira' as const,
   example: 'PF-123',
   bases: true,
+  routes: false,
 };
 const BOARD = {
   id: 'businessmap',
@@ -24,6 +25,7 @@ const BOARD = {
   key: 'number' as const,
   example: '48816',
   bases: false,
+  routes: true,
 };
 const tenants: Tenant[] = [
   {
@@ -252,6 +254,46 @@ test('a Businessmap card: numeric key, no sub-task bases; with two sources the o
   await userEvent.click(screen.getByRole('button', { name: 'Iniciar card' }));
   expect(start).toHaveBeenCalledWith('initech', 'businessmap', '48816');
   expect(api.cardBases).not.toHaveBeenCalled();
+});
+test('a board without route tags: the operator states the route when starting the card', async () => {
+  const start = vi.spyOn(api, 'startCard').mockResolvedValue({ taskId: 'bm-2' });
+  renderWithLive(<NewTask />, {
+    path: '/nova',
+    route: '/nova',
+    live: {
+      tenants: [
+        {
+          id: 'initech',
+          name: 'Initech',
+          providers: [],
+          jira: false,
+          sources: [BOARD, JIRA],
+          projects: [
+            {
+              id: 'orders',
+              repository: 'shop/orders',
+              method: 'review-gate',
+              routes: [
+                { id: 'feature', label: 'Funcionalidade nova' },
+                { id: 'fix', label: 'Correção' },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  });
+  const routes = screen.getByLabelText('Rota (review-gate)') as HTMLSelectElement;
+  expect([...routes.options].map((o) => o.value)).toEqual(['', 'feature', 'fix']);
+  expect(routes.options[0].textContent).toBe('Pela tag do card');
+  // A source that takes no route shows no choice.
+  await userEvent.selectOptions(screen.getByLabelText('Origem'), 'jira');
+  expect(screen.queryByLabelText('Rota (review-gate)')).toBeNull();
+  await userEvent.selectOptions(screen.getByLabelText('Origem'), 'businessmap');
+  await userEvent.type(screen.getByLabelText('Chave do card'), '48816');
+  await userEvent.selectOptions(screen.getByLabelText('Rota (review-gate)'), 'fix');
+  await userEvent.click(screen.getByRole('button', { name: 'Iniciar card' }));
+  expect(start).toHaveBeenCalledWith('initech', 'businessmap', '48816', undefined, 'fix');
 });
 test('no company with a card source says so', () => {
   renderWithLive(<NewTask />, {

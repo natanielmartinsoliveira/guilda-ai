@@ -16,6 +16,7 @@ import {
 import { CODER_PROJECT, coderTenantYaml as yaml } from './fixtures/coder-tenant';
 import { METHOD_PACK } from './fixtures/method-ws';
 import { database } from './db';
+import { Issue } from '../src/database/entities';
 
 test('card keys are normalized per source format (Review Focus 3)', () => {
   expect(normalizeCardKey('jira', ' pf 12 ')).toBe('PF-12');
@@ -35,7 +36,15 @@ test('the starters of a company: only sources that start cards, with their key f
     ],
   } as unknown as Tenant;
   expect(starters.list(tenant)).toEqual([
-    { id: 'jira-a', type: 'jira', label: 'Jira', key: 'jira', example: 'PF-123', bases: true },
+    {
+      id: 'jira-a',
+      type: 'jira',
+      label: 'Jira',
+      key: 'jira',
+      example: 'PF-123',
+      bases: true,
+      routes: false,
+    },
     {
       id: 'bm',
       type: 'businessmap',
@@ -43,6 +52,7 @@ test('the starters of a company: only sources that start cards, with their key f
       key: 'number',
       example: '48816',
       bases: false,
+      routes: true,
     },
   ]);
 });
@@ -109,9 +119,9 @@ describe('Businessmap: start a card by its id', () => {
     tag_ids: [1],
     custom_fields: [{ field_id: 13, value: 'https://git.example.com/shop/shop-orders' }],
   };
-  function poller() {
+  function poller(found: BmCard = card) {
     const client = {
-      card: jest.fn(async () => card),
+      card: jest.fn(async () => found),
       tags: jest.fn(async () => new Map([[1, 'feature']])),
     };
     class TestPoller extends BusinessmapPoller {
@@ -129,6 +139,42 @@ describe('Businessmap: start a card by its id', () => {
     expect(again).toEqual({
       skipped: 'Esse card já tem tarefa',
       taskId: (first as { taskId: string }).taskId,
+    });
+  });
+  describe('the route chosen when starting by hand (no route tags on the board)', () => {
+    const untagged = { ...card, tag_ids: [] };
+    const issueRoute = async () =>
+      (await db.getRepository(Issue).findOneByOrFail({ source: 'bm' })).meta?.route;
+    test('a card without a route tag takes the chosen route', async () => {
+      const bm = new CardStarters({} as JiraPoller, poller(untagged)).for(source)!;
+      expect(bm.routes).toBe(true);
+      expect(await bm.start(tenant, source, '48816', undefined, 'fix')).toEqual({
+        taskId: expect.any(String),
+      });
+      expect(await issueRoute()).toBe('fix');
+    });
+    test('without a tag and without a choice, it still says to choose the route', async () => {
+      const bm = new CardStarters({} as JiraPoller, poller(untagged)).for(source)!;
+      expect(await bm.start(tenant, source, '48816')).toEqual({
+        skipped: expect.stringMatching(/escolha a rota/),
+      });
+    });
+    test('a choice that contradicts the card tag is refused, naming both', async () => {
+      const bm = new CardStarters({} as JiraPoller, poller()).for(source)!;
+      const result = await bm.start(tenant, source, '48816', undefined, 'fix');
+      expect(result).toEqual({ skipped: expect.stringMatching(/feature[\s\S]*fix/) });
+    });
+    test('the same route as the tag is fine', async () => {
+      const bm = new CardStarters({} as JiraPoller, poller()).for(source)!;
+      expect(await bm.start(tenant, source, '48816', undefined, 'feature')).toEqual({
+        taskId: expect.any(String),
+      });
+    });
+    test('a route the method does not have is refused', async () => {
+      const bm = new CardStarters({} as JiraPoller, poller(untagged)).for(source)!;
+      expect(await bm.start(tenant, source, '48816', undefined, 'hotfix')).toEqual({
+        skipped: expect.stringMatching(/hotfix/),
+      });
     });
   });
   test('Businessmap offers no sub-task bases', () => {

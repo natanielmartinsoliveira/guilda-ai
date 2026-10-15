@@ -43,6 +43,16 @@ function FromSource() {
   }, [tenant, source?.id, source?.bases, normalized]);
   const subtask = bases?.subtask ? bases : undefined;
   const blocked = !!subtask && (subtask.ownExists || !base);
+  // Boards without route tags: the operator states the route of the company's method (optional:
+  // a card's own route tag still counts; the server refuses a choice against it).
+  const methodProjects =
+    choices.find((c) => c.id === tenant)?.projects.filter((p) => p.routes?.length) ?? [];
+  const methodRoutes = [
+    ...new Map(methodProjects.flatMap((p) => p.routes ?? []).map((r) => [r.id, r])).values(),
+  ];
+  const offersRoute = !!source?.routes && methodRoutes.length > 0;
+  const [route, setRoute] = useState('');
+  const chosenRoute = offersRoute ? route : '';
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (busy || !tenant || !source || !normalized || blocked) return;
@@ -50,9 +60,17 @@ function FromSource() {
     setError('');
     setNotice(undefined);
     try {
-      const result = subtask
-        ? await api.startCard(tenant, source.id, normalized, base)
-        : await api.startCard(tenant, source.id, normalized);
+      const result = chosenRoute
+        ? await api.startCard(
+            tenant,
+            source.id,
+            normalized,
+            subtask ? base : undefined,
+            chosenRoute,
+          )
+        : subtask
+          ? await api.startCard(tenant, source.id, normalized, base)
+          : await api.startCard(tenant, source.id, normalized);
       await reload([tenant]);
       if ('skipped' in result) setNotice({ text: result.skipped, taskId: result.taskId });
       else navigate(`/tarefas/${tenant}/${result.taskId}`);
@@ -103,6 +121,19 @@ function FromSource() {
           autoComplete="off"
         />
       </label>
+      {offersRoute && (
+        <label>
+          {t('new.route', { method: methodProjects[0].method ?? '' })}
+          <select value={route} onChange={(e) => setRoute(e.target.value)}>
+            <option value="">{t('new.routeByTag')}</option>
+            {methodRoutes.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       {key.trim() && !normalized && (
         <p className="muted">{t('new.keyFormat', { example: source?.example ?? '' })}</p>
       )}

@@ -29,21 +29,21 @@ sources:
 
 - **Gatilho:** card aberto do quadro na coluna do gatilho **ou** com a tag. Cards encerrados/arquivados ficam de fora. Card já aceito continua na coluna sem gerar outra tarefa.
 - **Repositório obrigatório:** o link do campo `repositoryField` escolhe o projeto (comparado com o `repository` de cada projeto GitLab). Sem link, ou com repositório não configurado, o card é ignorado (motivo no log, uma vez) e entra sozinho quando for corrigido.
-- **Rota pela tag** (projetos com método): exatamente uma tag de rota. Sem `routeTags`, uma tag com o nome de uma rota do método é aquela rota. Maiúsculas e acentos não importam. Sem tag de rota, ou com duas, o card não entra: a rota nunca é deduzida.
+- **Rota pela tag** (projetos com método): exatamente uma tag de rota. Sem `routeTags`, uma tag com o nome de uma rota do método é aquela rota. Maiúsculas e acentos não importam. Sem tag de rota, ou com duas, o card não entra sozinho: a rota nunca é deduzida. Quando ninguém pode criar tags no quadro, inicie o card à mão e informe a rota (abaixo).
 - **Tarefa:** chave = id do card, corpo = descrição (HTML → texto) + títulos dos cards pai/relacionados. Anexos do card ainda não são lidos.
 
 ## Iniciar um card pelo código
 
-No painel: **Nova tarefa → Card de origem**. Escolha a empresa, a origem (quando a empresa tem mais de uma que inicia cards) e a chave no formato da origem. As mesmas regras da leitura periódica valem: projeto pelo campo de repositório do card (Businessmap) ou pelo projeto do Jira, rota pela tag (projetos com método), e um card que já tem tarefa não gera outra.
+No painel: **Nova tarefa → Card de origem**. Escolha a empresa, a origem (quando a empresa tem mais de uma que inicia cards) e a chave no formato da origem. As mesmas regras da leitura periódica valem: projeto pelo campo de repositório do card (Businessmap) ou pelo projeto do Jira, rota pela tag (projetos com método) ou, numa origem Businessmap, pela **Rota** que você escolhe ali (opcional; a tag do próprio card continua valendo, e uma escolha contra ela é recusada), e um card que já tem tarefa não gera outra.
 
 Pela API:
 
 ```
 GET  /api/tenants                                   → sources: [{ id, type, label, key, example, bases }]
-POST /api/tenants/<empresa>/sources/<origem>/start  { "key": "PF-123", "base": "feature/PF-1"? }
+POST /api/tenants/<empresa>/sources/<origem>/start  { "key": "PF-123", "base": "feature/PF-1"?, "route": "fix"? }
 GET  /api/tenants/<empresa>/sources/<origem>/cards/<chave>/bases
 ```
 
 - `202` com `{ taskId }`, ou `200` com `{ skipped, taskId? }` quando o card não vira tarefa (com o motivo).
-- `400`: chave fora do formato da origem (a mensagem traz o exemplo). `404`: origem inexistente na empresa, ou que não inicia cards / não tem bases. `502`: falha da origem ou do code host (mensagem sem segredos).
+- `400`: chave fora do formato da origem (a mensagem traz o exemplo), ou `route` numa origem que não recebe rota (só o Businessmap recebe). `404`: origem inexistente na empresa, ou que não inicia cards / não tem bases. `502`: falha da origem ou do code host (mensagem sem segredos).
 - As rotas antigas `POST /tasks/from-jira` e `GET /jira/<chave>/bases` continuam, usando a primeira origem Jira da empresa.

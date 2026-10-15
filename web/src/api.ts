@@ -75,10 +75,10 @@ export const api = {
       method: 'POST',
       body: form,
     }),
-  startCard: (tenant: string, source: string, key: string, base?: string) =>
+  startCard: (tenant: string, source: string, key: string, base?: string, route?: string) =>
     call<StartResult>(
       `${tenantPath(tenant)}/sources/${encodeURIComponent(source)}/start`,
-      post(base ? { key, base } : { key }),
+      post({ key, ...(base ? { base } : {}), ...(route ? { route } : {}) }),
     ),
   cardBases: (tenant: string, source: string, key: string) =>
     call<SubtaskBases>(
