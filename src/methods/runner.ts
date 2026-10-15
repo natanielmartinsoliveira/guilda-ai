@@ -287,6 +287,8 @@ export class MethodRunner {
           workspace: task.workspace,
           ...(ctx.ws.kind === 'coder' ? { remote: ctx.ws as CoderWorkspace } : {}),
           env: this.env(),
+          addDirs: this.method.agent.addDirs,
+          allowedTools: this.method.agent.allowedTools,
           timeoutMs: this.method.timeoutMinutes * 60000,
           prompt,
         },

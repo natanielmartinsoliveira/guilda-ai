@@ -83,6 +83,30 @@ const methodFile = z
     /** refuse: an adjustment request on a task of the method is refused. */
     revisions: z.enum(['allow', 'refuse']).default('allow'),
     hooks: z.object({ prepare: inside.optional(), advance: inside.optional() }).default({}),
+    /**
+     * What the method's agent needs with nobody to approve it: folders it may read besides the
+     * task folder (absolute, or "~/…" in the workspace HOME, e.g. its skills' plugin cache) and
+     * the tools/commands it may run (Claude permission rules, e.g. "Bash(git status:*)").
+     */
+    agent: z
+      .object({
+        addDirs: z
+          .array(
+            z
+              .string()
+              .regex(/^(~\/|\/)[A-Za-z0-9._/-]*$/, 'addDirs: "~/dir" or "/dir"')
+              .refine((d) => !d.split('/').includes('..'), 'addDirs: no ".."'),
+          )
+          .default([]),
+        allowedTools: z
+          .array(
+            z
+              .string()
+              .regex(/^[A-Za-z]+(\([^()\n\r,]*\))?$/, 'allowedTools: "Tool" or "Tool(rule)"'),
+          )
+          .default([]),
+      })
+      .default({ addDirs: [], allowedTools: [] }),
     messages: z.record(z.string(), z.string()).default({}),
     routes: z.record(z.string().regex(/^[a-z][a-z0-9-]*$/), route),
     phases: z.record(

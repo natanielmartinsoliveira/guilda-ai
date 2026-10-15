@@ -204,6 +204,11 @@ test('feature: the specification step leaves the specification for review; adjus
     `spec ${x.task.branch}`,
     expect.objectContaining({ name: expect.any(String) }),
   ]);
+  // The method's agent gets what the method declares (dirs it may read, tools it may run).
+  expect(x.prompts()[0]).toMatchObject({
+    addDirs: ['~/.method-tools'],
+    allowedTools: ['Bash(python3 -B:*)', 'Bash(git status:*)'],
+  });
   const deliver = x.prompts()[2];
   expect(deliver.prompt.startsWith('Deliver the scope')).toBe(true);
   expect(deliver.prompt).toContain(`«${authorization(x.task.branch, true)}»`);

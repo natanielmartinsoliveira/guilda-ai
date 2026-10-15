@@ -26,6 +26,10 @@ export interface AgentInput {
   remote?: CoderWorkspace;
   /** Extra environment for a remote run (e.g. the git identity a method's commits need). */
   env?: Record<string, string>;
+  /** A method's agent: folders it may read in the workspace ("~/…" = the workspace HOME). */
+  addDirs?: string[];
+  /** A method's agent: tools/commands it may run with nobody to approve them. */
+  allowedTools?: string[];
   timeoutMs: number;
 }
 export interface AgentResult {

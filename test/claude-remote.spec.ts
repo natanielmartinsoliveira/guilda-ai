@@ -1,6 +1,6 @@
 import { ClaudeProvider } from '../src/agents/claude.provider';
 const HELP =
-  '--print --output-format --permission-mode --setting-sources --strict-mcp-config --add-dir --disallowed-tools --effort --no-session-persistence';
+  '--print --output-format --permission-mode --setting-sources --strict-mcp-config --add-dir --allowedTools --disallowed-tools --effort --no-session-persistence';
 type Answer = { success: boolean; exitCode: number; stdout: string; stderr: string };
 const ok = (stdout = ''): Answer => ({ success: true, exitCode: 0, stdout, stderr: '' });
 function remote(
@@ -105,4 +105,23 @@ test('the git identity reaches the remote run (the agent of a method commits)', 
   const { provider, input, claudeCall } = remote();
   await provider.execute({ ...input, env: { GIT_AUTHOR_NAME: 'AI', GIT_AUTHOR_EMAIL: 'a@b' } });
   expect(claudeCall()[1].env).toEqual({ GIT_AUTHOR_NAME: 'AI', GIT_AUTHOR_EMAIL: 'a@b' });
+});
+test("a method's dirs (from the workspace HOME) and allowed tools reach the remote claude", async () => {
+  const { provider, input, ws } = remote();
+  await provider.execute({
+    ...input,
+    addDirs: ['~/.claude/plugins'],
+    allowedTools: ['Bash(python3 -B:*)', 'Bash(git status:*)'],
+  });
+  const call = ws.run.mock.calls.find(
+    (c: any[]) => c[0][0] === 'sh' && String(c[0][2]).startsWith('exec claude'),
+  );
+  expect(call).toBeDefined();
+  const argv: string[] = call[0];
+  expect(argv.slice(0, 2)).toEqual(['sh', '-c']);
+  expect(argv[2]).toBe(`exec claude --add-dir "$HOME"/'.claude/plugins' "$@"`);
+  expect(argv[3]).toBe('sh');
+  const at = argv.indexOf('--allowedTools');
+  expect(argv[at + 1]).toBe('Bash(python3 -B:*),Bash(git status:*)');
+  expect(argv).toEqual(expect.arrayContaining(['--print', '--permission-mode', 'acceptEdits']));
 });

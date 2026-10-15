@@ -7,6 +7,7 @@ import { ProcessRunnerService } from './process-runner.service';
 import { SandboxService } from './sandbox.service';
 import { config, TaskError } from '../config';
 import { changedRepositories, CoderWorkspace } from '../workspaces/coder-workspace';
+import { shellQuote } from '../workspaces/shell';
 const REQUIRED = ['--print', '--output-format', '--permission-mode'];
 @Injectable()
 export class ClaudeProvider implements AgentProvider {
@@ -103,8 +104,15 @@ export class ClaudeProvider implements AgentProvider {
         ? ['--disallowed-tools', 'Edit,Write,NotebookEdit']
         : [];
     const effort = input.effort && help.includes('--effort') ? ['--effort', input.effort] : [];
+    // A method's agent runs its own tools with nobody to approve them (one comma list: the flag
+    // is variadic like --add-dir, and the next flag closes it).
+    const allowed =
+      input.allowedTools?.length && help.includes('--allowedTools')
+        ? ['--allowedTools', input.allowedTools.join(',')]
+        : [];
     return [
       ...addDir,
+      ...allowed,
       ...readOnly,
       '--print',
       '--output-format',
@@ -153,19 +161,29 @@ export class ClaudeProvider implements AgentProvider {
       ).stdout;
     const before = await ws.protectSnapshot(input.taskId);
     const ownBefore = input.readOnly ? await own() : undefined;
+    // The company's own harness: the repository's CLAUDE.md, skills, commands and enabled
+    // plugins, as when its developers use Claude in that workspace.
+    const flags = this.flags(
+      help.stdout,
+      input,
+      input.attachments ? ws.attachmentsPath : undefined,
+      [],
+      'user,project',
+    );
+    // A method's extra folders ("~/…" in the workspace HOME, which only its shell knows).
+    const dirs = (help.stdout.includes('--add-dir') ? (input.addDirs ?? []) : []).map((d) =>
+      d.startsWith('~/') ? `"$HOME"/${shellQuote(d.slice(2))}` : shellQuote(d),
+    );
     const result = await ws.run(
-      [
-        'claude',
-        // The company's own harness: the repository's CLAUDE.md, skills, commands and enabled
-        // plugins, as when its developers use Claude in that workspace.
-        ...this.flags(
-          help.stdout,
-          input,
-          input.attachments ? ws.attachmentsPath : undefined,
-          [],
-          'user,project',
-        ),
-      ],
+      dirs.length
+        ? [
+            'sh',
+            '-c',
+            `exec claude ${dirs.map((d) => `--add-dir ${d}`).join(' ')} "$@"`,
+            'sh',
+            ...flags,
+          ]
+        : ['claude', ...flags],
       {
         taskId: input.taskId,
         agent: input.role ?? 'coder',

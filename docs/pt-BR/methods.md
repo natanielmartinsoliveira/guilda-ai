@@ -31,6 +31,9 @@ env: # ambiente do agente e dos scripts (valor vazio não é passado)
 timeoutMinutes: 240
 commits: method # method: o método commita; sobra de arquivo no fim é falha
 revisions: refuse # refuse: pedido de ajuste numa tarefa do método é recusado
+agent: # o que o agente do método precisa sem ninguém para aprovar
+  addDirs: ['~/.claude/plugins'] # pastas que ele pode ler ("~/" = HOME do workspace)
+  allowedTools: ['Bash(python3 -B:*)', 'Bash(git status:*)'] # regras de permissão do Claude
 hooks:
   prepare: hooks/prepare.py # toda execução, depois de preparar a branch
   advance: hooks/advance.py # quando um ensaio termina
@@ -117,9 +120,15 @@ Na pasta `tests/` do método, casos em YAML renderizam os prompts pelo motor e c
 ```yaml
 # methods/<nome>/tests/prompts.yaml
 slug: 1234-order-discount
-material: "Card: ..."
+material: 'Card: ...'
 cases:
-  - { name: gate (feature), route: feature, prompt: 'prompts/gate-{{route}}.md', expect: expected/gate-feature.txt, values: { FILES: [] } }
+  - {
+      name: gate (feature),
+      route: feature,
+      prompt: 'prompts/gate-{{route}}.md',
+      expect: expected/gate-feature.txt,
+      values: { FILES: [] },
+    }
 ```
 
 ```bash

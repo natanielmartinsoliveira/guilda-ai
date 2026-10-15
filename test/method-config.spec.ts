@@ -1,5 +1,11 @@
 import { resolve } from 'node:path';
-import { loadMethod, methodOptions, methodRoutes, routeOf } from '../src/methods/method';
+import {
+  clearMethods,
+  loadMethod,
+  methodOptions,
+  methodRoutes,
+  routeOf,
+} from '../src/methods/method';
 import { loadTenants } from '../src/tenants/tenants';
 import { CODER_PROJECT, coderTenantYaml as yaml } from './fixtures/coder-tenant';
 
@@ -67,4 +73,28 @@ test('a method that runs in the Coder refuses a local project', () => {
 test('projects without a method keep the core flow', () => {
   const [t] = loadTenants(yaml(CODER_PROJECT, PACK));
   expect(t.projects[0].method).toBeUndefined();
+});
+
+test('a method declares what its agent may read and run without approval', async () => {
+  expect(loadMethod(FIXTURES, 'review-gate').agent).toEqual({
+    addDirs: ['~/.method-tools'],
+    allowedTools: ['Bash(python3 -B:*)', 'Bash(git status:*)'],
+  });
+  const { cp, mkdtemp, readFile, writeFile, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  for (const [from, to, error] of [
+    ['"~/.method-tools"', '"~/../etc"', /addDirs/],
+    ['"~/.method-tools"', '"relative/dir"', /addDirs/],
+    ['"Bash(git status:*)"', '"Bash(rm -rf /)\\n"', /allowedTools/],
+  ] as const) {
+    const pack = await mkdtemp(join(tmpdir(), 'method-agent-'));
+    await cp(join(FIXTURES, 'methods'), join(pack, 'methods'), { recursive: true });
+    const file = join(pack, 'methods/review-gate/method.yaml');
+    await writeFile(file, (await readFile(file, 'utf8')).replace(from, to));
+    clearMethods();
+    expect(() => loadMethod(pack, 'review-gate')).toThrow(error);
+    await rm(pack, { recursive: true, force: true });
+  }
+  clearMethods();
 });

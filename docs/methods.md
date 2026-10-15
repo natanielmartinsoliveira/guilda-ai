@@ -32,6 +32,9 @@ env: # environment of the agent and the scripts (an empty value is not passed)
 timeoutMinutes: 240
 commits: method # method: the method commits; files left over at the end are a failure
 revisions: refuse # refuse: a change request on a task of the method is refused
+agent: # what the method's agent needs with nobody to approve it
+  addDirs: ['~/.claude/plugins'] # folders it may read ("~/" = the workspace HOME)
+  allowedTools: ['Bash(python3 -B:*)', 'Bash(git status:*)'] # Claude permission rules
 hooks:
   prepare: hooks/prepare.py # every run, after the branch is prepared
   advance: hooks/advance.py # when a rehearsal finishes
@@ -61,7 +64,11 @@ phases:
       - agent: prompts/specify.md
         answersTo: notes
       - within:
-          { path: '{{vars.spec_root}}', question: prompts/outside-question.md, option: prompts/outside-option.md }
+          {
+            path: '{{vars.spec_root}}',
+            question: prompts/outside-question.md,
+            option: prompts/outside-option.md,
+          }
     next: gate
   gate:
     steps:
@@ -81,14 +88,14 @@ phases:
 
 ## Steps
 
-| Step      | Does                                                                                                                                                                                                                                                                  |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `require` | An empty variable → fails with the given message.                                                                                                                                                                                                                     |
-| `discard` | Discards changes and new files under the path.                                                                                                                                                                                                                        |
+| Step      | Does                                                                                                                                                                                                                                                                                    |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `require` | An empty variable → fails with the given message.                                                                                                                                                                                                                                       |
+| `discard` | Discards changes and new files under the path.                                                                                                                                                                                                                                          |
 | `agent`   | Runs the agent with the prompt; only `<resultado>concluido</resultado>` counts as done. Anything else becomes the question `prompts/stop-question.md` (`{{PENDING}}`, option `prompts/stop-option.md`); the answer goes to `answersTo` (`answers` or `notes`) and the phase runs again. |
-| `within`  | Pending files outside the path become a question; the answer goes to `notes` and the phase runs again.                                                                                                                                                                |
-| `ask`     | A question with one option. The chosen option (identical text) becomes `{{AUTHORIZATION}}`, makes the `commit` of `chosen` and goes to `next`; any other text goes to `notes` and to `other.next` (per route, with `default`).                                          |
-| `hook`    | Runs a script of the method.                                                                                                                                                                                                                                          |
+| `within`  | Pending files outside the path become a question; the answer goes to `notes` and the phase runs again.                                                                                                                                                                                  |
+| `ask`     | A question with one option. The chosen option (identical text) becomes `{{AUTHORIZATION}}`, makes the `commit` of `chosen` and goes to `next`; any other text goes to `notes` and to `other.next` (per route, with `default`).                                                          |
+| `hook`    | Runs a script of the method.                                                                                                                                                                                                                                                            |
 
 ## Prompts
 
@@ -110,9 +117,15 @@ In the method's `tests/` folder, YAML cases render the prompts through the engin
 ```yaml
 # methods/<name>/tests/prompts.yaml
 slug: 1234-order-discount
-material: "Card: ..."
+material: 'Card: ...'
 cases:
-  - { name: gate (feature), route: feature, prompt: 'prompts/gate-{{route}}.md', expect: expected/gate-feature.txt, values: { FILES: [] } }
+  - {
+      name: gate (feature),
+      route: feature,
+      prompt: 'prompts/gate-{{route}}.md',
+      expect: expected/gate-feature.txt,
+      values: { FILES: [] },
+    }
 ```
 
 ```bash

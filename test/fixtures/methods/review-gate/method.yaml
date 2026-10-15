@@ -16,6 +16,11 @@ env:
   GIT_COMMITTER_EMAIL: "{{git.email}}"
   PYTHONPATH: "{{options.pythonPath}}"
 timeoutMinutes: 240
+# What the method's agent needs without a person to approve it: the tools of its own skills
+# (read from the workspace HOME) and the commands they run.
+agent:
+  addDirs: ["~/.method-tools"]
+  allowedTools: ["Bash(python3 -B:*)", "Bash(git status:*)"]
 commits: method
 revisions: refuse
 hooks:
