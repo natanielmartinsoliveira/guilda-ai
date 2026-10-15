@@ -28,6 +28,11 @@ done; done`;
  */
 const KILL_IN_FOLDER = `for p in /proc/[0-9]*; do c=$(readlink "$p/cwd" 2>/dev/null) || continue
 case "$c" in "$1"|"$1"/*) kill -9 "\${p#/proc/}" 2>/dev/null;; esac; done; true`;
+/**
+ * The coder CLI finds the operator's saved login under HOME; the process runner passes only PATH
+ * and LANG, so HOME goes along to these calls (and only these: agents keep their own HOME).
+ */
+const cliEnv = () => ({ HOME: process.env.HOME });
 /** Reasons the process runner cuts a command off (see ProcessRunnerService). */
 const CUT_OFF = /Process timed out|Output limit exceeded/;
 /** Unpacks the archive on stdin and keeps the folder out of the task's git status. */
@@ -93,6 +98,7 @@ export class CoderWorkspace implements TaskWorkspace {
     // coder ssh joins its arguments for the remote shell, like ssh: one quoted line.
     return this.runner.run(this.bin, ['ssh', this.target, '--', `sh -c ${shellQuote(command)}`], {
       cwd: '/',
+      env: cliEnv(),
       taskId: opts.taskId ?? this.taskId,
       agent: opts.agent ?? 'workspace',
       provider: opts.provider,
@@ -109,6 +115,7 @@ export class CoderWorkspace implements TaskWorkspace {
     if (failure === 'stopped') {
       await this.runner.run(this.bin, ['start', this.cfg.name, '--yes'], {
         cwd: '/',
+        env: cliEnv(),
         taskId: this.taskId,
         agent: 'workspace',
         timeoutMs: START_TIMEOUT_MS,

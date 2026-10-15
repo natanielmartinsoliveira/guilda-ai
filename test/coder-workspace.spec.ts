@@ -46,6 +46,12 @@ test('run: one quoted line through coder ssh, cd into the task folder, audit wit
   expect(opts).toMatchObject({ input: 'prompt', auditContent: false, taskId: ID });
   expect(opts.displayCommand).not.toContain('prompt');
 });
+test('the coder CLI gets the operator HOME (its saved login), and only that, in every call', async () => {
+  const { run, ws } = make(coderFail('workspace "dev-ws" is not running'), ok());
+  await ws.run(['ls'], { timeoutMs: 1, env: { A: '1' } });
+  expect(run.mock.calls.map((c) => c[1][0])).toEqual(['ssh', 'start', 'ssh']);
+  for (const [, , opts] of run.mock.calls) expect(opts.env).toEqual({ HOME: process.env.HOME });
+});
 test('at root / none', async () => {
   const { run, ws } = make(ok(), ok());
   await ws.run(['ls'], { timeoutMs: 1, at: 'root' });
