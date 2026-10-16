@@ -13,6 +13,7 @@ import { NeedsInput } from '../tasks/decisions';
 import type { TaskWorkspace } from '../workspaces/task-workspace';
 import type { CoderWorkspace } from '../workspaces/coder-workspace';
 import type { Tenant, TenantProject } from '../tenants/tenants';
+import { isApproval } from './approval';
 import { loadMethod, Method, MethodRoute, methodOptions, routeOf } from './method';
 /** Where a task of a method stands; kept in the job result so a resumed run redoes nothing. */
 export interface MethodState {
@@ -349,8 +350,9 @@ export class MethodRunner {
         } else if ('ask' in step) {
           const option = this.render(step.ask.option, {}, ms).trim();
           if (reply !== undefined) {
-            if (reply.trim() === option) {
-              ms.authorization = reply.trim();
+            // The option itself, or a plain approval of it: what is quoted is the option's text.
+            if (reply.trim() === option || isApproval(reply)) {
+              ms.authorization = option;
               const commit = step.ask.chosen.commit;
               if (commit && (!commit.routes || commit.routes.includes(this.routeId))) {
                 const paths = commit.paths.map((p) => this.interp(p));

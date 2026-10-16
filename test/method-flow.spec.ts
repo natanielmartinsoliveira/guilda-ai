@@ -395,3 +395,25 @@ test('direct with direct edits: the core flow, the surface rule in the prompt, a
   expect(x.git.commit).not.toHaveBeenCalled();
   expect(x.git.commitPaths.mock.calls[0][1]).toEqual(['src/x.php']);
 });
+describe('a plain approval at the gate counts as its option (the option text is what is quoted)', () => {
+  test.each(['ok', 'Aprovado!', 'pode seguir', '  SIM. ', '👍', '1', 'approved'])(
+    '"%s" authorizes',
+    async (answer) => {
+      const x = await setup('screen');
+      await x.run();
+      await x.answerOpen(answer);
+      await x.run();
+      expect((await x.reload()).status).toBe('SUCCESS');
+      expect(x.prompts()[0].prompt).toContain(`«${authorization(x.task.branch)}»`);
+      expect(x.prompts()[0].prompt).not.toContain(`«${answer}»`);
+    },
+  );
+  test('anything more than an approval is an adjustment, never an authorization', async () => {
+    const x = await setup('screen');
+    await x.run();
+    await x.answerOpen('ok, mas mude o nome do campo');
+    await x.run();
+    expect(x.prompts()).toHaveLength(0);
+    expect((await x.reload()).status).toBe('WAITING');
+  });
+});
