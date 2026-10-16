@@ -97,6 +97,10 @@ phases:
 | `ask`     | A question with one option. The chosen option (identical text) becomes `{{AUTHORIZATION}}`, makes the `commit` of `chosen` and goes to `next`; any other text goes to `notes` and to `other.next` (per route, with `default`).                                                          |
 | `hook`    | Runs a script of the method.                                                                                                                                                                                                                                                            |
 
+## Retrying a failed task
+
+A plain **Retry** of a failed task of a method resumes the phase it stopped in, keeping its commits and the words chosen at the gate (the usual causes are outside: VPN, quota). **Retry with instructions** starts it over.
+
 ## Prompts
 
 - `prompts/x-{{route}}.md` is the route's own; when it does not exist, `prompts/x.md` applies.

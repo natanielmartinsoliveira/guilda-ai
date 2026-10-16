@@ -418,7 +418,7 @@ Se a validação oficial (`test` do projeto) falhar depois que o agente alterou 
 
 ## Repetir ou cancelar tarefas
 
-- **Retry** (`retry_task` no MCP; `POST /api/tenants/:empresa/tasks/:id/retry[?revision=N]`): recoloca na fila uma tarefa ou revisão `FAILED`/`CANCELLED`, **recomeçando do zero**. A tarefa volta à ponta atual da branch base e a revisão à ponta atual do PR. Use depois de corrigir a causa (token, e-mail, configuração). Tarefa que já tem PR é recusada (409): peça uma revisão `/ai`.
+- **Retry** (`retry_task` no MCP; `POST /api/tenants/:empresa/tasks/:id/retry[?revision=N]`): recoloca na fila uma tarefa ou revisão `FAILED`/`CANCELLED`, **recomeçando do zero**. A tarefa volta à ponta atual da branch base e a revisão à ponta atual do PR. Use depois de corrigir a causa (token, e-mail, configuração). Tarefa que já tem PR é recusada (409): peça uma revisão `/ai`. Uma tarefa de **método** é exceção: retoma da fase em que parou, mantendo os commits e a autorização dada no portão (a causa costuma ser externa: VPN, cota). Para recomeçar uma tarefa de método do zero, use "repetir com instrução".
 - **Cancelar** (`cancel_task`; `POST .../cancel[?revision=N]`): vale para jobs na fila, em `WAITING_CAPACITY`, esperando o operador (`WAITING`) ou falhos. Um job em execução não é interrompido (409); mensagens já enfileiradas são descartadas pelo worker.
 - Ambos falham com 409 se o worker estiver executando a tarefa naquele momento, e fecham a decisão aberta do job (veja abaixo).
 

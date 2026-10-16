@@ -101,6 +101,10 @@ phases:
 | `ask`     | Pergunta com uma opção. A opção escolhida (texto idêntico) vira `{{AUTHORIZATION}}`, faz o `commit` de `chosen` e vai para `next`; outro texto entra em `notes` e vai para `other.next` (por rota, com `default`).                                                            |
 | `hook`    | Roda um script do método.                                                                                                                                                                                                                                                     |
 
+## Repetir uma tarefa que falhou
+
+O **Repetir** simples de uma tarefa de método que falhou retoma a fase em que ela parou, mantendo os commits e as palavras escolhidas no portão (a causa costuma ser externa: VPN, cota). O **repetir com instrução** recomeça do zero.
+
 ## Prompts
 
 - `prompts/x-{{route}}.md` é o da rota; se não existir, vale `prompts/x.md`.

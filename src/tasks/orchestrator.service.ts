@@ -212,7 +212,8 @@ export class OrchestratorService {
   /**
    * Queues a failed or cancelled task (or revision) again, starting over: a task from the
    * current tip of its base branch, a revision from the current head of the PR. Meant for
-   * after the cause was fixed (token, configuration, credentials).
+   * after the cause was fixed (token, configuration, credentials). A task of a method resumes
+   * where it stopped instead (its phase, commits and the gate's words are kept).
    */
   retry(tenantId: string, taskId: string, revisionNumber?: number) {
     return this.operate(tenantId, taskId, revisionNumber, async (em, { job, entity }) => {
@@ -226,7 +227,7 @@ export class OrchestratorService {
           'conflict',
           'The task already has a pull request; request a revision ("/ai ...") instead',
         );
-      await this.requeue(em, job, entity, taskId);
+      await this.requeue(em, job, entity, taskId, !!job.result?.method);
       await this.closeDecisions(em, taskId, entity === Revision ? job.id : null, 'retry');
       return job;
     });
@@ -336,7 +337,9 @@ export class OrchestratorService {
           await this.requeue(em, job, entity, task.id);
           stored = { action: answer.action, instructions };
         } else {
-          await this.requeue(em, job, entity, task.id);
+          // A method resumes where it stopped (its commits and the gate's words are kept): the
+          // usual cause is outside (VPN, quota). With instructions it starts over, above.
+          await this.requeue(em, job, entity, task.id, !!job.result?.method);
           stored = { action: answer.action };
         }
       }
