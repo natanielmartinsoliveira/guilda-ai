@@ -19,6 +19,14 @@ test('classifies capacity failures by the provider error channel', () => {
     'quota',
   );
   expect(classifyFailure(failed('status 429: insufficient_quota'))).toBe('quota');
+  // A spend limit set by the company's admin: it does not pass in minutes (first real run).
+  expect(
+    classifyFailure(
+      failed(
+        "status 429: You've hit your individual spend limit · run /usage-credits to ask your admin for a higher limit",
+      ),
+    ),
+  ).toBe('quota');
   expect(classifyFailure(failed('status 401: invalid x-api-key'))).toBe('auth');
   expect(classifyFailure(failed(undefined, 'Error: Not logged in. Please run /login'))).toBe(
     'auth',

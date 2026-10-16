@@ -8,7 +8,7 @@ export type FailureKind = 'quota' | 'rate_limit' | 'auth' | 'task';
 const patterns: [Exclude<FailureKind, 'task'>, RegExp][] = [
   [
     'quota',
-    /insufficient_quota|exceeded your current quota|quota (?:exceeded|exhausted)|credit balance is too low|usage limit|hit your limit|out of credits|billing_hard_limit/i,
+    /insufficient_quota|exceeded your current quota|quota (?:exceeded|exhausted)|credit balance is too low|usage limit|hit your limit|spend limit|usage-credits|out of credits|billing_hard_limit/i,
   ],
   [
     'auth',
