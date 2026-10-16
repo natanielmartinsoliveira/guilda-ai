@@ -174,7 +174,7 @@ test('feature: the specification step leaves the specification for review; adjus
   const x = await setup('feature', {
     analyse: ['<resultado>concluido</resultado>', '<resultado>concluido</resultado>'],
     deliver: [
-      '<resultado>parado</resultado><pendencias>Decide the field name</pendencias>',
+      '<resultado>parado</resultado><pendencias>Decide the field name</pendencias><opcoes>\n- Use valid_until (recomendado)\n- Use expires_at\n</opcoes>',
       '<resultado>concluido</resultado>',
     ],
   });
@@ -220,6 +220,8 @@ test('feature: the specification step leaves the specification for review; adjus
   });
   const stop = await x.answerOpen('use valid_until');
   expect(stop.questions![0].text).toContain('Decide the field name');
+  // the agent's choices become the decision's options (else the method's single stop option)
+  expect(stop.questions![0].options).toEqual(['Use valid_until (recomendado)', 'Use expires_at']);
   await x.run();
   expect(x.prompts()[3].prompt).toContain('use valid_until');
   task = await x.reload();

@@ -45,11 +45,21 @@ export interface RunnerDeps {
   /** The test evidence step (when the project asks for it). */
   evidence(route: string): Promise<void>;
 }
-/** "concluido" only when the agent says so; a missing mark is a stop, never a delivery. */
-export function readOutcome(message?: string): { done: true } | { done: false; pending: string } {
+/**
+ * "concluido" only when the agent says so; a missing mark is a stop, never a delivery. A stop may
+ * bring the person's choices in <opcoes> (one per line, each a complete answer): at most four.
+ */
+export function readOutcome(
+  message?: string,
+): { done: true } | { done: false; pending: string; options: string[] } {
   if (parseTag(message, 'resultado')?.trim() === 'concluido') return { done: true };
   const pending = parseTag(message, 'pendencias')?.trim() || message?.trim().slice(-3000);
-  return { done: false, pending: pending || '(sem relatório)' };
+  const options = (parseTag(message, 'opcoes') ?? '')
+    .split('\n')
+    .map((line) => line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim())
+    .filter((line, i, all) => line && all.indexOf(line) === i)
+    .slice(0, 4);
+  return { done: false, pending: pending || '(sem relatório)', options };
 }
 /** Paths of `git status --porcelain -z --untracked-files=all` (renames: the new path). */
 export function porcelainPaths(output: string) {
@@ -332,7 +342,9 @@ export class MethodRunner {
             await ask(
               {
                 text: this.render('prompts/stop-question.md', { PENDING: outcome.pending }, ms),
-                options: [this.render('prompts/stop-option.md', {}, ms).trim()],
+                options: outcome.options.length
+                  ? outcome.options
+                  : [this.render('prompts/stop-option.md', {}, ms).trim()],
               },
               step.answersTo,
             );

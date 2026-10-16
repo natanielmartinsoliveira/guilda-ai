@@ -18,12 +18,33 @@ test('only an explicit "concluido" counts as done; anything else is a stop with 
   expect(readOutcome('report...\n<resultado>concluido</resultado>')).toEqual({ done: true });
   expect(
     readOutcome('x<resultado>parado</resultado><pendencias>Decide the field name</pendencias>'),
-  ).toEqual({ done: false, pending: 'Decide the field name' });
+  ).toEqual({ done: false, pending: 'Decide the field name', options: [] });
   expect(readOutcome('Finished without a mark.')).toEqual({
     done: false,
     pending: 'Finished without a mark.',
+    options: [],
   });
-  expect(readOutcome(undefined)).toEqual({ done: false, pending: '(sem relatório)' });
+  expect(readOutcome(undefined)).toEqual({ done: false, pending: '(sem relatório)', options: [] });
+});
+
+test('a stop may bring the choices for the person: one per line, bullets dropped, at most four', () => {
+  const message = [
+    '<resultado>parado</resultado><pendencias>Field name</pendencias>',
+    '<opcoes>',
+    '- Use valid_until (recomendado)',
+    '2. Use expires_at',
+    '',
+    '* Use valid_until (recomendado)',
+    '3) Keep both',
+    '- Ask the team',
+    '- One too many',
+    '</opcoes>',
+  ].join('\n');
+  expect(readOutcome(message)).toEqual({
+    done: false,
+    pending: 'Field name',
+    options: ['Use valid_until (recomendado)', 'Use expires_at', 'Keep both', 'Ask the team'],
+  });
 });
 
 test('porcelain paths and paths under a folder', () => {

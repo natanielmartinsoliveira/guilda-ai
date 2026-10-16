@@ -2,6 +2,7 @@ import { t } from '../i18n';
 import { FormEvent, useState } from 'react';
 import { ApiError } from '../api';
 import type { DecisionView } from '../types';
+import { PlainText } from './PlainText';
 const draftKey = (id: string) => `adt-draft:${id}`;
 function loadDraft(id: string, size: number): string[] {
   try {
@@ -57,9 +58,8 @@ export function QuestionForm({
         const chosen = q.options?.includes(answers[i]);
         return (
           <fieldset key={i}>
-            <legend>
-              {i + 1}. {q.text}
-            </legend>
+            <legend>{t('question.n', { n: i + 1 })}</legend>
+            <PlainText text={q.text} />
             {q.options?.map((option) => (
               <label key={option} className="option">
                 <input

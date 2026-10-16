@@ -80,6 +80,7 @@ export const ptBR = {
   'decisions.question': 'Dúvida da IA',
   'decisions.seeTask': 'ver tarefa',
   'question.answerN': 'Resposta {n}',
+  'question.n': 'Pergunta {n}',
   'question.other': 'Ou escreva outra resposta',
   'question.yours': 'Sua resposta',
   'question.submit': 'Responder e continuar',

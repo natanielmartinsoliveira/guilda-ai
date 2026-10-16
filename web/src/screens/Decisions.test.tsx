@@ -53,6 +53,25 @@ test('a question is only sent with every question answered', async () => {
   expect(live.reload).toHaveBeenCalledWith(['acme']);
   expect(await screen.findByRole('status')).toHaveTextContent('Resposta enviada');
 });
+test('the question reads as text: paragraphs, lists and code, never HTML', () => {
+  const stop: DecisionView = {
+    ...question,
+    questions: [
+      {
+        text: 'O método parou:\nO build falhou.\n\n- falta `vendor/`\n- sem php\n\n<b>cru</b>',
+        options: ['Liberar o PHP (recomendado)', 'Parar a entrega'],
+      },
+    ],
+  };
+  const { container } = open('/decisoes', [stop]);
+  expect(screen.getByText('O método parou:', { exact: false })).toBeInTheDocument();
+  const items = screen.getAllByRole('listitem');
+  expect(items.map((li) => li.textContent)).toEqual(['falta vendor/', 'sem php']);
+  expect(items[0].querySelector('code')).toHaveTextContent('vendor/');
+  expect(screen.getByText('<b>cru</b>')).toBeInTheDocument();
+  expect(container.querySelector('b')).toBeNull();
+  expect(screen.getByRole('radio', { name: 'Liberar o PHP (recomendado)' })).toBeInTheDocument();
+});
 test('a free answer can replace the suggested options', async () => {
   const answer = vi.spyOn(api, 'answer').mockResolvedValue(question);
   open();

@@ -81,6 +81,7 @@ export const en: Record<Key, string> = {
   'decisions.question': 'Question from the AI',
   'decisions.seeTask': 'see task',
   'question.answerN': 'Answer {n}',
+  'question.n': 'Question {n}',
   'question.other': 'Or write another answer',
   'question.yours': 'Your answer',
   'question.submit': 'Answer and continue',

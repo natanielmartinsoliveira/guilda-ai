@@ -231,6 +231,24 @@ legend {
   font-weight: 600;
   margin-bottom: 8px;
 }
+.plain-text {
+  line-height: 1.5;
+  margin-bottom: 10px;
+  overflow-wrap: anywhere;
+}
+.plain-text p {
+  margin: 0 0 8px;
+}
+.plain-text ul {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.plain-text code {
+  font-size: 0.9em;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
 .option {
   display: flex;
   gap: 8px;
