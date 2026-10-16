@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useLive } from '../LiveProvider';
 import { ago, stageLabel, sortTasks } from '../live';
+import { DecisionPopup } from '../office/DecisionPopup';
 import type { OfficeView } from '../office/game';
 import { demoModel, officeModel, SPOTS, currentJob } from '../office/spots';
 import { TaskDetail } from './TaskDetail';
@@ -170,6 +171,7 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
       {!loaded && <p role="status">{tr('guild.loadingMissions')}</p>}
       {loaded && !tenants.length && <p className="empty">{tr('guild.noCompany')}</p>}
       <div className="guild-map-frame">
+        {!demo && <DecisionPopup decisions={decisions} tenants={tenants} />}
         <div className="guild-map-heading">
           <strong>⌂ {tr('guild.office')}</strong>
           <span>{tr('guild.clickHint')}</span>

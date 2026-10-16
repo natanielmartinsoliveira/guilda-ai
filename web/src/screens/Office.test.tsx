@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { api } from '../api';
 import type { OfficeModel } from '../office/spots';
 import { renderWithLive } from '../test-utils';
-import type { TaskView, Tenant } from '../types';
+import type { DecisionView, TaskView, Tenant } from '../types';
 import { Office } from './Office';
 const tenants: Tenant[] = [
   { id: 'acme', name: 'Acme', providers: [], jira: true, projects: [] },
@@ -155,4 +155,57 @@ test('demo station panels keep real missions instead of fetching simulated ids',
   const panel = screen.getByRole('complementary', { name: 'Painel da guilda' });
   expect(panel).toHaveTextContent('PF-1');
   expect(panel).not.toHaveTextContent('DEMO-');
+});
+const decision = (id: string, tenantId: string, createdAt: string, text: string): DecisionView => ({
+  id,
+  tenantId,
+  type: 'question',
+  status: 'open',
+  taskId: 'a1',
+  revisionId: null,
+  card: '49560',
+  title: 'Débito Técnico: testes do Voice',
+  questions: [{ text }],
+  reason: null,
+  details: null,
+  answer: null,
+  createdAt,
+  answeredAt: null,
+});
+const withDecisions = (game: ReturnType<typeof fakeGame>, decisions: DecisionView[]) =>
+  renderWithLive(<Office loadGame={game.loadGame} />, {
+    path: '/escritorio',
+    route: '/escritorio',
+    live: { tenants, tasks, decisions },
+  });
+test('an open decision pops a game-like request over the map, linking to its screen', async () => {
+  withDecisions(fakeGame(), [
+    decision('d1', 'globex', '2026-10-15T10:00:00Z', 'Portão — especificação pronta\nArquivos…'),
+  ]);
+  const popup = await screen.findByRole('dialog', { name: 'Pedido de decisão' });
+  expect(popup).toHaveTextContent('Globex · 49560');
+  expect(popup).toHaveTextContent('Portão — especificação pronta');
+  expect(popup).not.toHaveTextContent('Arquivos');
+  expect(screen.getByRole('link', { name: 'Responder' })).toHaveAttribute('href', '/decisoes/d1');
+});
+test('the newest one shows with how many more wait; "Later" hides only that one', async () => {
+  withDecisions(fakeGame(), [
+    decision('old', 'acme', '2026-10-15T09:00:00Z', 'Primeira'),
+    decision('new', 'acme', '2026-10-15T10:00:00Z', 'Segunda'),
+  ]);
+  const popup = await screen.findByRole('dialog', { name: 'Pedido de decisão' });
+  expect(popup).toHaveTextContent('Segunda');
+  expect(popup).toHaveTextContent('+1 aguardando');
+  await userEvent.click(screen.getByRole('button', { name: 'Depois' }));
+  expect(screen.getByRole('dialog', { name: 'Pedido de decisão' })).toHaveTextContent('Primeira');
+  await userEvent.click(screen.getByRole('button', { name: 'Depois' }));
+  expect(screen.queryByRole('dialog', { name: 'Pedido de decisão' })).toBeNull();
+});
+test('no open decision, or the demo, shows no request', async () => {
+  const game = fakeGame();
+  withDecisions(game, [
+    { ...decision('d1', 'acme', '2026-10-15T10:00:00Z', 'x'), status: 'answered' },
+  ]);
+  await waitFor(() => expect(game.loadGame).toHaveBeenCalled());
+  expect(screen.queryByRole('dialog', { name: 'Pedido de decisão' })).toBeNull();
 });

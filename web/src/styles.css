@@ -483,11 +483,82 @@ a:focus-visible,
   color: #f4dbaa;
 }
 .guild-map-frame {
+  position: relative;
   border: 1px solid #58455e;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 12px 40px #0003;
   background: #2b2330;
+}
+/* A decision request over the map, like a game quest window: pixel border, blinking alert. */
+.decision-popup {
+  position: absolute;
+  top: 52px;
+  right: 16px;
+  z-index: 5;
+  width: min(340px, calc(100% - 32px));
+  padding: 12px 14px;
+  background: #1f1a24;
+  color: #f4dbaa;
+  border: 3px solid #e2b04a;
+  box-shadow:
+    0 0 0 3px #1f1a24,
+    0 0 0 6px #96784c,
+    0 10px 30px #0008;
+  image-rendering: pixelated;
+  font-size: 13px;
+}
+.decision-popup p {
+  margin: 0 0 6px;
+}
+.decision-popup-title {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #ffd27a;
+}
+.decision-popup-alert {
+  display: inline-block;
+  margin-right: 6px;
+  animation: decision-blink 1s steps(2, start) infinite;
+}
+.decision-popup-card {
+  color: #e9dbbd;
+}
+.decision-popup-text,
+.decision-popup-more {
+  color: #d1bfae;
+}
+.decision-popup-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.decision-popup-actions a,
+.decision-popup-actions button {
+  padding: 4px 12px;
+  border: 2px solid #e2b04a;
+  background: #443824;
+  color: #ffd27a;
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.decision-popup-actions button {
+  border-color: #58455e;
+  background: #302937;
+  color: #d1bfae;
+}
+@keyframes decision-blink {
+  to {
+    visibility: hidden;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .decision-popup-alert {
+    animation: none;
+  }
 }
 .guild-map-heading,
 .guild-map-footer {

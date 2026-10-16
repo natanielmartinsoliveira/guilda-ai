@@ -9,7 +9,9 @@ por papel (Arquiteto, Programador, Testador, Consertador, Segurança, Revisor, E
 tarefa ativa é uma pasta com o número do card que anda até a mesa da etapa atual; quem está
 trabalhando se mexe e mostra o card e a IA em uso. Dúvidas e falhas esperam no balcão
 "Aguardando você", tarefas sem cota de IA na copa, e os últimos 8 PRs ficam no mural. Clique
-numa pasta ou num personagem para ver a tarefa. O botão "Demonstração" movimenta pastas de
+numa pasta ou num personagem para ver a tarefa. Quando uma decisão espera por você (em qualquer
+empresa), uma janelinha de "pedido de decisão" aparece sobre o mapa com a mais recente:
+**Responder** abre a tela dela, **Depois** a esconde nesta sessão. O botão "Demonstração" movimenta pastas de
 exemplo, sem gastar IA. Arte: Kenney "Tiny Dungeon" e "Tiny Town" (CC0), baixada por
 `scripts/office-assets.sh`.
 
