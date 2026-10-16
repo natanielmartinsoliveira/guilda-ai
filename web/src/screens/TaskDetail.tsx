@@ -302,6 +302,9 @@ export function TaskDetail({ tenant, id }: { tenant: string; id: string }) {
                 {ROLES[a.role ?? ''] ? t(ROLES[a.role ?? '']) : (a.role ?? t('detail.ai'))}:{' '}
                 {a.credential}
                 {a.model ? ` (${a.model})` : ''} — {a.outcome === 'success' ? 'ok' : a.outcome}
+                {a.usedModels?.length
+                  ? ` · ${t('detail.usedModels', { models: a.usedModels.join(', ') })}`
+                  : ''}
               </li>
             ))}
           </ul>

@@ -207,12 +207,23 @@ export class ClaudeProvider implements AgentProvider {
     return this.parse(result);
   }
   private parse(result: AgentResult): AgentResult {
-    let raw: { is_error?: boolean; result?: unknown; api_error_status?: unknown } | undefined;
+    let raw:
+      | { is_error?: boolean; result?: unknown; api_error_status?: unknown; modelUsage?: unknown }
+      | undefined;
     try {
       raw = JSON.parse(result.stdout);
     } catch {
       raw = undefined;
     }
+    // Which models answered (the session's and its subagents'): ids only, never content.
+    const usage = raw?.modelUsage;
+    const models =
+      usage && typeof usage === 'object' && !Array.isArray(usage)
+        ? Object.keys(usage)
+            .filter((m) => /^[A-Za-z0-9._:@/-]{1,100}$/.test(m))
+            .sort()
+        : [];
+    if (models.length) result = { ...result, models };
     // The final JSON carries the API error (credits, limits) even when the exit code is non-zero.
     const errorText = raw?.is_error
       ? [raw.api_error_status && `status ${raw.api_error_status}`, raw.result]

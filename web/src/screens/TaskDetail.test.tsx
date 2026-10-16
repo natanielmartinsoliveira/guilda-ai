@@ -108,3 +108,19 @@ test('no evidence block when the task has none', async () => {
   await screen.findByText(/Ensaio concluído — nada foi publicado/);
   expect(screen.queryByRole('heading', { name: 'Evidência de teste' })).toBeNull();
 });
+test('the AI used shows the models each run really used', async () => {
+  vi.spyOn(api, 'task').mockResolvedValue({
+    ...rehearsed(),
+    agentAttempts: [
+      {
+        credential: 'company-claude',
+        provider: 'claude',
+        role: 'coder',
+        outcome: 'success',
+        usedModels: ['claude-opus-5-5', 'claude-sonnet-5-5'],
+      },
+    ],
+  });
+  show();
+  expect(await screen.findByText(/claude-opus-5-5, claude-sonnet-5-5/)).toBeTruthy();
+});

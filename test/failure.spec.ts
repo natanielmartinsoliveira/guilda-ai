@@ -167,4 +167,21 @@ describe('AgentRouter', () => {
     expect(state.reason).toBe('auth');
     expect(Math.round((state.unavailableUntil.getTime() - Date.now()) / 60000)).toBe(1440);
   });
+  test('an attempt records the models the agent really used (subagents too)', async () => {
+    const agents = {
+      execute: jest
+        .fn()
+        .mockResolvedValue({ ...ok, models: ['claude-opus-5-5', 'claude-sonnet-5-5'] }),
+    };
+    const run = await new AgentRouter(db, agents as any).run(
+      findTenant('acme')!,
+      'coder',
+      input,
+      jest.fn(),
+    );
+    expect(run.attempts[0]).toMatchObject({
+      outcome: 'success',
+      usedModels: ['claude-opus-5-5', 'claude-sonnet-5-5'],
+    });
+  });
 });

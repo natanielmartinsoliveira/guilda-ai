@@ -14,6 +14,8 @@ export interface AgentAttempt {
   effort?: AiEffort;
   outcome: 'success' | FailureKind;
   error?: string;
+  /** The models the run really used, as the provider reported them. */
+  usedModels?: string[];
 }
 /** Every credential is out of capacity: the task should wait, not fail. */
 export class CapacityError extends TaskError {
@@ -131,6 +133,7 @@ export class AgentRouter {
         model,
         effort,
         outcome,
+        ...(result.models?.length ? { usedModels: result.models } : {}),
       };
       attempts.push(attempt);
       if (outcome === 'success' || outcome === 'task') return { result, credential, attempts };

@@ -119,6 +119,7 @@ export const en: Record<Key, string> = {
   'detail.loadFailed': 'Could not load the task',
   'detail.answerOpen': 'Answer the open decision',
   'detail.aiUsed': 'AI used',
+  'detail.usedModels': 'models: {models}',
   'detail.ai': 'AI',
   'detail.runs': 'Runs',
   'detail.rounds': '{n} round(s)',

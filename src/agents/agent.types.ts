@@ -42,6 +42,8 @@ export interface AgentResult {
   errorText?: string;
   /** The agent's final message (its summary), extracted from its structured output. */
   message?: string;
+  /** Models the run really used (main session and subagents), as the provider reports them. */
+  models?: string[];
 }
 export interface AgentProvider {
   execute(input: AgentInput): Promise<AgentResult>;

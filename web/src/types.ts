@@ -31,6 +31,8 @@ export interface AgentAttempt {
   effort?: string;
   outcome: string;
   error?: string;
+  /** The models the run really used (session and subagents). */
+  usedModels?: string[];
 }
 export interface RevisionView {
   id: string;

@@ -125,3 +125,22 @@ test("a method's dirs (from the workspace HOME) and allowed tools reach the remo
   expect(argv[at + 1]).toBe('Bash(python3 -B:*),Bash(git status:*)');
   expect(argv).toEqual(expect.arrayContaining(['--print', '--permission-mode', 'acceptEdits']));
 });
+test('the models Claude really used come from modelUsage in its JSON result', async () => {
+  const { provider, input, ws } = remote();
+  ws.run.mockImplementation(async (argv: string[]) => {
+    if (argv[0] === 'claude' && argv[1] === '--help') return ok(HELP);
+    if (argv[0] === 'claude')
+      return ok(
+        JSON.stringify({
+          result: 'Feito.',
+          modelUsage: {
+            'claude-sonnet-5-5': { inputTokens: 1 },
+            'claude-opus-5-5': { inputTokens: 9 },
+          },
+        }),
+      );
+    return ok('same\n');
+  });
+  const r = await provider.execute(input);
+  expect(r.models).toEqual(['claude-opus-5-5', 'claude-sonnet-5-5']);
+});

@@ -118,6 +118,7 @@ export const ptBR = {
   'detail.loadFailed': 'Não foi possível carregar a tarefa',
   'detail.answerOpen': 'Responder a decisão aberta',
   'detail.aiUsed': 'IA usada',
+  'detail.usedModels': 'modelos: {models}',
   'detail.ai': 'IA',
   'detail.runs': 'Execuções',
   'detail.rounds': '{n} rodada(s)',
