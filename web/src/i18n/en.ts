@@ -120,6 +120,7 @@ export const en: Record<Key, string> = {
   'detail.answerOpen': 'Answer the open decision',
   'detail.aiUsed': 'AI used',
   'detail.usedModels': 'models: {models}',
+  'detail.cost': 'US$ {usd}',
   'detail.ai': 'AI',
   'detail.runs': 'Runs',
   'detail.rounds': '{n} round(s)',

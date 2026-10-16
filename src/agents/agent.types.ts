@@ -44,6 +44,8 @@ export interface AgentResult {
   message?: string;
   /** Models the run really used (main session and subagents), as the provider reports them. */
   models?: string[];
+  /** What the run cost, as the provider reports it (USD). */
+  costUsd?: number;
 }
 export interface AgentProvider {
   execute(input: AgentInput): Promise<AgentResult>;

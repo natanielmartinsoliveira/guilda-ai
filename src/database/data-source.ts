@@ -12,6 +12,7 @@ import { Decisions1780000000006 } from './migrations/1780000000006-decisions';
 import { Notifications1780000000007 } from './migrations/1780000000007-notifications';
 import { WebAuth1780000000008 } from './migrations/1780000000008-web-auth';
 import { SessionPassword1780000000009 } from './migrations/1780000000009-session-password';
+import { TaskCost1780000000010 } from './migrations/1780000000010-task-cost';
 export function databaseOptions(): DataSourceOptions {
   const c = config();
   return {
@@ -33,6 +34,7 @@ export function databaseOptions(): DataSourceOptions {
       Notifications1780000000007,
       WebAuth1780000000008,
       SessionPassword1780000000009,
+      TaskCost1780000000010,
     ],
     synchronize: false,
   };

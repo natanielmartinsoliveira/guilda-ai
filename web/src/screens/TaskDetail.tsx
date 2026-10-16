@@ -295,7 +295,10 @@ export function TaskDetail({ tenant, id }: { tenant: string; id: string }) {
       )}
       {!!task.agentAttempts?.length && (
         <section>
-          <h3>{t('detail.aiUsed')}</h3>
+          <h3>
+            {t('detail.aiUsed')}
+            {task.costUsd ? ` · ${t('detail.cost', { usd: task.costUsd.toFixed(2) })}` : ''}
+          </h3>
           <ul>
             {task.agentAttempts.map((a, i) => (
               <li key={i}>
@@ -304,6 +307,9 @@ export function TaskDetail({ tenant, id }: { tenant: string; id: string }) {
                 {a.model ? ` (${a.model})` : ''} — {a.outcome === 'success' ? 'ok' : a.outcome}
                 {a.usedModels?.length
                   ? ` · ${t('detail.usedModels', { models: a.usedModels.join(', ') })}`
+                  : ''}
+                {a.costUsd !== undefined
+                  ? ` · ${t('detail.cost', { usd: a.costUsd.toFixed(2) })}`
                   : ''}
               </li>
             ))}

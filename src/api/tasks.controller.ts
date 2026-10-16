@@ -646,6 +646,7 @@ export class TasksController {
         provider: t.provider,
         attempts: t.attempts,
         error: t.error,
+        costUsd: Number(t.costUsd ?? 0),
         prUrl: t.result?.prUrl,
         agentAttempts: t.result?.agentAttempts,
         // Rehearsal (nothing published): where to look in the company's workspace.

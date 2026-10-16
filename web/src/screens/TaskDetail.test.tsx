@@ -124,3 +124,28 @@ test('the AI used shows the models each run really used', async () => {
   show();
   expect(await screen.findByText(/claude-opus-5-5, claude-sonnet-5-5/)).toBeTruthy();
 });
+test('the AI used shows what each run cost and the task total', async () => {
+  vi.spyOn(api, 'task').mockResolvedValue({
+    ...rehearsed(),
+    costUsd: 1.75,
+    agentAttempts: [
+      {
+        credential: 'company-claude',
+        provider: 'claude',
+        role: 'coder',
+        outcome: 'success',
+        costUsd: 1.25,
+      },
+      {
+        credential: 'company-claude',
+        provider: 'claude',
+        role: 'coder',
+        outcome: 'quota',
+        costUsd: 0.5,
+      },
+    ],
+  });
+  show();
+  expect(await screen.findByText(/US\$ 1\.75/)).toBeTruthy();
+  expect(screen.getByText(/US\$ 1\.25/)).toBeTruthy();
+});

@@ -33,6 +33,8 @@ export interface AgentAttempt {
   error?: string;
   /** The models the run really used (session and subagents). */
   usedModels?: string[];
+  /** What the run cost (USD), as the provider reported it. */
+  costUsd?: number;
 }
 export interface RevisionView {
   id: string;
@@ -57,6 +59,8 @@ export interface RunView {
 }
 export interface TaskView {
   id: string;
+  /** What the task's AI runs cost so far (USD). */
+  costUsd?: number;
   tenantId: string;
   project?: string;
   branch: string;

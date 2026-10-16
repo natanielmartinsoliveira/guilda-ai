@@ -117,6 +117,8 @@ export class Task extends Base {
   @Column({ type: 'text', nullable: true }) error!: string | null;
   @Column({ default: 0 }) attempts!: number;
   @Column({ default: 'QUEUED' }) stage!: string;
+  /** What its AI runs cost, as the providers report it (kept across retries and answers). */
+  @Column({ type: 'double precision', default: 0 }) costUsd!: number;
 }
 @Entity('agent_runs')
 export class AgentRun {

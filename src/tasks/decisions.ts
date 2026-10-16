@@ -52,7 +52,9 @@ export function clarificationsFrom(
     if (d.type === 'question')
       (d.questions ?? []).forEach((q, i) => {
         const text = answer.answers?.[i];
-        if (text) notes.push({ kind: 'answer', question: q.text, text, at });
+        // A budget release (💰) is about cost, not about the card: never prompt material.
+        if (text && !q.text.startsWith('💰'))
+          notes.push({ kind: 'answer', question: q.text, text, at });
       });
     else if (answer.action === 'retry_with_instructions' && answer.instructions)
       notes.push({ kind: 'instruction', text: answer.instructions, at });

@@ -119,6 +119,7 @@ export const ptBR = {
   'detail.answerOpen': 'Responder a decisão aberta',
   'detail.aiUsed': 'IA usada',
   'detail.usedModels': 'modelos: {models}',
+  'detail.cost': 'US$ {usd}',
   'detail.ai': 'IA',
   'detail.runs': 'Execuções',
   'detail.rounds': '{n} rodada(s)',

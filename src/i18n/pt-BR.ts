@@ -1,6 +1,9 @@
 /** Texts the operator reads (Telegram, engine questions, configuration errors), in pt-BR. */
 export const ptBR = {
   'telegram.task': 'tarefa',
+  'budget.reached':
+    'Orçamento da tarefa atingido: US$ {spent} de US$ {limit}. Liberar mais US$ {usd} para ela continuar?',
+  'budget.release': 'Liberar mais US$ {usd}',
   'telegram.question.head': 'A IA tem {count} dúvida(s) e a tarefa está esperando você:',
   'telegram.question.answerLink': 'Responder: {link}',
   'telegram.question.answerVsCode': 'Responda pelo VS Code (answer_decision).',

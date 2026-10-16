@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { config, log, redact, TaskError } from '../config';
-import { CredentialState } from '../database/entities';
+import { CredentialState, Decision, Task } from '../database/entities';
+import { t } from '../i18n';
+import { isApproval } from '../methods/approval';
+import { NeedsInput } from '../tasks/decisions';
 import { AiCredential, AiEffort, AiRole, Tenant } from '../tenants/tenants';
 import { AgentService } from './agent.service';
 import { AgentInput, AgentResult } from './agent.types';
@@ -16,7 +19,11 @@ export interface AgentAttempt {
   error?: string;
   /** The models the run really used, as the provider reported them. */
   usedModels?: string[];
+  /** What the run cost (USD), as the provider reported it. */
+  costUsd?: number;
 }
+const BUDGET_MARK = '💰';
+const usd = (n: number) => n.toFixed(2);
 /** Every credential is out of capacity: the task should wait, not fail. */
 export class CapacityError extends TaskError {
   constructor(
@@ -93,6 +100,43 @@ export class AgentRouter {
     return credentialStatus(this.db, tenant);
   }
   /**
+   * A task at its budget does not start another run: it asks to release one more share. Each
+   * answered budget question that approved (its option, or a plain approval) adds one share.
+   */
+  /** Adds a run's cost to its task (one run per task at a time: no race). */
+  private async addCost(taskId: string, costUsd: number) {
+    const tasks = this.db.getRepository(Task);
+    const task = await tasks.findOneBy({ id: taskId });
+    if (task) await tasks.update(taskId, { costUsd: Number(task.costUsd ?? 0) + costUsd });
+  }
+  private async checkBudget(tenant: Tenant, taskId: string) {
+    const share = tenant.ai.budget?.perTaskUsd;
+    if (!share) return;
+    const task = await this.db.getRepository(Task).findOneBy({ id: taskId });
+    if (!task) return;
+    const option = t('budget.release', { usd: usd(share) });
+    const answered = await this.db
+      .getRepository(Decision)
+      .findBy({ taskId, type: 'question', status: 'answered' });
+    const released = answered.filter((d) => {
+      if (!d.questions?.[0]?.text.startsWith(BUDGET_MARK)) return false;
+      const reply = (d.answer as { answers?: string[] } | null)?.answers?.[0] ?? '';
+      return reply.trim() === option || isApproval(reply);
+    }).length;
+    const limit = share * (1 + released);
+    const spent = Number(task.costUsd ?? 0);
+    if (spent < limit) return;
+    throw new NeedsInput(
+      [
+        {
+          text: `${BUDGET_MARK} ${t('budget.reached', { spent: usd(spent), limit: usd(limit), usd: usd(share) })}`,
+          options: [option],
+        },
+      ],
+      true,
+    );
+  }
+  /**
    * Runs the agent with the role's first usable credential; on quota, rate-limit or auth
    * failures parks that credential (for every role) and continues with the next. Task failures
    * stop immediately: retrying a broken task with every key would only multiply cost.
@@ -105,6 +149,7 @@ export class AgentRouter {
   ): Promise<{ result: AgentResult; credential: AiCredential; attempts: AgentAttempt[] }> {
     const targets = roleTargets(tenant, role);
     if (!targets.length) throw new TaskError(`AI role "${role}" has no credentials`);
+    await this.checkBudget(tenant, input.taskId);
     const available = new Set(
       (await this.status(tenant)).filter((s) => s.available).map((s) => s.credential.id),
     );
@@ -134,8 +179,10 @@ export class AgentRouter {
         effort,
         outcome,
         ...(result.models?.length ? { usedModels: result.models } : {}),
+        ...(result.costUsd !== undefined ? { costUsd: result.costUsd } : {}),
       };
       attempts.push(attempt);
+      if (result.costUsd) await this.addCost(input.taskId, result.costUsd);
       if (outcome === 'success' || outcome === 'task') return { result, credential, attempts };
       attempt.error = redact(result.errorText ?? result.stderr).slice(-500);
       await this.park(tenant, credential, outcome, result);

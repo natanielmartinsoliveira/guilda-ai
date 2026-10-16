@@ -2,6 +2,9 @@ import type { MessageKey } from './pt-BR';
 /** Texts the operator reads (Telegram, engine questions, configuration errors), in English. */
 export const en: Record<MessageKey, string> = {
   'telegram.task': 'task',
+  'budget.reached':
+    'Task budget reached: US$ {spent} of US$ {limit}. Release US$ {usd} more for it to go on?',
+  'budget.release': 'Release US$ {usd} more',
   'telegram.question.head': 'The AI has {count} question(s) and the task is waiting for you:',
   'telegram.question.answerLink': 'Answer: {link}',
   'telegram.question.answerVsCode': 'Answer from VS Code (answer_decision).',

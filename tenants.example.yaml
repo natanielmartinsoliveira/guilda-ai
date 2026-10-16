@@ -49,6 +49,9 @@ tenants:
         # Reviews the diff before the PR; read-only. A different model from the coder.
         reviewer: [{ credential: openai-main, effort: medium }, gemini-1]
       review: { rounds: 1 }
+      # Optional: what one task may spend on AI (as the providers report cost) before it stops
+      # and asks to release one more share — in the panel or on Telegram.
+      budget: { perTaskUsd: 15 }
     hosts:
       # Fine-grained token: Contents and Pull requests read/write, Metadata read.
       - { id: github, type: github, token: '${ACME_GITHUB_TOKEN}' }

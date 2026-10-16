@@ -99,3 +99,24 @@ test('clarifications come from answered decisions, in answer order', () => {
     ['instruction', undefined, 'Use o enum'],
   ]);
 });
+test('a budget release is never prompt material', () => {
+  const at = new Date('2026-10-16T10:00:00Z');
+  expect(
+    clarificationsFrom([
+      {
+        type: 'question',
+        status: 'answered',
+        answeredAt: at,
+        questions: [{ text: '💰 Orçamento da tarefa atingido' }],
+        answer: { answers: ['ok'] },
+      },
+      {
+        type: 'question',
+        status: 'answered',
+        answeredAt: at,
+        questions: [{ text: 'Qual tela?' }],
+        answer: { answers: ['Perfil'] },
+      },
+    ] as never).map((c) => c.text),
+  ).toEqual(['Perfil']);
+});

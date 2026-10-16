@@ -137,10 +137,12 @@ test('the models Claude really used come from modelUsage in its JSON result', as
             'claude-sonnet-5-5': { inputTokens: 1 },
             'claude-opus-5-5': { inputTokens: 9 },
           },
+          total_cost_usd: 0.42,
         }),
       );
     return ok('same\n');
   });
   const r = await provider.execute(input);
   expect(r.models).toEqual(['claude-opus-5-5', 'claude-sonnet-5-5']);
+  expect(r.costUsd).toBe(0.42);
 });

@@ -180,6 +180,10 @@ No VS Code (MCP), `ai_status` com o id da empresa lista cada credencial, se est�
 
 Homologado neste ambiente, sempre pelo sandbox real (criar um arquivo, como um coder, e responder a revisão em modo somente leitura): Claude por assinatura (também com entrega real), Codex por assinatura ChatGPT, Gemini (`gemini-3.5-flash`, chave do AI Studio) e OpenRouter com modelos gratuitos. Veja [Gemini](#gemini-google-ai-studio) e [OpenRouter](#openrouter-e-por-que-groq-não-é-suportado).
 
+### Custo e orçamento por tarefa
+
+Cada execução registra o custo informado pelo provedor (o Claude informa `total_cost_usd`) e os modelos usados; a tela da tarefa mostra o custo de cada execução e o total, que soma também os Repetir e as retomadas. Com `ai.budget: { perTaskUsd: 15 }` na empresa, uma tarefa que chegou ao teto não começa outra execução: para numa decisão "💰 Orçamento da tarefa atingido…", e escolher "Liberar mais US$ 15" (ou responder "ok") libera mais uma parcela. Uma execução em andamento nunca é cortada. Sem `budget`, o custo nunca para uma tarefa. Depois de atualizar, rode `npm run migration:run` (coluna `costUsd` nas tarefas).
+
 ### Fallback entre IAs
 
 O worker tenta as credenciais na ordem configurada, pulando as que estão em espera:

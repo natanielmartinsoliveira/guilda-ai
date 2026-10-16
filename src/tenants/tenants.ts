@@ -501,6 +501,11 @@ const tenant = z
           rounds: z.number().int().min(1).max(3).default(1),
         })
         .prefault({}),
+      /**
+       * What one task may spend on AI before it stops and asks to release one more share (as the
+       * providers report cost). Without it, cost never stops a task.
+       */
+      budget: z.object({ perTaskUsd: z.number().positive() }).optional(),
     }),
     hosts: z.array(z.discriminatedUnion('type', [githubHost, bitbucketHost, gitlabHost])).min(1),
     sources: z

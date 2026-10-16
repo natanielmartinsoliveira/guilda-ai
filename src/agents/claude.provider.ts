@@ -224,6 +224,9 @@ export class ClaudeProvider implements AgentProvider {
             .sort()
         : [];
     if (models.length) result = { ...result, models };
+    const cost = (raw as { total_cost_usd?: unknown } | undefined)?.total_cost_usd;
+    if (typeof cost === 'number' && Number.isFinite(cost) && cost >= 0)
+      result = { ...result, costUsd: cost };
     // The final JSON carries the API error (credits, limits) even when the exit code is non-zero.
     const errorText = raw?.is_error
       ? [raw.api_error_status && `status ${raw.api_error_status}`, raw.result]
