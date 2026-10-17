@@ -285,3 +285,74 @@ test('with Telegram on, a finished rehearsal (and its adjustment) is announced',
   expect(texts[1]).toContain('Ensaio concluído (ajuste #1)');
   jest.restoreAllMocks();
 });
+
+/** git as the promotion sees it: the rehearsal changed these files (NUL-separated listings). */
+function promotionGit(x: Awaited<ReturnType<typeof setup>>, files: string[]) {
+  let head = 'b'.repeat(40);
+  let kept = '';
+  x.git.git.mockImplementation(async (_t: unknown, args: string[]) => {
+    if (args[0] === 'update-ref') kept = args[2];
+    if (args[0] === 'rev-parse' && args.includes('--verify')) {
+      if (!kept) throw new Error('Git rev-parse failed: ');
+      return kept;
+    }
+    if (args[0] === 'rev-parse') return head;
+    if (args[0] === 'diff' && args.includes('--name-only')) return files.join('\0') + '\0';
+    if (args[0] === 'ls-tree') return files.join('\0') + '\0';
+    if (args[0] === 'commit') head = 'c'.repeat(40);
+    return '';
+  });
+  const calls = () => x.git.git.mock.calls.map(([, a]) => a as string[]);
+  return { calls };
+}
+test('promotion lists paths NUL-separated (accents survive) and touches them only literally', async () => {
+  const x = await setup();
+  await x.run();
+  const g = promotionGit(x, ['docs/relatório.md', 'app/[id]/page.tsx']);
+  await x.orchestrator.promote('acme', x.task.id);
+  await x.run();
+  expect((await reload(x.task.id)).status).toBe('SUCCESS');
+  const names = g.calls().find((a) => a[0] === 'diff' && a.includes('--name-only'))!;
+  expect(names).toContain('-z');
+  const literal = [':(literal)docs/relatório.md', ':(literal)app/[id]/page.tsx'];
+  const checkout = g.calls().find((a) => a[0] === 'checkout' && a.includes('--'))!;
+  expect(checkout.slice(checkout.indexOf('--') + 1)).toEqual(literal);
+  // only these paths are committed, whatever else is staged
+  const commit = g.calls().find((a) => a[0] === 'commit')!;
+  expect(commit.slice(commit.indexOf('--') + 1)).toEqual(literal);
+  expect(g.calls().some((a) => a[0] === 'rm')).toBe(false);
+});
+test('a promotion that failed after its commit resumes it: same commit pushed, the rehearsal ref kept', async () => {
+  const x = await setup();
+  await x.run();
+  const g = promotionGit(x, ['src/x.ts']);
+  await x.orchestrator.promote('acme', x.task.id);
+  x.git.push.mockRejectedValueOnce(new Error('remote hung up'));
+  x.host.ensurePullRequest.mockClear();
+  await x.run();
+  const failed = await reload(x.task.id);
+  expect(failed.status).toBe('FAILED');
+  // a retry keeps the rehearsal and the promotion (even for a task without a method)
+  await x.orchestrator.retry('acme', x.task.id);
+  const queued = await reload(x.task.id);
+  expect(queued.result).toMatchObject({ promote: true, rehearsal: expect.any(Object) });
+  await x.run();
+  expect((await reload(x.task.id)).status).toBe('SUCCESS');
+  expect(g.calls().filter((a) => a[0] === 'commit')).toHaveLength(1);
+  expect(g.calls().filter((a) => a[0] === 'update-ref')).toHaveLength(1);
+  expect(x.git.push.mock.calls.map((c) => c[1])).toEqual(['c'.repeat(40), 'c'.repeat(40)]);
+  expect(x.host.ensurePullRequest).toHaveBeenCalledTimes(1);
+});
+test('a promoted rehearsal is a PR delivery: an adjustment is pushed to it', async () => {
+  const x = await setup();
+  await x.run();
+  promotionGit(x, ['src/x.ts']);
+  await x.orchestrator.promote('acme', x.task.id);
+  await x.run();
+  expect(x.git.push).toHaveBeenCalledTimes(1);
+  const revision = await x.revise('troque o nome');
+  const saved = await db.getRepository(Revision).findOneByOrFail({ id: revision.id });
+  expect(saved.status).toBe('SUCCESS');
+  expect(saved.stage).not.toBe('REHEARSED');
+  expect(x.git.push).toHaveBeenCalledTimes(2);
+});

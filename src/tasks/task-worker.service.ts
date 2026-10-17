@@ -707,8 +707,8 @@ export class TaskWorkerService implements OnModuleInit {
     }
     // After the commit and before anything leaves (test evidence of a free-surface edit).
     if (spec.afterCommit) await spec.afterCommit();
-    // Rehearsal: nothing leaves the workspace.
-    if (ctx.cfg.delivery === 'rehearsal') return;
+    // Rehearsal: nothing leaves the workspace (a promoted one is a PR delivery now).
+    if (ctx.cfg.delivery === 'rehearsal' && !promoted(spec.task.result?.rehearsal)) return;
     await this.stage(job, entity, 'PUSH');
     // Never forced: a revision whose branch moved meanwhile is rejected, not overwritten.
     await this.git.push(task, String(state.commitSha), ctx.remote);
@@ -1224,29 +1224,58 @@ export class TaskWorkerService implements OnModuleInit {
    * A finished rehearsal becomes a draft PR: on the current base branch, one commit with only
    * the delivery's files (the method's own paths excluded), the company identity and the PR
    * title as message. The rehearsal's own history stays under refs/ai-dev-team/rehearsal/<id>.
-   * When the base branch changed the same files since the rehearsal, nothing is sent.
+   * When the base branch changed the same files since the rehearsal, nothing is sent. A retry
+   * after the commit (push or PR failed) publishes that same commit again, never a new one.
    */
   private async promote(task: Task, ctx: WorkContext, steps: StepPlan[], target: string) {
     const state = task.result!;
     const rehearsal = state.rehearsal as Record<string, unknown>;
+    await this.stage(task, Task, 'PROMOTE');
+    let sha = state.promoteSha as string | undefined;
+    if (sha) await this.git.git(task, ['checkout', '-B', task.branch, sha]);
+    else {
+      const built = await this.buildPromotion(task, ctx, target);
+      sha = built.sha;
+      state.promoteSha = sha;
+      state.changes = { files: built.files };
+      await this.db.getRepository(Task).save(task);
+    }
+    await this.stage(task, Task, 'PUSH');
+    await this.git.push(task, sha, ctx.remote);
+    state.commitSha = sha;
+    await this.openPullRequest(task, ctx, steps, target, { draft: true, reviewers: [] });
+    rehearsal.promoted = true;
+    delete state.promote;
+    delete state.promoteSha;
+  }
+  /** The promotion commit on the fetched base branch: only the delivery's files, literally. */
+  private async buildPromotion(task: Task, ctx: WorkContext, target: string) {
+    const state = task.result!;
     const exclude = ctx.cfg.method
       ? loadMethod(ctx.tenant.packDir!, ctx.cfg.method.name).publish.exclude
       : [];
-    await this.stage(task, Task, 'PROMOTE');
     const base = String(state.baseSha);
-    const tip = await this.git.git(task, ['rev-parse', 'HEAD']);
-    await this.git.git(task, ['update-ref', `refs/ai-dev-team/rehearsal/${task.id}`, tip]);
-    const files = (await this.git.git(task, ['diff', '--name-only', '--no-renames', base, tip]))
-      .split('\n')
-      .filter((f) => f && !exclude.some((e) => under(f, e)));
+    // The rehearsal's tip: kept under a ref the first time (the branch moves below).
+    const ref = `refs/ai-dev-team/rehearsal/${task.id}`;
+    let tip = await this.git.git(task, ['rev-parse', '--verify', '-q', ref]).catch(() => '');
+    if (!tip) {
+      tip = String((state.rehearsal as { commitSha?: string }).commitSha ?? state.commitSha);
+      await this.git.git(task, ['update-ref', ref, tip]);
+    }
+    const list = (out: string) => out.split('\0').filter(Boolean);
+    const files = list(
+      await this.git.git(task, ['diff', '--name-only', '-z', '--no-renames', base, tip]),
+    ).filter((f) => !exclude.some((e) => under(f, e)));
     if (!files.length)
       throw new TaskError('NO_CHANGES: o ensaio não mudou nada fora do que o método guarda', false);
+    // Paths are literal, never patterns ("app/[id]/page.tsx" is that file only).
+    const literal = (paths: string[]) => paths.map((p) => `:(literal)${p}`);
     await this.git.git(task, ['fetch', '--no-tags', ctx.remote.url, `refs/heads/${target}`], {
       remote: ctx.remote,
     });
     const head = await this.git.git(task, ['rev-parse', 'FETCH_HEAD']);
     try {
-      await this.git.git(task, ['diff', '--quiet', base, head, '--', ...files]);
+      await this.git.git(task, ['diff', '--quiet', base, head, '--', ...literal(files)]);
     } catch {
       throw new TaskError(
         `O ${target} mudou nos mesmos arquivos desde o ensaio; refaça a entrega sobre ele`,
@@ -1254,25 +1283,18 @@ export class TaskWorkerService implements OnModuleInit {
       );
     }
     await this.git.git(task, ['checkout', '-B', task.branch, head]);
-    const present = (
-      await this.git.git(task, ['ls-tree', '-r', '--name-only', tip, '--', ...files])
-    )
-      .split('\n')
-      .filter(Boolean);
-    if (present.length) await this.git.git(task, ['checkout', tip, '--', ...present]);
+    // ls-tree paths are literal already.
+    const present = list(
+      await this.git.git(task, ['ls-tree', '-r', '-z', '--name-only', tip, '--', ...files]),
+    );
+    if (present.length) await this.git.git(task, ['checkout', tip, '--', ...literal(present)]);
     const gone = files.filter((f) => !present.includes(f));
-    if (gone.length) await this.git.git(task, ['rm', '-q', '--', ...gone]);
-    await this.git.git(task, ['commit', '-m', this.prTitleFor(ctx)], {
+    if (gone.length) await this.git.git(task, ['rm', '-q', '--', ...literal(gone)]);
+    // Only these paths, whatever else may be staged.
+    await this.git.git(task, ['commit', '-m', this.prTitleFor(ctx), '--', ...literal(files)], {
       author: { name: ctx.tenant.git.authorName, email: ctx.tenant.git.authorEmail },
     });
-    const sha = await this.git.git(task, ['rev-parse', 'HEAD']);
-    await this.stage(task, Task, 'PUSH');
-    await this.git.push(task, sha, ctx.remote);
-    state.commitSha = sha;
-    state.changes = { files };
-    await this.openPullRequest(task, ctx, steps, target, { draft: true, reviewers: [] });
-    rehearsal.promoted = true;
-    delete state.promote;
+    return { sha: await this.git.git(task, ['rev-parse', 'HEAD']), files };
   }
   /** The project's PR title ("{key} - {title}" style), also the message of a promotion. */
   private prTitleFor(ctx: WorkContext) {
@@ -1537,7 +1559,10 @@ export class TaskWorkerService implements OnModuleInit {
         );
     }
     // A rehearsal is adjusted in its own workspace folder: no PR, nothing fetched or pushed.
-    const rehearsal = task.result?.rehearsal as Record<string, unknown> | undefined;
+    // A promoted one is a PR delivery: adjusted like any other.
+    const rehearsal = promoted(task.result?.rehearsal)
+      ? undefined
+      : (task.result?.rehearsal as Record<string, unknown> | undefined);
     if (rehearsal?.discarded) throw new TaskError('Ensaio descartado: crie uma nova tarefa');
     if (task.status !== 'SUCCESS' || !task.result?.baseSha)
       throw new TaskError('Task has no pull request to revise');

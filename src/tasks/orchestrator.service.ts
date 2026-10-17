@@ -227,7 +227,7 @@ export class OrchestratorService {
           'conflict',
           'The task already has a pull request; request a revision ("/ai ...") instead',
         );
-      await this.requeue(em, job, entity, taskId, !!job.result?.method);
+      await this.requeue(em, job, entity, taskId, !!job.result?.method || !!job.result?.promote);
       await this.closeDecisions(em, taskId, entity === Revision ? job.id : null, 'retry');
       return job;
     });
@@ -347,7 +347,7 @@ export class OrchestratorService {
         if (job.status !== 'WAITING')
           throw new JobRejected('conflict', `The job is not waiting (status: ${job.status})`);
         // A method's gate or stop resumes where it waited (its commits are already there).
-        await this.requeue(em, job, entity, task.id, !!job.result?.method);
+        await this.requeue(em, job, entity, task.id, !!job.result?.method || !!job.result?.promote);
         stored = { answers: answers.map((a) => a.slice(0, 4000)) };
       } else {
         if (!('action' in answer))
@@ -368,7 +368,13 @@ export class OrchestratorService {
         } else {
           // A method resumes where it stopped (its commits and the gate's words are kept): the
           // usual cause is outside (VPN, quota). With instructions it starts over, above.
-          await this.requeue(em, job, entity, task.id, !!job.result?.method);
+          await this.requeue(
+            em,
+            job,
+            entity,
+            task.id,
+            !!job.result?.method || !!job.result?.promote,
+          );
           stored = { action: answer.action };
         }
       }

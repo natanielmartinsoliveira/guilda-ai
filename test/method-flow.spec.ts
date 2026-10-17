@@ -51,13 +51,14 @@ async function setup(route: Route | undefined, script: Script = {}) {
     git: jest.fn(async (_t: unknown, args: string[]) => {
       // Promotion: what the rehearsal changed, and whether the base branch moved under it.
       if (args[0] === 'diff' && args.includes('--name-only'))
-        return (script.changed ?? []).join('\n');
+        return (script.changed ?? []).join('\0');
       if (args[0] === 'diff' && args.includes('--quiet') && script.baseMoved)
         throw new Error('Git diff failed: ');
+      if (args[0] === 'rev-parse' && args.includes('--verify')) throw new Error('no such ref');
       if (args[0] === 'ls-tree')
         return (script.changed ?? [])
           .filter((f) => args.slice(args.indexOf('--')).includes(f))
-          .join('\n');
+          .join('\0');
       if (args[0] === 'rev-parse') return head;
       if (args[0] === 'status') return tree.map((p) => `?? ${p}\0`).join('');
       if (args[0] === 'clean' || args[0] === 'checkout') tree = [];
@@ -369,10 +370,16 @@ test('a rehearsal is promoted to a draft PR: only the delivery files, the compan
   expect(calls.some((a) => a[0] === 'checkout' && a[1] === '-B')).toBe(true);
   // only the delivery's files (the method's own folder is excluded) come from the rehearsal
   const taken = calls.find((a) => a[0] === 'checkout' && a.includes('--'))!;
-  expect(taken.slice(taken.indexOf('--') + 1)).toEqual(['tests/XTest.php']);
+  expect(taken.slice(taken.indexOf('--') + 1)).toEqual([':(literal)tests/XTest.php']);
   const commit = x.git.git.mock.calls.find(([, a]) => (a as string[])[0] === 'commit')!;
-  // the message is the PR title (the project's pattern; this one has none)
-  expect(commit[1]).toEqual(['commit', '-m', `AI: ${item.key} ${item.title}`]);
+  // the message is the PR title (the project's pattern; this one has none); only those paths
+  expect(commit[1]).toEqual([
+    'commit',
+    '-m',
+    `AI: ${item.key} ${item.title}`,
+    '--',
+    ':(literal)tests/XTest.php',
+  ]);
   expect(x.host.ensurePullRequest.mock.calls[0][1].title).toBe(`AI: ${item.key} ${item.title}`);
   expect((commit as unknown[])[2]).toMatchObject({ author: { name: expect.any(String) } });
   expect(x.git.push).toHaveBeenCalledTimes(1);
