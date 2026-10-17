@@ -13,6 +13,11 @@ import { Notifications1780000000007 } from './migrations/1780000000007-notificat
 import { WebAuth1780000000008 } from './migrations/1780000000008-web-auth';
 import { SessionPassword1780000000009 } from './migrations/1780000000009-session-password';
 import { TaskCost1780000000010 } from './migrations/1780000000010-task-cost';
+/**
+ * Connections per process. In the worker each running task holds one (its session lock) for the
+ * whole run, so the companies' worker.concurrency must fit in it (checked when the worker starts).
+ */
+export const DB_POOL = 30;
 export function databaseOptions(): DataSourceOptions {
   const c = config();
   return {
@@ -37,6 +42,8 @@ export function databaseOptions(): DataSourceOptions {
       TaskCost1780000000010,
     ],
     synchronize: false,
+    // A full pool fails the query after 30s instead of hanging the worker.
+    extra: { max: DB_POOL, connectionTimeoutMillis: 30_000 },
   };
 }
 export default new DataSource(databaseOptions());

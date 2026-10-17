@@ -63,6 +63,7 @@ import type { DecisionQuestion } from '../database/entities';
 import { SandboxService } from '../agents/sandbox.service';
 import { GitRemote, GitService } from '../git/git.service';
 import { MessagingService } from '../messaging/messaging.service';
+import { DB_POOL } from '../database/data-source';
 import { TenantRegistry, ProjectContext } from '../tenants/tenant-registry.service';
 import { SourceEvent, SourceReporter } from '../sources/source-reporter.service';
 import { assertTransition } from './status';
@@ -146,6 +147,18 @@ interface FrontPhase {
   backCommitMessage: string;
   commitMessage: string;
 }
+/**
+ * Acks and nacks on a channel that closed during the run (another task of the company failed, or
+ * RabbitMQ restarted) throw; the job state is already saved and the redelivery settles the
+ * message, so that must never turn into a failure of the job.
+ */
+function settle(action: () => void) {
+  try {
+    action();
+  } catch {
+    log('worker.settle_skipped');
+  }
+}
 const NO_CHANGES = (error: unknown) =>
   error instanceof TaskError && error.message.startsWith('NO_CHANGES');
 @Injectable()
@@ -170,6 +183,12 @@ export class TaskWorkerService implements OnModuleInit {
     const slots = this.tenants
       .all()
       .map((t) => ({ tenantId: t.id, concurrency: t.worker.concurrency }));
+    // The legacy queue adds one; some connections stay free for the outbox and short queries.
+    const atOnce = 1 + slots.reduce((sum, s) => sum + s.concurrency, 0);
+    if (atOnce > DB_POOL - 5)
+      throw new Error(
+        `worker: up to ${atOnce} tasks at once (1 + every company's worker.concurrency) do not fit the database pool of ${DB_POOL}`,
+      );
     this.messaging.consume((m, c) => this.handle(m, c), slots);
   }
   async handle(message: ConsumeMessage, channel: Channel) {
@@ -177,7 +196,7 @@ export class TaskWorkerService implements OnModuleInit {
     try {
       body = messageSchema.parse(JSON.parse(message.content.toString()));
     } catch {
-      channel.nack(message, false, false);
+      settle(() => channel.nack(message, false, false));
       return;
     }
     const lock = this.db.createQueryRunner();
@@ -188,12 +207,12 @@ export class TaskWorkerService implements OnModuleInit {
       await lock.query('SELECT pg_advisory_lock(hashtext($1))', [body.taskId]);
       const task = await this.db.getRepository(Task).findOneBy({ id: body.taskId });
       if (!task || task.issueId !== body.issueId) {
-        channel.nack(message, false, false);
+        settle(() => channel.nack(message, false, false));
         return;
       }
       if (body.type === 'CODE') {
         if (task.type !== 'CODE') {
-          channel.nack(message, false, false);
+          settle(() => channel.nack(message, false, false));
           return;
         }
         await this.runJob(
@@ -216,7 +235,7 @@ export class TaskWorkerService implements OnModuleInit {
         .getRepository(Revision)
         .findOneBy({ id: body.revisionId!, taskId: task.id });
       if (!revision) {
-        channel.nack(message, false, false);
+        settle(() => channel.nack(message, false, false));
         return;
       }
       await this.runJob(
@@ -244,12 +263,12 @@ export class TaskWorkerService implements OnModuleInit {
     const repo = this.db.getRepository<Job>(entity);
     const ids = { taskId: run.outbox.taskId, revisionId: run.outbox.revisionId };
     if (job.status === 'SUCCESS') {
-      channel.ack(message);
+      settle(() => channel.ack(message));
       return;
     }
     // WAITING: only the operator's answer queues the job again; a stale message is dropped.
     if (job.status === 'FAILED' || job.status === 'CANCELLED' || job.status === 'WAITING') {
-      channel.nack(message, false, false);
+      settle(() => channel.nack(message, false, false));
       return;
     }
     if (job.attempts >= config().MAX_ATTEMPTS) {
@@ -259,7 +278,7 @@ export class TaskWorkerService implements OnModuleInit {
         const decision = await em.save(Decision, this.failureDecision(run, error));
         await notifyDecision(em, decision.id);
       });
-      channel.nack(message, false, false);
+      settle(() => channel.nack(message, false, false));
       return;
     }
     if (job.status === 'RUNNING') {
@@ -286,7 +305,7 @@ export class TaskWorkerService implements OnModuleInit {
       job.stage = job.result?.rehearsal && !promoted(job.result.rehearsal) ? 'REHEARSED' : 'DONE';
       await repo.save(job);
       log(`${kind}.success`, { ...ids, status: job.status });
-      channel.ack(message);
+      settle(() => channel.ack(message));
       await run.succeeded();
     } catch (caught) {
       let error = caught;
@@ -322,7 +341,7 @@ export class TaskWorkerService implements OnModuleInit {
             await notifyDecision(em, decision.id);
           });
           log(`${kind}.waiting_input`, { ...ids, questions: questions.length });
-          channel.ack(message);
+          settle(() => channel.ack(message));
           return;
         }
         error = new TaskError(
@@ -346,7 +365,7 @@ export class TaskWorkerService implements OnModuleInit {
           await em.save(Outbox, { ...run.outbox, availableAt: error.until });
         });
         log(`${kind}.waiting_capacity`, { ...ids, until: error.until.toISOString() });
-        channel.nack(message, false, false);
+        settle(() => channel.nack(message, false, false));
         return;
       }
       const retry =
@@ -367,7 +386,7 @@ export class TaskWorkerService implements OnModuleInit {
       });
       log(`${kind}.failed`, { ...ids, status: job.status, error: job.error, retry });
       // Failed delivery retained in DLQ; a retry has its own durable outbox record.
-      channel.nack(message, false, false);
+      settle(() => channel.nack(message, false, false));
       if (job.status === 'FAILED') await run.failed(job.error);
     }
   }

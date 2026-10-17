@@ -18,7 +18,7 @@ export class MessagingService implements OnModuleInit, OnModuleDestroy {
   private publisher?: amqp.ConfirmChannel;
   /** One consumer channel per queue: one closing never stops the others. */
   private readonly consumers = new Map<string, amqp.Channel>();
-  /** Queues declared on the current publisher channel. */
+  /** Queues declared on the current connection. */
   private readonly asserted = new Set<string>();
   private handler?: Handler;
   private slots: Slot[] = [];
@@ -39,18 +39,31 @@ export class MessagingService implements OnModuleInit, OnModuleDestroy {
     clearInterval(this.timer);
     await this.connection?.close().catch(() => {});
   }
-  private async ensure(queue: string) {
-    if (this.asserted.has(queue)) return;
-    await this.publisher!.assertQueue(`${queue}.dead`, { durable: true });
-    await this.publisher!.assertQueue(queue, {
+  /**
+   * Declares a queue on the given channel. A refused declaration (406: the queue exists with other
+   * arguments) closes that channel only, so it never runs on the shared publisher.
+   */
+  private async declare(channel: amqp.Channel, queue: string) {
+    await channel.assertQueue(`${queue}.dead`, { durable: true });
+    await channel.assertQueue(queue, {
       durable: true,
       arguments: { 'x-dead-letter-exchange': '', 'x-dead-letter-routing-key': `${queue}.dead` },
     });
     this.asserted.add(queue);
   }
+  /** Declares a queue once per connection, on a channel of its own. */
+  private async ensure(queue: string) {
+    if (this.asserted.has(queue)) return;
+    const channel = await this.connection!.createChannel();
+    channel.on('error', () => log('rabbitmq.queue_refused', { queue }));
+    try {
+      await this.declare(channel, queue);
+    } finally {
+      await channel.close().catch(() => {});
+    }
+  }
   private async connect() {
-    if (!this.publisher) {
-      if (this.connection) await this.connection.close().catch(() => {});
+    if (!this.connection) {
       const connection = await amqp.connect(config().RABBITMQ_URL, { timeout: 10000 });
       connection.on('error', () => log('rabbitmq.connection_error'));
       connection.on('close', () => {
@@ -60,11 +73,13 @@ export class MessagingService implements OnModuleInit, OnModuleDestroy {
         this.connection = undefined;
       });
       this.connection = connection;
-      const pub = await connection.createConfirmChannel();
+    }
+    if (!this.publisher) {
+      // Only the publisher channel is reopened: the consumers on the connection keep running.
+      const pub = await this.connection.createConfirmChannel();
       pub.on('error', () => log('rabbitmq.channel_error'));
       pub.on('close', () => {
-        this.publisher = undefined;
-        this.asserted.clear();
+        if (this.publisher === pub) this.publisher = undefined;
       });
       this.publisher = pub;
       await this.ensure(QUEUE);
@@ -87,7 +102,7 @@ export class MessagingService implements OnModuleInit, OnModuleDestroy {
       consumer.on('close', () => {
         if (this.consumers.get(queue) === consumer) this.consumers.delete(queue);
       });
-      await this.ensure(queue);
+      await this.declare(consumer, queue);
       await consumer.prefetch(prefetch);
       await consumer.consume(
         queue,
@@ -118,7 +133,16 @@ export class MessagingService implements OnModuleInit, OnModuleDestroy {
         for (const row of rows) {
           const { id, tenantId, ...message } = row;
           const queue = queueOf(tenantId);
-          await this.ensure(queue);
+          // A company whose queue is refused waits; the other companies' tasks still go out.
+          if (
+            !(await this.ensure(queue).then(
+              () => true,
+              () => false,
+            ))
+          ) {
+            log('messaging.queue_unavailable', { queue });
+            continue;
+          }
           await new Promise<void>((resolve, reject) =>
             this.publisher!.sendToQueue(
               queue,

@@ -433,6 +433,19 @@ test('a failure of the task itself does not burn the other credentials', async (
   expect(x.agents.execute).toHaveBeenCalledTimes(1);
   expect((await db.getRepository(Task).findOneByOrFail({ id: x.task.id })).status).toBe('FAILED');
 });
+test('a channel closed during the run: the task stays SUCCESS and still reports its PR', async () => {
+  const x = await setup();
+  x.channel.ack.mockImplementation(() => {
+    throw new Error('Channel closed');
+  });
+  await x.worker.handle(x.message, x.channel);
+  expect((await db.getRepository(Task).findOneByOrFail({ id: x.task.id })).status).toBe('SUCCESS');
+  expect(x.reporter.report).toHaveBeenCalledWith(
+    expect.objectContaining({ id: 'acme' }),
+    { source: 'github', externalKey: '#7' },
+    { type: 'pr', prUrl: 'https://github.com/example/demo/pull/8' },
+  );
+});
 test('reports the PR, and a final failure, back to the source tracker', async () => {
   const ok = await setup();
   await ok.worker.handle(ok.message, ok.channel);
