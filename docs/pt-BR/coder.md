@@ -60,6 +60,8 @@ Regras (erro ao carregar a configuração): `coder` só funciona com host `gitla
 
 O fluxo inteiro roda (agente → testes → revisão → commit **local** na branch da tarefa) e termina como **"Ensaio concluído — nada foi publicado"**, com o caminho no workspace (`<workspace>:<root>/<tarefa>`), a branch, o commit e os arquivos. Confira abrindo a pasta pelo VS Code do Coder. Depois use **Descartar ensaio** na tela da tarefa para apagar a pasta (também vale para tarefas `coder` que falharam ou foram canceladas; nunca para uma tarefa rodando).
 
+**Abrir MR rascunho** (tela da tarefa, ou `promote_task` pelo MCP) publica um ensaio conferido: sobre o branch base atual, um commit só com os arquivos da entrega (sem os caminhos de `publish.exclude` do método), com a identidade `git` da empresa e o título do PR como mensagem; depois push e MR rascunho sem revisores. Se o branch base mudou os mesmos arquivos desde o ensaio, nada é enviado e a tarefa falha dizendo isso. Os commits do próprio ensaio ficam na pasta em `refs/ai-dev-team/rehearsal/<tarefa>`.
+
 ## Proteções
 
 - Seus clones em `protect` (padrão `/workspaces`) são fotografados antes e depois de cada execução do agente (HEAD, branch e `git status`). Se mudarem, a tarefa **falha** dizendo quais — nada é desfeito. Se foi você editando no VS Code ao mesmo tempo, é só repetir a tarefa.

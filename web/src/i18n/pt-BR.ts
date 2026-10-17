@@ -109,6 +109,8 @@ export const ptBR = {
   'detail.checkAt': 'Confira em',
   'detail.discarded': 'Pasta descartada.',
   'detail.discard': 'Descartar ensaio',
+  'detail.promote': 'Abrir MR rascunho',
+  'detail.promoteFailed': 'Não foi possível abrir o MR',
   'detail.loadingPrint': 'Carregando o print…',
   'detail.copied': 'Comentário copiado: cole no card.',
   'detail.copyFailed': 'Não foi possível copiar; selecione o texto abaixo.',

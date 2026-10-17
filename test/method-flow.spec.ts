@@ -34,6 +34,10 @@ type Script = {
   /** Files the delivery leaves uncommitted (none: the method's agent commits its own work). */
   deliverLeaves?: string[];
   config?: Record<string, unknown>;
+  /** Files the rehearsal changed since its base (promotion). */
+  changed?: string[];
+  /** The base branch changed the same files since the rehearsal (promotion). */
+  baseMoved?: boolean;
 };
 async function setup(route: Route | undefined, script: Script = {}) {
   const registry = new TenantRegistry();
@@ -45,6 +49,15 @@ async function setup(route: Route | undefined, script: Script = {}) {
   const git = {
     prepare: jest.fn(),
     git: jest.fn(async (_t: unknown, args: string[]) => {
+      // Promotion: what the rehearsal changed, and whether the base branch moved under it.
+      if (args[0] === 'diff' && args.includes('--name-only'))
+        return (script.changed ?? []).join('\n');
+      if (args[0] === 'diff' && args.includes('--quiet') && script.baseMoved)
+        throw new Error('Git diff failed: ');
+      if (args[0] === 'ls-tree')
+        return (script.changed ?? [])
+          .filter((f) => args.slice(args.indexOf('--')).includes(f))
+          .join('\n');
       if (args[0] === 'rev-parse') return head;
       if (args[0] === 'status') return tree.map((p) => `?? ${p}\0`).join('');
       if (args[0] === 'clean' || args[0] === 'checkout') tree = [];
@@ -175,7 +188,20 @@ async function setup(route: Route | undefined, script: Script = {}) {
       ([, , e]: [unknown, unknown, { type: string; board?: string }]) =>
         e.board ? `${e.type}:${e.board}` : e.type,
     );
-  return { task, git, ws, run, answerOpen, open, reload, prompts, host, reviseRun, events };
+  return {
+    task,
+    git,
+    ws,
+    run,
+    answerOpen,
+    open,
+    reload,
+    prompts,
+    host,
+    reviseRun,
+    events,
+    orchestrator,
+  };
 }
 test('without a route the task asks which (route labels); an answer that is no route asks again', async () => {
   const x = await setup(undefined);
@@ -313,6 +339,61 @@ test('screen goes straight to the gate; fix delivers as a corrective increment',
   expect(corrective.prompts()[0].prompt).toContain('corrective increment');
   expect((await corrective.reload()).status).toBe('SUCCESS');
 });
+test('a rehearsal is promoted to a draft PR: only the delivery files, the company identity, one commit', async () => {
+  const x = await setup('fix', { changed: ['docs/spec/rules/x.md', 'tests/XTest.php'] });
+  await x.run();
+  await x.answerOpen(authorization(x.task.branch));
+  await x.run();
+  expect((await x.reload()).stage).toBe('REHEARSED');
+  // Only a finished, unpromoted rehearsal can be promoted.
+  await x.orchestrator.promote('acme', x.task.id);
+  await expect(x.orchestrator.promote('acme', x.task.id)).rejects.toThrow(/rehearsal/i);
+  x.host.ensurePullRequest.mockResolvedValue({
+    id: '7',
+    number: 7,
+    title: 't',
+    url: 'https://git.example.com/mr/7',
+    state: 'open',
+  });
+  await x.run();
+  const task = await x.reload();
+  expect(task.status).toBe('SUCCESS');
+  expect(task.stage).toBe('DONE');
+  expect(task.result!.rehearsal).toMatchObject({ promoted: true });
+  expect(task.result!.prUrl).toBe('https://git.example.com/mr/7');
+  const calls = x.git.git.mock.calls.map(([, a]) => a as string[]);
+  // the rehearsal stays reachable; the branch starts again from the fetched base branch
+  expect(calls.some((a) => a[0] === 'update-ref' && a[1].startsWith('refs/ai-dev-team/'))).toBe(
+    true,
+  );
+  expect(calls.some((a) => a[0] === 'checkout' && a[1] === '-B')).toBe(true);
+  // only the delivery's files (the method's own folder is excluded) come from the rehearsal
+  const taken = calls.find((a) => a[0] === 'checkout' && a.includes('--'))!;
+  expect(taken.slice(taken.indexOf('--') + 1)).toEqual(['tests/XTest.php']);
+  const commit = x.git.git.mock.calls.find(([, a]) => (a as string[])[0] === 'commit')!;
+  // the message is the PR title (the project's pattern; this one has none)
+  expect(commit[1]).toEqual(['commit', '-m', `AI: ${item.key} ${item.title}`]);
+  expect(x.host.ensurePullRequest.mock.calls[0][1].title).toBe(`AI: ${item.key} ${item.title}`);
+  expect((commit as unknown[])[2]).toMatchObject({ author: { name: expect.any(String) } });
+  expect(x.git.push).toHaveBeenCalledTimes(1);
+  expect(x.host.ensurePullRequest.mock.calls[0][1]).toMatchObject({ draft: true, reviewers: [] });
+  expect(x.events()).toContain('pr');
+});
+
+test('a promotion stops before anything is sent when the base branch changed the same files', async () => {
+  const x = await setup('fix', { changed: ['tests/XTest.php'], baseMoved: true });
+  await x.run();
+  await x.answerOpen(authorization(x.task.branch));
+  await x.run();
+  await x.orchestrator.promote('acme', x.task.id);
+  await x.run();
+  const task = await x.reload();
+  expect(task.status).toBe('FAILED');
+  expect(task.error).toMatch(/mudou nos mesmos arquivos/);
+  expect(x.git.push).not.toHaveBeenCalled();
+  expect(x.host.ensurePullRequest).not.toHaveBeenCalled();
+});
+
 test('gates and stops never exhaust the question rounds', async () => {
   const x = await setup('screen');
   for (let i = 0; i < 5; i++) {

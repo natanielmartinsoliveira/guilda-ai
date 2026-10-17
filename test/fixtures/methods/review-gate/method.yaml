@@ -34,6 +34,7 @@ messages:
   noChanges: "NO_CHANGES: the delivery produced no changes"
   finishNoChanges: "NO_CHANGES: nothing changed in the requested files"
   revisionRefused: 'Review gate: create a new task with the "fix" route'
+publish: { exclude: [docs/spec/] }
 routes:
   feature:
     label: { en: "New feature (specification → delivery)", pt-BR: "Funcionalidade nova (especificação → entrega)" }

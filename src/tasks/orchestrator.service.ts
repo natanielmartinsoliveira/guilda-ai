@@ -232,6 +232,35 @@ export class OrchestratorService {
       return job;
     });
   }
+  /**
+   * Queues a finished rehearsal again to publish it: the worker commits only the delivery's
+   * files on the current base branch, pushes and opens a draft PR (task.result.promote).
+   */
+  promote(tenantId: string, taskId: string) {
+    return this.operate(tenantId, taskId, undefined, async (em, { job, entity }) => {
+      const rehearsal = job.result?.rehearsal as
+        { promoted?: boolean; discarded?: boolean } | undefined;
+      if (job.status !== 'SUCCESS' || !rehearsal || rehearsal.promoted || rehearsal.discarded)
+        throw new JobRejected(
+          'conflict',
+          'Only a finished rehearsal not yet promoted can be promoted',
+        );
+      if (await em.existsBy(PullRequest, { taskId }))
+        throw new JobRejected('conflict', 'The task already has a pull request');
+      // The one way a finished task goes back to the queue (assertTransition keeps SUCCESS final
+      // for everything else): the checks above are its guard.
+      Object.assign(job, {
+        status: 'PENDING',
+        stage: 'QUEUED',
+        attempts: 0,
+        error: null,
+        result: { ...job.result, promote: true },
+      });
+      await em.save(entity as EntityTarget<Task | Revision>, job);
+      await em.save(Outbox, { taskId, revisionId: null });
+      return job;
+    });
+  }
   /** Cancels a queued, waiting or failed task (or revision); a running one is not killed. */
   cancel(tenantId: string, taskId: string, revisionNumber?: number) {
     return this.operate(tenantId, taskId, revisionNumber, async (em, { job, entity }) => {

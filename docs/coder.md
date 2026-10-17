@@ -60,6 +60,8 @@ Rules (an error when the configuration loads): `coder` works only with a `gitlab
 
 The whole flow runs (agent → tests → review → a **local** commit on the task branch) and ends as **"Rehearsal finished — nothing was published"**, with the path in the workspace (`<workspace>:<root>/<task>`), the branch, the commit and the files. Check it by opening the folder in Coder's VS Code. Then use **Discard rehearsal** on the task screen to remove the folder (also for `coder` tasks that failed or were cancelled; never for a running task).
 
+**Open draft PR** (task screen, or `promote_task` over MCP) publishes a checked rehearsal: on the current base branch, one commit with only the delivery's files (a method's `publish.exclude` paths left out), the company `git` identity and the PR title as message; then a push and a draft PR without reviewers. If the base branch changed the same files since the rehearsal, nothing is sent and the task fails saying so. The rehearsal's own commits stay in the folder under `refs/ai-dev-team/rehearsal/<task>`.
+
 ## Protections
 
 - Your clones under `protect` (default `/workspaces`) are photographed before and after each agent run (HEAD, branch and `git status`). If they change, the task **fails** naming them — nothing is undone. If it was you editing in VS Code at the same time, just retry the task.

@@ -105,6 +105,8 @@ export const api = {
       `${tenantPath(tenant)}/tasks/${encodeURIComponent(id)}/discard`,
       post({}),
     ),
+  promote: (tenant: string, id: string) =>
+    call<unknown>(`${tenantPath(tenant)}/tasks/${encodeURIComponent(id)}/promote`, post({})),
   revise: (tenant: string, id: string, form: FormData) =>
     call<{ revisionId: string; number: number }>(
       `${tenantPath(tenant)}/tasks/${encodeURIComponent(id)}/revisions`,

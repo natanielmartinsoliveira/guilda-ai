@@ -270,6 +270,12 @@ export class TasksController {
       this.orchestrator.retry(t, task, n),
     );
   }
+  /** Publishes a finished rehearsal: one commit with the delivery's files and a draft PR. */
+  @Post('tenants/:tenant/tasks/:id/promote')
+  @HttpCode(202)
+  promote(@Param('tenant') tenantId: string, @Param('id', ParseUUIDPipe) id: string) {
+    return this.operate(tenantId, id, undefined, (t, task) => this.orchestrator.promote(t, task));
+  }
   /** Removes a coder task's folder from the company's workspace (e.g. a checked rehearsal). */
   @Post('tenants/:tenant/tasks/:id/discard')
   @HttpCode(200)

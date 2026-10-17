@@ -110,6 +110,8 @@ export const en: Record<Key, string> = {
   'detail.checkAt': 'Check it at',
   'detail.discarded': 'Folder discarded.',
   'detail.discard': 'Discard rehearsal',
+  'detail.promote': 'Open draft PR',
+  'detail.promoteFailed': 'Could not open the PR',
   'detail.loadingPrint': 'Loading the print…',
   'detail.copied': 'Comment copied: paste it on the card.',
   'detail.copyFailed': 'Could not copy; select the text below.',

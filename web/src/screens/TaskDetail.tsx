@@ -80,20 +80,22 @@ function Rehearsal({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const discard = () => {
+  const act = (call: Promise<unknown>, failed: string) => {
     setBusy(true);
     setError('');
-    api.discard(tenant, id).then(
+    call.then(
       () => {
         setBusy(false);
         onDone();
       },
       (e) => {
         setBusy(false);
-        setError(e instanceof ApiError ? e.message : t('detail.discardFailed'));
+        setError(e instanceof ApiError ? e.message : failed);
       },
     );
   };
+  const discard = () => act(api.discard(tenant, id), t('detail.discardFailed'));
+  const promote = () => act(api.promote(tenant, id), t('detail.promoteFailed'));
   return (
     <section className="rehearsal">
       <h3>{t('detail.rehearsalDone')}</h3>
@@ -111,9 +113,14 @@ function Rehearsal({
       {rehearsal.discarded ? (
         <p>{t('detail.discarded')}</p>
       ) : (
-        <button type="button" disabled={busy} onClick={discard}>
-          {t('detail.discard')}
-        </button>
+        <div className="actions">
+          <button type="button" disabled={busy} onClick={promote}>
+            {t('detail.promote')}
+          </button>
+          <button type="button" disabled={busy} onClick={discard}>
+            {t('detail.discard')}
+          </button>
+        </div>
       )}
       {error && <p role="alert">{error}</p>}
     </section>
@@ -284,7 +291,7 @@ export function TaskDetail({ tenant, id }: { tenant: string; id: string }) {
         ))}
       </ol>
       {task.error && <pre className="error">{task.error}</pre>}
-      {task.rehearsal && (
+      {task.rehearsal && !task.rehearsal.promoted && (
         <Rehearsal tenant={tenant} id={id} rehearsal={task.rehearsal} onDone={() => void load()} />
       )}
       {task.evidence && <Evidence tenant={tenant} id={id} evidence={task.evidence} />}

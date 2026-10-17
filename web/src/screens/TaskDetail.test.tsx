@@ -53,6 +53,26 @@ test('discarding calls the API and reloads', async () => {
   expect(await screen.findByText('Pasta descartada.')).toBeTruthy();
   expect(task).toHaveBeenCalledTimes(2);
 });
+test('a rehearsal can be published as a draft PR; once promoted it is no longer a rehearsal', async () => {
+  const promoted: TaskView = {
+    ...rehearsed(),
+    stage: 'DONE',
+    rehearsal: { ...rehearsed().rehearsal!, promoted: true },
+  };
+  const task = vi.spyOn(api, 'task').mockResolvedValueOnce(rehearsed()).mockResolvedValue(promoted);
+  const promote = vi.spyOn(api, 'promote').mockResolvedValue({});
+  show();
+  await userEvent.click(await screen.findByRole('button', { name: 'Abrir MR rascunho' }));
+  expect(promote).toHaveBeenCalledWith('initech', 't1');
+  await vi.waitFor(() => expect(task).toHaveBeenCalledTimes(2));
+  expect(screen.queryByText(/nada foi publicado/)).toBeNull();
+});
+test('a discarded rehearsal cannot be published', async () => {
+  vi.spyOn(api, 'task').mockResolvedValue(rehearsed(true));
+  show();
+  expect(await screen.findByText('Pasta descartada.')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Abrir MR rascunho' })).toBeNull();
+});
 test('a rehearsal can be adjusted until it is discarded', async () => {
   vi.spyOn(api, 'task').mockResolvedValue(rehearsed());
   const first = show();

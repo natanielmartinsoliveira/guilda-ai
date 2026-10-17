@@ -108,6 +108,8 @@ const methodFile = z
       })
       .default({ addDirs: [], allowedTools: [] }),
     messages: z.record(z.string(), z.string()).default({}),
+    /** A promoted rehearsal publishes the delivery without these paths (the method's own). */
+    publish: z.object({ exclude: z.array(z.string().min(1)).default([]) }).default({ exclude: [] }),
     routes: z.record(z.string().regex(/^[a-z][a-z0-9-]*$/), route),
     phases: z.record(
       z.string().regex(/^[a-z][a-z0-9-]*$/),

@@ -82,6 +82,8 @@ export interface TaskView {
     commitSha: string;
     files: string[];
     discarded?: boolean;
+    /** Published as a draft PR (it is a delivery now). */
+    promoted?: boolean;
   };
   /** A failed/cancelled coder task whose folder was removed. */
   discarded?: boolean;

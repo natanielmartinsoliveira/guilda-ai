@@ -55,7 +55,10 @@ import { language, t } from '../i18n';
 import { loadMethod } from '../methods/method';
 import { routeFromAnswer, routeQuestion } from '../methods/route-choice';
 import { formatsFor } from '../formats/formats';
-import { MethodRunner, porcelainPaths, readOutcome } from '../methods/runner';
+import { MethodRunner, porcelainPaths, readOutcome, under } from '../methods/runner';
+/** A rehearsal that was published as a draft PR (it is a delivery now). */
+const promoted = (rehearsal: unknown) =>
+  !!(rehearsal as { promoted?: boolean } | undefined)?.promoted;
 import type { DecisionQuestion } from '../database/entities';
 import { SandboxService } from '../agents/sandbox.service';
 import { GitRemote, GitService } from '../git/git.service';
@@ -276,7 +279,7 @@ export class TaskWorkerService implements OnModuleInit {
       await run.execute();
       assertTransition(job.status, 'SUCCESS');
       job.status = 'SUCCESS';
-      job.stage = job.result?.rehearsal ? 'REHEARSED' : 'DONE';
+      job.stage = job.result?.rehearsal && !promoted(job.result.rehearsal) ? 'REHEARSED' : 'DONE';
       await repo.save(job);
       log(`${kind}.success`, { ...ids, status: job.status });
       channel.ack(message);
@@ -397,7 +400,7 @@ export class TaskWorkerService implements OnModuleInit {
   }
   private async taskDone(task: Task) {
     // Rehearsal: nothing was published, so no PR notice; the card only shows the delivery done.
-    if (task.result?.rehearsal) {
+    if (task.result?.rehearsal && !promoted(task.result.rehearsal)) {
       await this.report(task, { type: 'built' });
       return this.announceRehearsal(task, task.result.rehearsal);
     }
@@ -1064,6 +1067,7 @@ export class TaskWorkerService implements OnModuleInit {
     const base = meta.baseRef ?? project.defaultBranch;
     const target = meta.prTarget ?? project.defaultBranch;
     task.result ??= {};
+    if (task.result.promote) return this.promote(task, ctx, steps, target);
     const stepBody = story
       ? (story.steps[meta.stepIndex ?? 0]?.body ?? task.instructions)
       : task.instructions;
@@ -1211,6 +1215,85 @@ export class TaskWorkerService implements OnModuleInit {
       };
       return;
     }
+    await this.openPullRequest(task, ctx, steps, target, {
+      draft: cfg.delivery === 'draft',
+      reviewers: cfg.pullRequest.reviewers,
+    });
+  }
+  /**
+   * A finished rehearsal becomes a draft PR: on the current base branch, one commit with only
+   * the delivery's files (the method's own paths excluded), the company identity and the PR
+   * title as message. The rehearsal's own history stays under refs/ai-dev-team/rehearsal/<id>.
+   * When the base branch changed the same files since the rehearsal, nothing is sent.
+   */
+  private async promote(task: Task, ctx: WorkContext, steps: StepPlan[], target: string) {
+    const state = task.result!;
+    const rehearsal = state.rehearsal as Record<string, unknown>;
+    const exclude = ctx.cfg.method
+      ? loadMethod(ctx.tenant.packDir!, ctx.cfg.method.name).publish.exclude
+      : [];
+    await this.stage(task, Task, 'PROMOTE');
+    const base = String(state.baseSha);
+    const tip = await this.git.git(task, ['rev-parse', 'HEAD']);
+    await this.git.git(task, ['update-ref', `refs/ai-dev-team/rehearsal/${task.id}`, tip]);
+    const files = (await this.git.git(task, ['diff', '--name-only', '--no-renames', base, tip]))
+      .split('\n')
+      .filter((f) => f && !exclude.some((e) => under(f, e)));
+    if (!files.length)
+      throw new TaskError('NO_CHANGES: o ensaio não mudou nada fora do que o método guarda', false);
+    await this.git.git(task, ['fetch', '--no-tags', ctx.remote.url, `refs/heads/${target}`], {
+      remote: ctx.remote,
+    });
+    const head = await this.git.git(task, ['rev-parse', 'FETCH_HEAD']);
+    try {
+      await this.git.git(task, ['diff', '--quiet', base, head, '--', ...files]);
+    } catch {
+      throw new TaskError(
+        `O ${target} mudou nos mesmos arquivos desde o ensaio; refaça a entrega sobre ele`,
+        false,
+      );
+    }
+    await this.git.git(task, ['checkout', '-B', task.branch, head]);
+    const present = (
+      await this.git.git(task, ['ls-tree', '-r', '--name-only', tip, '--', ...files])
+    )
+      .split('\n')
+      .filter(Boolean);
+    if (present.length) await this.git.git(task, ['checkout', tip, '--', ...present]);
+    const gone = files.filter((f) => !present.includes(f));
+    if (gone.length) await this.git.git(task, ['rm', '-q', '--', ...gone]);
+    await this.git.git(task, ['commit', '-m', this.prTitleFor(ctx)], {
+      author: { name: ctx.tenant.git.authorName, email: ctx.tenant.git.authorEmail },
+    });
+    const sha = await this.git.git(task, ['rev-parse', 'HEAD']);
+    await this.stage(task, Task, 'PUSH');
+    await this.git.push(task, sha, ctx.remote);
+    state.commitSha = sha;
+    state.changes = { files };
+    await this.openPullRequest(task, ctx, steps, target, { draft: true, reviewers: [] });
+    rehearsal.promoted = true;
+    delete state.promote;
+  }
+  /** The project's PR title ("{key} - {title}" style), also the message of a promotion. */
+  private prTitleFor(ctx: WorkContext) {
+    const { cfg, issue } = ctx;
+    return (
+      cfg.pullRequest.title
+        ? prTitle(cfg.pullRequest.title, issue.externalKey, issue.title)
+        : cfg.pullRequest.template
+          ? `${issue.externalKey} ${issue.title}`
+          : `AI: ${issue.externalKey} ${issue.title}`
+    ).slice(0, 256);
+  }
+  private async openPullRequest(
+    task: Task,
+    ctx: WorkContext,
+    steps: StepPlan[],
+    target: string,
+    opts: { draft: boolean; reviewers: string[] },
+  ) {
+    const { cfg, issue } = ctx;
+    task.result ??= {};
     await this.stage(task, Task, 'PULL_REQUEST');
     const prSections = formatsFor(ctx.tenant, cfg).pullRequest.sections;
     const body = cfg.pullRequest.template
@@ -1237,15 +1320,10 @@ export class TaskWorkerService implements OnModuleInit {
     const pr = await ctx.host.ensurePullRequest(ctx.cfg.repository, {
       branch: task.branch,
       base: target,
-      title: (cfg.pullRequest.title
-        ? prTitle(cfg.pullRequest.title, issue.externalKey, issue.title)
-        : cfg.pullRequest.template
-          ? `${issue.externalKey} ${issue.title}`
-          : `AI: ${issue.externalKey} ${issue.title}`
-      ).slice(0, 256),
+      title: this.prTitleFor(ctx),
       body: body.slice(0, 60000),
-      draft: cfg.delivery === 'draft',
-      reviewers: cfg.pullRequest.reviewers,
+      draft: opts.draft,
+      reviewers: opts.reviewers,
     });
     await this.db.getRepository(PullRequest).upsert(
       {

@@ -154,6 +154,17 @@ function server() {
     `/api/tenants/${encodeURIComponent(tenant)}/tasks/${encodeURIComponent(taskId)}/${action}` +
     (revision ? `?revision=${revision}` : '');
   mcp.registerTool(
+    'promote_task',
+    {
+      title: 'Publish a rehearsal as a draft PR',
+      description:
+        'Queues a finished rehearsal (stage REHEARSED) to be published: one commit with only the ' +
+        "delivery's files on the current base branch, pushed, and a draft PR without reviewers.",
+      inputSchema: { tenant: jobArgs.tenant, taskId: jobArgs.taskId },
+    },
+    tool(({ tenant, taskId }) => call(jobPath(tenant, taskId, 'promote'), { method: 'POST' })),
+  );
+  mcp.registerTool(
     'retry_task',
     {
       title: 'Retry a failed task',

@@ -69,6 +69,7 @@ test('exposes the tools', async () => {
     'list_decisions',
     'list_tasks',
     'list_tenants',
+    'promote_task',
     'retry_task',
     'revise_task',
   ]);

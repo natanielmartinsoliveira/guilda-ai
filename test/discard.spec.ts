@@ -103,3 +103,16 @@ test('a task the worker still holds (cancelled while running) is not discarded',
   expect((await discard(task.id)).status).toBe(409);
   expect(destroy).not.toHaveBeenCalled();
 });
+
+const promote = (id: string) =>
+  fetch(`${url}/tenants/acme/tasks/${id}/promote`, { method: 'POST', headers: auth });
+test('promote queues a finished rehearsal (202) and refuses anything else (409)', async () => {
+  const task = await coderTask('SUCCESS', { rehearsal: { workspace: 'ws:/root/ai/t' } });
+  expect((await promote(task.id)).status).toBe(202);
+  const queued = await db.getRepository(Task).findOneByOrFail({ id: task.id });
+  expect(queued.status).toBe('PENDING');
+  expect(queued.result).toMatchObject({ promote: true, rehearsal: { workspace: 'ws:/root/ai/t' } });
+  expect((await promote(task.id)).status).toBe(409);
+  const failed = await coderTask('FAILED', {});
+  expect((await promote(failed.id)).status).toBe(409);
+});
