@@ -17,7 +17,7 @@ A visão original do projeto: agentes especializados (Architect, Coder, Tester, 
 | GitHub (issues, branches, PRs)   | GitHub e Bitbucket Cloud como hosts; GitHub Issues, Jira e API/VS Code (MCP) como fontes                                                        |
 | n8n recebendo webhooks           | Webhooks assinados e polling do Jira direto no NestJS (sem n8n)                                                                                 |
 | NestJS Orchestrator              | Sim: aceita tarefas, controla estado, tentativas, revisões, sub-tarefas e relatos ao tracker                                                    |
-| RabbitMQ com uma fila por agente | Uma fila de tarefas (`ai-dev-tasks`) + DLQ, alimentada por outbox                                                                               |
+| RabbitMQ com uma fila por agente | Uma fila por empresa (`ai-dev-tasks.<empresa>`) + DLQ própria, alimentadas por outbox                                                           |
 | Coder Agent                      | Sim (Codex ou Claude CLI, isolados, com fallback entre credenciais)                                                                             |
 | Tester Agent                     | Testes do projeto rodam após o agente, no container do projeto; falhas voltam ao agente para correção                                           |
 | Reviewer / Security Agent        | Revisor de IA antes do PR (papel `reviewer`), checagens de segurança locais (`checks`) e revisão humana no PR (`/ai` ou Change request no Jira) |
@@ -46,14 +46,14 @@ flowchart TD
   J --> C
 ```
 
-A API não executa agentes. O worker é um processo separado, com `prefetch=1`. Ambos podem publicar a outbox. O banco controla estado, tentativas e auditoria; RabbitMQ transporta identificadores. O GitHub controla o código e PRs.
+A API não executa agentes. O worker é um processo separado; cada empresa tem um canal próprio com `prefetch` igual ao seu `worker.concurrency`. Ambos podem publicar a outbox. O banco controla estado, tentativas e auditoria; RabbitMQ transporta identificadores. O GitHub controla o código e PRs.
 
 - Project, Issue, Task, AgentRun e PullRequest são entidades TypeORM. Outbox é a tabela adicional de entrega confiável.
 - Issue, Task e Outbox são gravadas em uma transação. O webhook devolve 202 após esse commit, mesmo se RabbitMQ estiver fora do ar.
 - Publicação usa mensagens persistentes e publisher confirms. Uma queda entre publish e commit pode duplicar mensagens; isso é esperado.
 - Há unicidade por GitHub Issue e uma task por Issue. Redelivery não cria nova tarefa. `reopened` é ignorado nesta versão.
 - Advisory locks PostgreSQL impedem execuções simultâneas da mesma task; são liberados quando a conexão morre.
-- ACK apenas após SUCCESS ou ao receber uma duplicata já concluída. Falhas recebem NACK sem requeue e ficam em `ai-dev-tasks.dead`. Se recuperáveis, uma nova entrada na outbox agenda a tentativa seguinte. A DLQ contém tentativas falhas, inclusive de tasks que depois deram certo.
+- ACK apenas após SUCCESS ou ao receber uma duplicata já concluída. Falhas recebem NACK sem requeue e ficam em `ai-dev-tasks.<empresa>.dead`. Se recuperáveis, uma nova entrada na outbox agenda a tentativa seguinte. A DLQ contém tentativas falhas, inclusive de tasks que depois deram certo.
 - Máximo padrão: três tentativas. Erros de rede Git/GitHub, HTTP 429 e 5xx são recuperáveis. Falta de CLI, testes reprovados, limite de saída, timeout e ausência de alterações encerram a tarefa com erro explícito.
 - Commit SHA é salvo antes do push. Após falha no GitHub, a retomada usa o mesmo commit. Busca por `head` antes/depois da criação reduz PRs duplicados após respostas ambíguas.
 - Um commit criado imediatamente antes de uma queda é detectado pelo SHA de base; os testes são repetidos antes do push.
@@ -300,11 +300,12 @@ Uma instalação atende várias empresas. Cada uma declara, em `tenants.yaml` (m
 - `ai`: provedores permitidos pelo contrato e credenciais em ordem de fallback;
 - `hosts`: onde o código mora e com qual token (hoje: `github`);
 - `sources`: de onde vêm as tarefas (hoje: `github-issues` e `jira`; a API/VS Code existe sempre);
-- `projects`: repositórios aceitos, branch base e comandos `test`/`prepare`.
+- `projects`: repositórios aceitos, branch base e comandos `test`/`prepare`;
+- `worker.concurrency` (opcional, padrão 1, máximo 8): quantas tarefas da empresa rodam ao mesmo tempo. Cada empresa tem a própria fila, então uma empresa ocupada (ou parada em perguntas) não segura as outras. Mensagens de antes desta mudança, na fila antiga `ai-dev-tasks`, ainda são consumidas, uma por vez.
 
 Segredos ficam no `.env` e o YAML os referencia como `${NOME}`. Variável ausente impede API e worker de subirem, com o caminho exato do campo. `npm run doctor` valida o arquivo.
 
-Isolamento entre empresas: workspaces em `WORKSPACE_ROOT/<empresa>/<task>`, logins de CLI em `AGENT_HOME/<empresa>/<provider>`, token e chave de IA resolvidos pela empresa da tarefa, e o mascaramento de logs remove os segredos de **todas** as empresas. Uma fonte só agenda trabalho nos projetos da própria empresa. Premissa: há um único operador; as empresas não acessam a instalação. Filas, banco e worker são compartilhados; não use como SaaS aberto a terceiros.
+Isolamento entre empresas: workspaces em `WORKSPACE_ROOT/<empresa>/<task>`, logins de CLI em `AGENT_HOME/<empresa>/<provider>`, token e chave de IA resolvidos pela empresa da tarefa, e o mascaramento de logs remove os segredos de **todas** as empresas. Uma fonte só agenda trabalho nos projetos da própria empresa. Premissa: há um único operador; as empresas não acessam a instalação. Banco e worker são compartilhados (as filas são uma por empresa); não use como SaaS aberto a terceiros.
 
 ## Variáveis `.env`
 

@@ -166,7 +166,11 @@ export class TaskWorkerService implements OnModuleInit {
     private readonly workspaces: TaskWorkspaces = new TaskWorkspaces(new ProcessRunnerService(db)),
   ) {}
   onModuleInit() {
-    this.messaging.consume((m, c) => this.handle(m, c));
+    // One queue per company, each with its own limit: a busy company never holds back another.
+    const slots = this.tenants
+      .all()
+      .map((t) => ({ tenantId: t.id, concurrency: t.worker.concurrency }));
+    this.messaging.consume((m, c) => this.handle(m, c), slots);
   }
   async handle(message: ConsumeMessage, channel: Channel) {
     let body: z.infer<typeof messageSchema>;
