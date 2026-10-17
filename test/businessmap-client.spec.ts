@@ -9,7 +9,8 @@ const source: BusinessmapSource = {
   token: 'secret-key',
   boardId: 79,
   pollSeconds: 60,
-  trigger: { columns: [3170], tag: 'AI-Dev-Team' },
+  trigger: { columns: [3170], tag: 'AI-Dev-Team', owners: [] },
+  moves: {},
   repositoryField: 13,
   routeTags: {},
 };
@@ -92,7 +93,7 @@ test('a trigger tag that does not exist yet finds nothing', async () => {
     '/api/v2/cards': () => ({ pagination: { all_pages: 1 }, data: [] }),
   });
   const client = new BusinessmapClient(
-    { ...source, trigger: { columns: [], tag: 'ai-dev-team' } },
+    { ...source, trigger: { columns: [], tag: 'ai-dev-team', owners: [] } },
     http as unknown as typeof fetch,
   );
   expect(await client.candidates()).toEqual([]);
@@ -113,4 +114,19 @@ test('card reads one card; HTTP errors carry the status and never the key', asyn
   expect(String(error)).toMatch(/HTTP 401/);
   expect(String(error)).not.toContain('secret-key');
   expect(() => new BusinessmapClient(source).card(-1)).toThrow(/card id/);
+});
+
+test('move: PATCH of the card with the column; an HTTP error says which, never the key', async () => {
+  const http = jest.fn(async (_url: string | URL, _init?: RequestInit) => new Response('{}'));
+  await new BusinessmapClient(source, http as unknown as typeof fetch).move(5, 11);
+  const [url, init] = http.mock.calls[0];
+  expect(String(url)).toBe('https://bm.test/api/v2/cards/5');
+  expect(init).toMatchObject({ method: 'PATCH', body: JSON.stringify({ column_id: 11 }) });
+  expect((init!.headers as Record<string, string>).apikey).toBe('secret-key');
+  const denied = jest.fn(async () => new Response('{}', { status: 403 }));
+  const error = await new BusinessmapClient(source, denied as unknown as typeof fetch)
+    .move(5, 11)
+    .catch((e: Error) => e);
+  expect(String(error)).toMatch('Businessmap PATCH /cards/5: HTTP 403');
+  expect(String(error)).not.toContain('secret-key');
 });

@@ -199,7 +199,19 @@ const businessmapSource = z
     trigger: z.object({
       columns: z.array(z.number().int().positive()).default([]),
       tag: z.string().min(1).optional(),
+      /** Only cards owned by these users (Businessmap user ids); empty: any owner. */
+      owners: z.array(z.number().int().positive()).default([]),
     }),
+    /** Column (id) the card moves to at each step of its task; absent: the card stays. */
+    moves: z
+      .object({
+        gate: z.number().int().positive().optional(),
+        building: z.number().int().positive().optional(),
+        built: z.number().int().positive().optional(),
+        review: z.number().int().positive().optional(),
+      })
+      .strict()
+      .default({}),
     /** Custom field (type link) holding the card's GitLab repository. */
     repositoryField: z.number().int().positive(),
     /**

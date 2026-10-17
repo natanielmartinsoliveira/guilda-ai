@@ -74,3 +74,27 @@ test('route tags written with case and accents still match', () => {
     tela: 'surface',
   });
 });
+
+test('the trigger may name the card owners; moves name the column of each step', () => {
+  const [t] = loadTenants(
+    yaml(
+      CODER_PROJECT,
+      source('        moves: { gate: 11, building: 12, built: 13, review: 14 }').replace(
+        '{ columns: [3170], tag: ai-dev-team }',
+        '{ columns: [3168], owners: [7] }',
+      ),
+    ),
+  );
+  expect(t.sources[0]).toMatchObject({
+    trigger: { columns: [3168], owners: [7] },
+    moves: { gate: 11, building: 12, built: 13, review: 14 },
+  });
+  const [d] = loadTenants(yaml(CODER_PROJECT, source()));
+  expect(d.sources[0]).toMatchObject({ trigger: { owners: [] }, moves: {} });
+  expect(() => loadTenants(yaml(CODER_PROJECT, source('        moves: { other: 1 }')))).toThrow(
+    /moves/,
+  );
+  expect(() => loadTenants(yaml(CODER_PROJECT, source('        moves: { gate: 0 }')))).toThrow(
+    /moves/,
+  );
+});

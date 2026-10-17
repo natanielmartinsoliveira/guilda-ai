@@ -60,7 +60,7 @@ describe('BusinessmapPoller', () => {
       901: { card_id: 901, title: 'Contrato' },
     };
     const client = {
-      candidates: jest.fn(async () =>
+      candidates: jest.fn(async (): Promise<BmCard[]> =>
         Object.values(cards).map((c) => ({ card_id: c.card_id, section: 3 })),
       ),
       card: jest.fn(async (id: number) => cards[id] ?? related[id]),
@@ -129,13 +129,31 @@ describe('BusinessmapPoller', () => {
     });
   });
 
-  test('a card of a method needs exactly one route tag', async () => {
+  test('a card of a method without a route tag is taken without a route (the task asks which)', async () => {
     const x = setup({});
     const tags = await x.client.tags();
     x.client.card.mockResolvedValueOnce(card(103, { tag_ids: [3, 4] }));
-    expect(await x.poller.ingest(tenant, source, x.client as any, card(103), tags)).toEqual({
-      skipped: expect.stringMatching(/escolha a rota/),
-    });
+    expect(await x.poller.ingest(tenant, source, x.client as any, card(103), tags)).toEqual(
+      expect.objectContaining({ taskId: expect.any(String) }),
+    );
+    expect(x.accept.mock.calls[0][1]).not.toHaveProperty('delivery');
+  });
+
+  test('only cards of the trigger owners are taken from the poll', async () => {
+    load(WITH_METHOD, SOURCE.replace('tag: ai-dev-team }', 'tag: ai-dev-team, owners: [7] }'));
+    const x = setup({ 104: card(104), 105: card(105) });
+    x.client.candidates.mockResolvedValueOnce([
+      { card_id: 104, section: 3, owner_user_id: 8 },
+      { card_id: 105, section: 3, owner_user_id: 7 },
+    ]);
+    await x.poller.poll(tenant, source);
+    expect(x.accept).toHaveBeenCalledTimes(1);
+    expect(x.accept.mock.calls[0][1]).toMatchObject({ externalId: '105' });
+  });
+
+  test('a card of a method takes at most one route tag', async () => {
+    const x = setup({});
+    const tags = await x.client.tags();
     x.client.card.mockResolvedValueOnce(card(103, { tag_ids: [1, 2] }));
     expect(await x.poller.ingest(tenant, source, x.client as any, card(103), tags)).toEqual({
       skipped: expect.stringMatching(/mais de uma rota/),
@@ -150,15 +168,15 @@ describe('BusinessmapPoller', () => {
       [1, 'Feature'],
       [2, 'constructor'],
     ]);
-    x.client.card.mockResolvedValueOnce(card(108, { tag_ids: [2] }));
-    expect(await x.poller.ingest(tenant, source, x.client as any, card(108), tags)).toEqual({
-      skipped: expect.stringMatching(/escolha a rota/),
-    });
+    // "constructor" is no route: the card is taken without one.
+    x.client.card.mockResolvedValueOnce(card(107, { tag_ids: [2] }));
+    await x.poller.ingest(tenant, source, x.client as any, card(107), tags);
+    expect(x.accept.mock.calls[0][1]).not.toHaveProperty('delivery');
     x.client.card.mockResolvedValueOnce(card(108, { tag_ids: [1, 2] }));
     expect(await x.poller.ingest(tenant, source, x.client as any, card(108), tags)).toEqual({
       taskId: expect.any(String),
     });
-    expect(x.accept.mock.calls[0][1].delivery).toEqual({ route: 'feature' });
+    expect(x.accept.mock.calls[1][1].delivery).toEqual({ route: 'feature' });
   });
 
   test('with routeTags configured, only the mapped tags are routes (review M1)', async () => {

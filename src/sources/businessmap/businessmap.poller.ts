@@ -53,7 +53,11 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
       if (!locked) return;
       try {
         const client = this.client(source);
-        const found = await client.candidates();
+        const { owners } = source.trigger;
+        // Only the configured owners' cards (others in the same column belong to other people).
+        const found = (await client.candidates()).filter(
+          (c) => !owners.length || owners.includes(c.owner_user_id ?? -1),
+        );
         if (!found.length) return;
         const tags = await client.tags();
         await this.exclusive(`${tenant.id}/${source.id}`, async () => {
@@ -161,14 +165,8 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
           externalId,
           `O card tem a tag de rota ${tagged.join(', ')}; a rota escolhida foi ${chosen}`,
         );
+      // Without a route tag the card is taken anyway: the task asks the operator which route.
       const routes = chosen ? [chosen] : tagged;
-      if (!routes.length)
-        return this.skip(
-          tenant,
-          source,
-          externalId,
-          'Card sem tag de rota: escolha a rota no card ou ao iniciá-lo pelo painel',
-        );
       if (routes.length > 1)
         return this.skip(
           tenant,

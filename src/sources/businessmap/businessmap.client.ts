@@ -8,13 +8,17 @@ export interface BmCard {
   /** 1 backlog, 2 requested, 3 in progress, 4 done, 5 archive. */
   section?: number;
   column_id?: number;
+  owner_user_id?: number;
   tag_ids?: number[];
   custom_fields?: { field_id: number; value?: unknown }[];
   linked_cards?: { card_id: number; link_type: string }[];
 }
 /** Sections from here on are closed (done, archive). */
 const CLOSED = 4;
-/** Businessmap API v2, read-only (GET only): the AI Dev Team never writes to the board. */
+/**
+ * Businessmap API v2. Reads the board; the only write is moving a card to a column, and only
+ * when the source configures `moves`.
+ */
 export class BusinessmapClient {
   constructor(
     private readonly source: BusinessmapSource,
@@ -67,6 +71,19 @@ export class BusinessmapClient {
       seen.add(c.card_id);
       return true;
     });
+  }
+  /** Moves a card to a column of its board. */
+  async move(cardId: number, columnId: number) {
+    const res = await this.http(`${this.source.baseUrl}/api/v2/cards/${cardId}`, {
+      method: 'PATCH',
+      headers: {
+        apikey: this.source.token,
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ column_id: columnId }),
+    });
+    if (!res.ok) throw new Error(`Businessmap PATCH /cards/${cardId}: HTTP ${res.status}`);
   }
   card(id: number) {
     if (!Number.isInteger(id) || id <= 0) throw new Error(`Invalid card id ${id}`);

@@ -153,11 +153,10 @@ describe('Businessmap: start a card by its id', () => {
       });
       expect(await issueRoute()).toBe('fix');
     });
-    test('without a tag and without a choice, it still says to choose the route', async () => {
+    test('without a tag and without a choice, the card comes in with no route (the task asks)', async () => {
       const bm = new CardStarters({} as JiraPoller, poller(untagged)).for(source)!;
-      expect(await bm.start(tenant, source, '48816')).toEqual({
-        skipped: expect.stringMatching(/escolha a rota/),
-      });
+      expect(await bm.start(tenant, source, '48816')).toEqual({ taskId: expect.any(String) });
+      expect(await issueRoute()).toBeUndefined();
     });
     test('a choice that contradicts the card tag is refused, naming both', async () => {
       const bm = new CardStarters({} as JiraPoller, poller()).for(source)!;
