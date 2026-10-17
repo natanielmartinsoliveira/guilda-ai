@@ -10,6 +10,9 @@ tenants:
     name: Acme
     # Identity of the automatic commits in this company.
     git: { authorName: Pat (Guilda AI), authorEmail: pat@acme.example }
+    # Tasks of this company that may run at once (default 1). Each company has its own queue,
+    # so a busy company never holds back another.
+    worker: { concurrency: 1 }
     ai:
       # Providers the company's contract allows to receive its code.
       providers: [codex, claude, gemini] # add openrouter only if the contract allows it

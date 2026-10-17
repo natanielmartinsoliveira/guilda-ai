@@ -501,6 +501,13 @@ const tenant = z
       .string()
       .regex(/^[a-z0-9][a-z0-9-]*$/)
       .optional(),
+    /** How the worker takes this company's tasks. */
+    worker: z
+      .object({
+        /** Tasks of this company that may run at once; the others wait in its own queue. */
+        concurrency: z.number().int().min(1).max(8).default(1),
+      })
+      .prefault({}),
     ai: z.object({
       /** Providers the company's contract allows to receive its code. */
       providers: z.array(provider).min(1),

@@ -4,7 +4,7 @@ import { CodeHost } from '../hosts/code-host';
 import { GithubHost } from '../hosts/github.host';
 import { BitbucketHost } from '../hosts/bitbucket.host';
 import { GitlabHost } from '../hosts/gitlab.host';
-import { findTenant, Tenant, TenantHost, TenantProject } from './tenants';
+import { findTenant, Tenant, TenantHost, TenantProject, tenants } from './tenants';
 export interface ProjectContext {
   tenant: Tenant;
   project: TenantProject;
@@ -22,6 +22,9 @@ export function createHost(config: TenantHost): CodeHost {
 }
 @Injectable()
 export class TenantRegistry {
+  all(): Tenant[] {
+    return tenants();
+  }
   tenant(id: string): Tenant {
     const tenant = findTenant(id);
     if (!tenant) throw new TaskError(`Unknown tenant: ${id}`);
