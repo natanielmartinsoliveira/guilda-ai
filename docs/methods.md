@@ -99,6 +99,8 @@ phases:
 
 ## Retrying a failed task
 
+A phase may declare `board: gate` or `board: building`: when it starts, the card moves to the column the source names for that step (`moves` of a Businessmap source), once per step. A task of a method that comes without a route (a card with no route tag) first asks the operator which route, the routes' labels as options.
+
 A plain **Retry** of a failed task of a method resumes the phase it stopped in, keeping its commits and the words chosen at the gate (the usual causes are outside: VPN, quota). **Retry with instructions** starts it over.
 
 ## Prompts

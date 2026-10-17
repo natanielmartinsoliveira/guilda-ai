@@ -396,8 +396,11 @@ export class TaskWorkerService implements OnModuleInit {
     }
   }
   private async taskDone(task: Task) {
-    // Rehearsal: nothing was published, so no PR notice and no tracker feedback.
-    if (task.result?.rehearsal) return this.announceRehearsal(task, task.result.rehearsal);
+    // Rehearsal: nothing was published, so no PR notice; the card only shows the delivery done.
+    if (task.result?.rehearsal) {
+      await this.report(task, { type: 'built' });
+      return this.announceRehearsal(task, task.result.rehearsal);
+    }
     const prUrl = String(task.result?.prUrl);
     const issue = await this.db.getRepository(Issue).findOneBy({ id: task.issueId });
     // Best effort, like tracker feedback: a failed warning never changes the delivery.
@@ -1322,6 +1325,7 @@ export class TaskWorkerService implements OnModuleInit {
           await this.checkAndFix(spec);
         },
         evidence: (route) => this.collectEvidence(task, ctx, route),
+        board: (step) => this.report(task, { type: 'phase', board: step }),
       },
       task,
       ctx,

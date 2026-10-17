@@ -103,6 +103,8 @@ phases:
 
 ## Repetir uma tarefa que falhou
 
+Uma fase pode declarar `board: gate` ou `board: building`: quando ela começa, o card vai para a coluna que a origem dá para essa etapa (`moves` de uma origem Businessmap), uma vez por etapa. Uma tarefa de método que chega sem rota (card sem tag de rota) primeiro pergunta ao operador qual rota, com os rótulos das rotas como opções.
+
 O **Repetir** simples de uma tarefa de método que falhou retoma a fase em que ela parou, mantendo os commits e as palavras escolhidas no portão (a causa costuma ser externa: VPN, cota). O **repetir com instrução** recomeça do zero.
 
 ## Prompts

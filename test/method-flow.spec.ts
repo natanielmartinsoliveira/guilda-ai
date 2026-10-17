@@ -121,6 +121,7 @@ async function setup(route: Route | undefined, script: Script = {}) {
       },
     } as any;
   });
+  const reporter = { report: jest.fn() };
   const worker = new TaskWorkerService(
     db,
     {} as any,
@@ -128,7 +129,7 @@ async function setup(route: Route | undefined, script: Script = {}) {
     {} as any,
     git as any,
     registry,
-    { report: jest.fn() } as any,
+    reporter as any,
     { run: jest.fn() } as any,
     orchestrator,
     { run: jest.fn() } as any,
@@ -168,7 +169,13 @@ async function setup(route: Route | undefined, script: Script = {}) {
       (c) =>
         c[1] as { prompt: string; role: string; timeoutMs: number; env?: Record<string, string> },
     );
-  return { task, git, ws, run, answerOpen, open, reload, prompts, host, reviseRun };
+  /** The tracker events of the task, in order (their types, phases with their board step). */
+  const events = () =>
+    reporter.report.mock.calls.map(
+      ([, , e]: [unknown, unknown, { type: string; board?: string }]) =>
+        e.board ? `${e.type}:${e.board}` : e.type,
+    );
+  return { task, git, ws, run, answerOpen, open, reload, prompts, host, reviseRun, events };
 }
 test('without a route the task asks which (route labels); an answer that is no route asks again', async () => {
   const x = await setup(undefined);
@@ -242,6 +249,9 @@ test('feature: the specification step leaves the specification for review; adjus
   task = await x.reload();
   expect(task.status).toBe('SUCCESS');
   expect(task.stage).toBe('REHEARSED');
+  // The card follows: the gate once (going back to the specification does not repeat it), the
+  // delivery once (resuming after a stop does not repeat it), then the finished rehearsal.
+  expect(x.events()).toEqual(['phase:gate', 'phase:building', 'built']);
   expect(x.git.commit).not.toHaveBeenCalled();
   expect(x.git.push).not.toHaveBeenCalled();
   expect(x.host.ensurePullRequest).not.toHaveBeenCalled();

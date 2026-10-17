@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { log, redact } from '../config';
-import { JiraSource, Tenant } from '../tenants/tenants';
+import { BusinessmapSource, JiraSource, Tenant } from '../tenants/tenants';
+import { BusinessmapClient } from './businessmap/businessmap.client';
 import { JiraClient } from './jira/jira.client';
 /**
  * Events about one card. For sub-task deliveries, step events target the sub-task card and
@@ -16,7 +17,11 @@ export type SourceEvent =
   | { type: 'story-done'; branch: string }
   | { type: 'change-request'; revision: number }
   | { type: 'revised'; prUrl: string; commit: string }
-  | { type: 'failed'; error: string };
+  | { type: 'failed'; error: string }
+  /** A method phase that stands for a step of the card (its `board`). */
+  | { type: 'phase'; board: 'gate' | 'building' }
+  /** The delivery is done (a rehearsal included), before any PR. */
+  | { type: 'built' };
 /**
  * Tells the tracker what happened to its item (comment + card transition). Best effort:
  * a tracker outage must never fail or block the code task itself.
@@ -27,12 +32,17 @@ export class SourceReporter {
   protected jira(source: JiraSource) {
     return new JiraClient(source);
   }
+  /** Overridable in tests. */
+  protected businessmap(source: BusinessmapSource) {
+    return new BusinessmapClient(source);
+  }
   async report(
     tenant: Tenant,
     item: { source: string; externalKey: string },
     event: SourceEvent,
   ): Promise<void> {
     const source = tenant.sources.find((s) => s.id === item.source);
+    if (source?.type === 'businessmap') return this.move(tenant, source, item.externalKey, event);
     if (source?.type !== 'jira') return;
     const jira = this.jira(source);
     const steps: [string, () => Promise<unknown>][] = [];
@@ -124,5 +134,33 @@ export class SourceReporter {
           error: error instanceof Error ? error.message : String(error),
         });
       }
+  }
+  /** Businessmap: the card moves to the column of the step (`moves`); nothing else is written. */
+  private async move(
+    tenant: Tenant,
+    source: BusinessmapSource,
+    key: string,
+    event: SourceEvent,
+  ): Promise<void> {
+    const column =
+      event.type === 'phase'
+        ? source.moves[event.board]
+        : event.type === 'built'
+          ? source.moves.built
+          : event.type === 'pr'
+            ? source.moves.review
+            : undefined;
+    if (!column) return;
+    try {
+      await this.businessmap(source).move(Number(key), column);
+    } catch (error) {
+      log('source.move_unavailable', {
+        tenant: tenant.id,
+        source: source.id,
+        key,
+        column,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }

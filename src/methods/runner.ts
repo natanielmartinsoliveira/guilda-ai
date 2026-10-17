@@ -27,6 +27,8 @@ export interface MethodState {
   /** Text of the open question, and which step asked it, to read its answer back. */
   asked?: string;
   askedBy?: 'answers' | 'notes' | 'ask';
+  /** The last board step reported (resuming or going back does not report it again). */
+  boarded?: string;
 }
 export interface RunnerContext {
   tenant: Tenant;
@@ -44,6 +46,8 @@ export interface RunnerDeps {
   tests(): Promise<void>;
   /** The test evidence step (when the project asks for it). */
   evidence(route: string): Promise<void>;
+  /** The card's step on the board (best effort: never fails the task). */
+  board?(step: 'gate' | 'building'): Promise<void>;
 }
 /**
  * "concluido" only when the agent says so; a missing mark is a stop, never a delivery. A stop may
@@ -318,6 +322,10 @@ export class MethodRunner {
     phases: while (ms.phase !== 'done') {
       const phase = this.method.phases[ms.phase];
       if (!phase) throw new TaskError(`method ${this.method.name}: no phase "${ms.phase}"`, false);
+      if (phase.board && ms.boarded !== phase.board) {
+        ms.boarded = phase.board;
+        await deps.board?.(phase.board);
+      }
       // The operator's answer to the question this task left open, if any.
       const by = ms.askedBy;
       let reply = await answer();

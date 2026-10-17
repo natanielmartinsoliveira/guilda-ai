@@ -172,10 +172,10 @@ test('rehearsal: the whole flow, no push, no PR, ends REHEARSED with where to lo
   });
   expect(task.result!.prUrl).toBeUndefined();
 });
-test('rehearsal never reports to the tracker', async () => {
+test('rehearsal reports only that the delivery is built (no PR, comment or failure event)', async () => {
   const x = await setup();
   await x.run();
-  expect(x.reporter.report).not.toHaveBeenCalled();
+  expect(x.reporter.report.mock.calls.map((c: unknown[]) => c[2])).toEqual([{ type: 'built' }]);
 });
 test('coder: the task is bound to its workspace; tests run there and keep the last 40 lines', async () => {
   const x = await setup();
@@ -251,7 +251,8 @@ test('a rehearsal can be adjusted: same folder, new local commit, no fetch, push
   const task = await reload(x.task.id);
   expect(x.git.commit).toHaveBeenCalledTimes(2);
   expect(task.result!.rehearsal).toMatchObject({ commitSha: saved.result!.commitSha });
-  expect(x.reporter.report).not.toHaveBeenCalled();
+  // Only the first run's "built"; an adjustment says nothing to the tracker.
+  expect(x.reporter.report.mock.calls.map((c: unknown[]) => c[2])).toEqual([{ type: 'built' }]);
 });
 test('a discarded rehearsal refuses adjustments (focus 4)', async () => {
   const x = await setup();

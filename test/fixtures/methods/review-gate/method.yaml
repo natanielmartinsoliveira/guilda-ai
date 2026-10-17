@@ -81,6 +81,7 @@ phases:
           option: prompts/outside-option.md
     next: gate
   gate:
+    board: gate
     steps:
       - ask:
           question: prompts/gate-{{route}}.md
@@ -95,6 +96,7 @@ phases:
           other:
             next: { feature: spec, default: gate }
   deliver:
+    board: building
     steps:
       - agent: prompts/deliver-{{route}}.md
     next: done

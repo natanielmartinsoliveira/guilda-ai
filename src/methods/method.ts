@@ -111,7 +111,12 @@ const methodFile = z
     routes: z.record(z.string().regex(/^[a-z][a-z0-9-]*$/), route),
     phases: z.record(
       z.string().regex(/^[a-z][a-z0-9-]*$/),
-      z.object({ steps: z.array(step).min(1), next: next.optional() }),
+      z.object({
+        steps: z.array(step).min(1),
+        next: next.optional(),
+        /** The step of the card this phase stands for on the board (sources with `moves`). */
+        board: z.enum(['gate', 'building']).optional(),
+      }),
     ),
   })
   .superRefine((m, ctx) => {
