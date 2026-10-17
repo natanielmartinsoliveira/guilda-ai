@@ -2,6 +2,7 @@ import type { MessageKey } from './pt-BR';
 /** Texts the operator reads (Telegram, engine questions, configuration errors), in English. */
 export const en: Record<MessageKey, string> = {
   'telegram.task': 'task',
+  'method.whichRoute': 'Which route does this task follow?',
   'budget.reached':
     'Task budget reached: US$ {spent} of US$ {limit}. Release US$ {usd} more for it to go on?',
   'budget.release': 'Release US$ {usd} more',

@@ -51,7 +51,9 @@ import {
 } from '../evidence/evidence';
 import { evidenceDir, kitDir } from '../evidence/evidence-store';
 import { renderPrompt } from '../prompts/prompt-files';
-import { t } from '../i18n';
+import { language, t } from '../i18n';
+import { loadMethod } from '../methods/method';
+import { routeFromAnswer, routeQuestion } from '../methods/route-choice';
 import { formatsFor } from '../formats/formats';
 import { MethodRunner, porcelainPaths, readOutcome } from '../methods/runner';
 import type { DecisionQuestion } from '../database/entities';
@@ -1072,6 +1074,7 @@ export class TaskWorkerService implements OnModuleInit {
       : steps.length
         ? stepCommit(steps[0].key, steps[0].title)
         : `feat(ai): implement ${issue.externalKey}`;
+    if (cfg.method && !meta.route) await this.chooseRoute(task, ctx);
     // A method route runs the method's phases; a standard-flow route of a method runs the core
     // flow with the method's hooks before it and its text after the prompt.
     const runner = cfg.method ? this.methodRunner(task, ctx) : undefined;
@@ -1283,6 +1286,26 @@ export class TaskWorkerService implements OnModuleInit {
     }
     await this.stage(task, Task, 'PUSH');
     await this.git.push(task, String(task.result!.commitSha), ctx.remote);
+  }
+  /**
+   * A task of a method that came without a route (a card with no route tag): the operator picks
+   * one of the method's routes; an answer that names none is asked again.
+   */
+  private async chooseRoute(task: Task, ctx: WorkContext) {
+    const method = loadMethod(ctx.tenant.packDir!, ctx.cfg.method!.name);
+    const question = routeQuestion(method, language());
+    const last = (
+      await this.db
+        .getRepository(Decision)
+        .findBy({ taskId: task.id, type: 'question', status: 'answered' })
+    )
+      .filter((d) => d.questions?.[0]?.text === question.text && d.answeredAt)
+      .sort((a, b) => b.answeredAt!.getTime() - a.answeredAt!.getTime())[0];
+    const answer = (last?.answer as { answers?: string[] } | undefined)?.answers?.[0];
+    const route = answer === undefined ? undefined : routeFromAnswer(method, language(), answer);
+    if (!route) throw new NeedsInput([question], true);
+    ctx.issue.meta = { ...(ctx.issue.meta ?? {}), route };
+    await this.db.getRepository(Issue).save(ctx.issue);
   }
   /** The runner of the project's method for this task. */
   private methodRunner(task: Task, ctx: WorkContext) {

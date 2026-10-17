@@ -35,7 +35,7 @@ type Script = {
   deliverLeaves?: string[];
   config?: Record<string, unknown>;
 };
-async function setup(route: Route, script: Script = {}) {
+async function setup(route: Route | undefined, script: Script = {}) {
   const registry = new TenantRegistry();
   const orchestrator = new OrchestratorService(db, registry);
   const task = await orchestrator.accept('acme', { ...item, delivery: { route } as any });
@@ -170,6 +170,21 @@ async function setup(route: Route, script: Script = {}) {
     );
   return { task, git, ws, run, answerOpen, open, reload, prompts, host, reviseRun };
 }
+test('without a route the task asks which (route labels); an answer that is no route asks again', async () => {
+  const x = await setup(undefined);
+  await x.run();
+  expect((await x.reload()).status).toBe('WAITING');
+  const asked = await x.answerOpen('xyz');
+  expect(asked.questions![0].text).toBe('Qual rota esta tarefa segue?');
+  expect(asked.questions![0].options).toContain('Funcionalidade nova (especificação → entrega)');
+  await x.run();
+  expect((await x.reload()).status).toBe('WAITING');
+  expect(x.prompts()).toHaveLength(0);
+  await x.answerOpen('Funcionalidade nova (especificação → entrega)');
+  await x.run();
+  expect(x.prompts()[0].prompt.startsWith('Write the specification')).toBe(true);
+});
+
 test('feature: the specification step leaves the specification for review; adjust discards it; approval commits only its root', async () => {
   const x = await setup('feature', {
     analyse: ['<resultado>concluido</resultado>', '<resultado>concluido</resultado>'],
