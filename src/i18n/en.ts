@@ -47,6 +47,7 @@ export const en: Record<MessageKey, string> = {
   'evidence.question':
     'Test evidence: the prints do not show the requested result.\n{pending}\nReply with guidance (test data, screen, route) for the AI to try again.',
   'evidence.retry': 'Try again',
+  'evidence.skip': 'Go on without evidence',
   'evidence.notGenerated': 'The test evidence was not generated.',
   'evidence.invalid': 'Invalid evidence: {problem}',
   'evidence.missingPrint': 'Print {file} was not found.',

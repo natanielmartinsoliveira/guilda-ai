@@ -89,9 +89,10 @@ export function evidencePrompt(
   );
 }
 /** What the operator sees when the prints could not show the result. */
-export function evidenceQuestion(pending: string): DecisionQuestion {
+/** Retry, the agent's own choices, or go on without evidence (a delivery with nothing to show). */
+export function evidenceQuestion(pending: string, choices: string[] = []): DecisionQuestion {
   return {
     text: t('evidence.question', { pending }),
-    options: [t('evidence.retry')],
+    options: [t('evidence.retry'), ...choices, t('evidence.skip')],
   };
 }

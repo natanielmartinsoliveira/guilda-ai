@@ -113,7 +113,9 @@ Com `evidence: { playwright: 1.48.2 }` no projeto (só workspace Coder), toda en
 1. A Guilda AI sobe para `.ai-dev-team/evidence/` da pasta da tarefa (fora do git) o kit fixo: `evidence-kit.cjs` (tira o print, mascara `Authorization`/cookies/tokens e desenha a moldura com a **URL real** e **data/hora** no fuso de `formats.evidence.timezone`) e `run.sh` (roda a imagem oficial `mcr.microsoft.com/playwright:v<versão>-noble` na rede do workspace).
 2. A IA sobe o sistema com banco descartável, cria os dados de teste, escreve `roteiro.cjs` usando só o kit (`shot` para tela, `apiShot` para rota de API no estilo Swagger) e roda até os prints mostrarem o resultado.
 3. A Guilda AI confere o `manifest.json`, baixa os prints e o trace do Playwright, apaga a pasta do kit e monta o comentário no formato da empresa (`formats.evidence.comment`, veja [packs.md](packs.md)).
-4. Se a IA não chegar ao resultado (ou o manifesto não fechar), a tarefa para numa decisão; sua resposta (por exemplo, "use a venda X") orienta a próxima tentativa.
+4. Se a IA não chegar ao resultado (ou o manifesto não fechar), a tarefa para numa decisão; sua resposta (por exemplo, "use a venda X") orienta a próxima tentativa. As opções são **Tentar de novo**, as sugestões da própria IA e **Seguir sem evidência** (entrega sem nada para mostrar, como só testes unitários: a tarefa termina sem prints).
+
+Num projeto com método, o agente da evidência roda com o que o agente do método tem: o `env` (por exemplo, o runtime do projeto no `PATH`), `agent.addDirs` e `agent.allowedTools`.
 
 No painel, a tarefa mostra os prints, o botão **Copiar comentário** e **Baixar trace**; o Telegram avisa quantos prints há. O `run.sh` instala o pacote `playwright` pelo npm a cada execução: o workspace precisa alcançar o npm.
 

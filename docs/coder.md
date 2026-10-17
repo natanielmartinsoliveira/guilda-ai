@@ -113,7 +113,9 @@ With `evidence: { playwright: 1.48.2 }` in the project (Coder workspace only), e
 1. Guilda AI uploads the fixed kit to `.ai-dev-team/evidence/` of the task folder (outside git): `evidence-kit.cjs` (takes the print, masks `Authorization`/cookies/tokens and draws a frame with the **real URL** and the **date/time** in the time zone of `formats.evidence.timezone`) and `run.sh` (runs the official `mcr.microsoft.com/playwright:v<version>-noble` image on the workspace's network).
 2. The AI starts the system with a throwaway database, creates the test data, writes `roteiro.cjs` using only the kit (`shot` for a screen, `apiShot` for an API route in Swagger style) and runs it until the prints show the result.
 3. Guilda AI checks `manifest.json`, downloads the prints and the Playwright trace, removes the kit folder and builds the comment in the company's format (`formats.evidence.comment`, see [packs.md](packs.md)).
-4. If the AI does not reach the result (or the manifest does not hold), the task stops at a decision; your answer (for example "use order X") guides the next try.
+4. If the AI does not reach the result (or the manifest does not hold), the task stops at a decision; your answer (for example "use order X") guides the next try. The options are **Try again**, the AI's own suggestions and **Go on without evidence** (a delivery with nothing to show, such as unit tests only: the task finishes with no prints).
+
+On a project with a method, the evidence agent runs with what the method's agent has: its `env` (e.g. the project's runtime on the `PATH`), `agent.addDirs` and `agent.allowedTools`.
 
 In the panel, the task shows the prints, a **Copy comment** button and **Download trace**; Telegram says how many prints there are. `run.sh` installs the `playwright` package from npm on every run: the workspace must reach npm.
 

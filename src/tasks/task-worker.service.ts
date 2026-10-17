@@ -1444,6 +1444,8 @@ export class TaskWorkerService implements OnModuleInit {
     if (ctx.ws.kind !== 'coder')
       throw new TaskError('Evidência de teste só roda em workspace do Coder', false);
     const state = task.result!;
+    // The operator chose to go on without evidence (nothing to show, e.g. only unit tests).
+    if ((state.evidence as { skipped?: boolean } | undefined)?.skipped) return;
     // Its own questions (a standard-flow route has no method questions): the answer is a note.
     const ask = async (question: DecisionQuestion): Promise<never> => {
       state.evidenceAsked = question.text;
@@ -1464,6 +1466,11 @@ export class TaskWorkerService implements OnModuleInit {
             { answers?: string[] } | undefined
         )?.answers?.[0]
       : undefined;
+    if (reply?.trim() === t('evidence.skip')) {
+      state.evidence = { skipped: true };
+      log('evidence.skipped', { taskId: task.id });
+      return;
+    }
     const notes = [
       ...((state.evidenceNotes as string[] | undefined) ?? []),
       ...(reply ? [reply] : []),
@@ -1472,6 +1479,7 @@ export class TaskWorkerService implements OnModuleInit {
     await this.stage(task, Task, 'EVIDENCE');
     await ctx.ws.remove(EVIDENCE_DIR);
     const formats = formatsFor(ctx.tenant, ctx.cfg);
+    const method = ctx.cfg.method ? this.methodRunner(task, ctx) : undefined;
     const kit = await kitDir(ev.playwright, formats.evidence.timezone);
     try {
       await ctx.ws.upload(kit, EVIDENCE_DIR);
@@ -1487,6 +1495,15 @@ export class TaskWorkerService implements OnModuleInit {
         workspace: task.workspace,
         remote: ctx.ws as CoderWorkspace,
         timeoutMs: ev.timeoutMinutes * 60000,
+        // A project with a method: the evidence runs with what the method's agent has (its
+        // environment, folders and allowed commands), e.g. the project's runtime on the PATH.
+        ...(method
+          ? {
+              env: method.env(),
+              addDirs: method.method.agent.addDirs,
+              allowedTools: method.method.agent.allowedTools,
+            }
+          : {}),
         prompt: await evidencePrompt(
           {
             material: task.instructions,
@@ -1515,8 +1532,12 @@ export class TaskWorkerService implements OnModuleInit {
     }
     const outcome = out.result.success
       ? readOutcome(out.result.message)
-      : { done: false as const, pending: out.result.errorText ?? out.result.stderr.slice(-2000) };
-    if (!outcome.done) await ask(evidenceQuestion(outcome.pending));
+      : {
+          done: false as const,
+          pending: out.result.errorText ?? out.result.stderr.slice(-2000),
+          options: [] as string[],
+        };
+    if (!outcome.done) await ask(evidenceQuestion(outcome.pending, outcome.options));
     const manifest = readManifest(
       (await ctx.ws.readText(`${EVIDENCE_DIR}/out/manifest.json`, 200000)) ?? '',
     );

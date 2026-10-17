@@ -68,7 +68,7 @@ test('engine questions and manifest problems in English', () => {
   expect(q.text).toBe(
     'Test evidence: the prints do not show the requested result.\nNeed a sale\nReply with guidance (test data, screen, route) for the AI to try again.',
   );
-  expect(q.options).toEqual(['Try again']);
+  expect(q.options).toEqual(['Try again', 'Go on without evidence']);
   expect(readManifest('nope')).toEqual({ problem: expect.stringMatching(/missing or unreadable/) });
   expect(readManifest('{"shots":[]}')).toEqual({ problem: 'no print recorded in manifest.json' });
 });

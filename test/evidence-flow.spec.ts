@@ -174,7 +174,8 @@ async function setup(script: Script = {}) {
     await run();
     await answerOpen(authorizationFor('fix', task.branch));
   }
-  return { task, ws, run, answerOpen, reload, prompts, uploaded, order, git };
+  const agentInputs = () => agents.execute.mock.calls.map((c) => c[1]);
+  return { task, ws, run, answerOpen, reload, prompts, uploaded, order, git, agentInputs };
 }
 
 test('after the delivery the agent runs the kit; framed prints and the comment come back', async () => {
@@ -226,6 +227,35 @@ test('an evidence run that did not reach the result asks; the answer guides the 
   const runs = x.prompts().filter((p) => p.includes('roteiro.cjs'));
   expect(runs).toHaveLength(2);
   expect(runs[1]).toContain('use a venda 1af8bc91');
+});
+
+test('the evidence agent has the method environment; its choices and "go on without" are options', async () => {
+  const x = await setup({
+    evidence: [
+      '<resultado>parado</resultado><pendencias>Sem o runtime</pendencias><opcoes>\n- Rodar só os testes\n</opcoes>',
+    ],
+  });
+  await x.run();
+  expect((await x.reload()).status).toBe('WAITING');
+  const input = (x as any)
+    .agentInputs()
+    .find((i: { prompt: string }) => i.prompt.includes('roteiro.cjs'));
+  expect(input).toMatchObject({
+    env: expect.objectContaining({ PYTHONPATH: expect.any(String) }),
+    addDirs: ['~/.method-tools'],
+    allowedTools: ['Bash(python3 -B:*)', 'Bash(git status:*)'],
+  });
+  const asked = await x.answerOpen('Seguir sem evidência');
+  expect(asked.questions![0].options).toEqual([
+    'Tentar de novo',
+    'Rodar só os testes',
+    'Seguir sem evidência',
+  ]);
+  await x.run();
+  const task = await x.reload();
+  expect(task.stage).toBe('REHEARSED');
+  expect(task.result!.evidence).toEqual({ skipped: true });
+  expect(x.prompts().filter((p) => p.includes('roteiro.cjs'))).toHaveLength(1);
 });
 
 test('a manifest that does not hold is a question, never a print', async () => {

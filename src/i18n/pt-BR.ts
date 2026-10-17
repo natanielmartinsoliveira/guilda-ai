@@ -46,6 +46,7 @@ export const ptBR = {
   'evidence.question':
     'Evidência de teste: os prints não mostram o resultado pedido.\n{pending}\nResponda com orientações (dados de teste, tela, rota) para a IA tentar de novo.',
   'evidence.retry': 'Tentar de novo',
+  'evidence.skip': 'Seguir sem evidência',
   'evidence.notGenerated': 'A evidência de teste não foi gerada.',
   'evidence.invalid': 'Evidência inválida: {problem}',
   'evidence.missingPrint': 'O print {file} não foi encontrado.',
