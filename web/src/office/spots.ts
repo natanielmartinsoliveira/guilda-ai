@@ -177,6 +177,8 @@ export interface OfficeModel {
   roomKey?: string;
   loaded?: boolean;
   guild?: GuildState;
+  crew: CrewMember[];
+  seats?: number;
   folders: Folder[];
   desks: Desk[];
   /** Tasks beyond a spot's `max`, shown as "+N" next to its label. */
@@ -191,12 +193,14 @@ export function currentJob(task: TaskView) {
     .sort((a, b) => PRIORITY[a.status] - PRIORITY[b.status] || a.number - b.number)[0];
   if (revision)
     return {
+      revisionNumber: revision.number,
       status: revision.status,
       stage: revision.stage,
       prUrl: task.prUrl,
       attempts: revision.agentAttempts,
     };
   return {
+    revisionNumber: undefined,
     status: task.status,
     stage: task.stage,
     prUrl: task.prUrl,
@@ -259,7 +263,13 @@ export function officeModel(tasks: TaskView[], decisions: DecisionView[]): Offic
         ai: aiOf(working.job.attempts),
       };
     });
-  return { folders, desks, extra, guild: guildState(tasks, decisions) };
+  return {
+    folders,
+    desks,
+    extra,
+    guild: guildState(tasks, decisions),
+    crew: crew(tasks, decisions),
+  };
 }
 const WALL = 40;
 const FLOOR = [48, 49];
@@ -287,9 +297,9 @@ const DEMO_STAGES = [
   'PULL_REQUEST',
   'DONE',
 ];
-/** Three fake tasks walking the pipeline, to see the office move without spending AI. */
+/** Five fake tasks walking the pipeline, to see the office move without spending AI. */
 export function demoModel(step: number): OfficeModel {
-  const tasks = [0, 3, 6].map((offset, i): TaskView => {
+  const tasks = [0, 0, 2, 4, 6].map((offset, i): TaskView => {
     const stage = DEMO_STAGES[(step + offset) % DEMO_STAGES.length];
     return {
       id: `demo-${i + 1}`,
@@ -297,7 +307,14 @@ export function demoModel(step: number): OfficeModel {
       branch: '',
       key: `DEMO-${i + 1}`,
       title: t('guild.demo'),
-      status: stage === 'DONE' ? 'SUCCESS' : stage === 'QUEUED' ? 'PENDING' : 'RUNNING',
+      status:
+        i === 4 && stage === 'CHECKS'
+          ? 'WAITING'
+          : stage === 'DONE'
+            ? 'SUCCESS'
+            : stage === 'QUEUED'
+              ? 'PENDING'
+              : 'RUNNING',
       stage,
       prUrl: stage === 'DONE' ? 'https://example.invalid/pr' : undefined,
       provider: 'claude',
@@ -313,7 +330,7 @@ export function demoModel(step: number): OfficeModel {
       updatedAt: `2026-01-01T00:00:0${i}Z`,
     };
   });
-  return officeModel(tasks, []);
+  return { ...officeModel(tasks, []), seats: 2 };
 }
 
 export const ROLES = ['architect', 'coder', 'tester', 'fixer', 'guard', 'reviewer'] as const;
@@ -362,10 +379,18 @@ const ATTEMPT_ROLE: Record<string, GuildRole> = {
   guard: 'guard',
   reviewer: 'reviewer',
 };
-/** Roles are stations, not fabricated agent identities. Counts represent current executions. */
-export function guildState(tasks: TaskView[], decisions: DecisionView[]): GuildState {
+export interface CrewMember {
+  id: string;
+  taskId: string;
+  key: string;
+  role: GuildRole;
+  tone: 'working' | 'waiting' | 'error';
+  ai?: string;
+  createdAt?: string;
+}
+function jobEntries(tasks: TaskView[], decisions: DecisionView[]) {
   const waiting = new Set(decisions.filter((d) => d.status === 'open').map((d) => d.taskId));
-  const entries = tasks.map((task) => {
+  return tasks.map((task) => {
     const job = currentJob(task);
     const last = job.attempts?.at(-1);
     const stageRole = STAGE_SPOTS[job.stage];
@@ -381,6 +406,35 @@ export function guildState(tasks: TaskView[], decisions: DecisionView[]): GuildS
       blocked: waiting.has(task.id) || job.status === 'WAITING' || job.stage === 'WAITING_CAPACITY',
     };
   });
+}
+function entryTone(entry: ReturnType<typeof jobEntries>[number]): CrewMember['tone'] {
+  return entry.job.status === 'FAILED'
+    ? 'error'
+    : entry.blocked || entry.job.status === 'PENDING'
+      ? 'waiting'
+      : 'working';
+}
+export function crew(tasks: TaskView[], decisions: DecisionView[]): CrewMember[] {
+  return jobEntries(tasks, decisions)
+    .filter(
+      (e) =>
+        e.role &&
+        e.job.stage !== 'QUEUED' &&
+        ['RUNNING', 'WAITING', 'FAILED', 'PENDING'].includes(e.job.status),
+    )
+    .map((e) => ({
+      id: e.job.revisionNumber === undefined ? e.task.id : `${e.task.id}#${e.job.revisionNumber}`,
+      taskId: e.task.id,
+      key: e.task.key ?? e.task.id.slice(0, 6),
+      role: e.role!,
+      tone: entryTone(e),
+      ai: aiOf(e.job.attempts),
+      createdAt: e.task.createdAt,
+    }));
+}
+/** The summary and visible crew share role and blocking rules. */
+export function guildState(tasks: TaskView[], decisions: DecisionView[]): GuildState {
+  const entries = jobEntries(tasks, decisions);
   const agents = ROLES.map((role): GuildAgent => {
     const here = entries
       .filter(
@@ -394,13 +448,7 @@ export function guildState(tasks: TaskView[], decisions: DecisionView[]): GuildS
           b.task.updatedAt.localeCompare(a.task.updatedAt),
       );
     const first = here[0];
-    const tone = !first
-      ? 'idle'
-      : first.job.status === 'FAILED'
-        ? 'error'
-        : first.blocked || first.job.status === 'PENDING'
-          ? 'waiting'
-          : 'working';
+    const tone = first ? entryTone(first) : 'idle';
     return {
       role,
       name: first ? (aiOf(first.job.attempts) ?? SPOTS[role].label) : SPOTS[role].label,
