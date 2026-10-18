@@ -524,6 +524,7 @@ a:focus-visible,
     0 0 0 6px #96784c,
     0 10px 30px #0008;
   image-rendering: pixelated;
+  touch-action: none;
   font-size: 13px;
 }
 .decision-popup p {
@@ -594,18 +595,19 @@ a:focus-visible,
   font-size: 14px;
 }
 .guild-map-scroll {
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
+  overflow: hidden;
 }
 .office-canvas {
   contain: size;
   width: 100%;
-  min-width: 780px;
-  aspect-ratio: 960 / 640;
+  aspect-ratio: 3 / 2;
+  max-height: 70vh;
   border-radius: 0;
   background: #30293c;
 }
 .office-canvas canvas {
+  width: 100% !important;
+  height: 100% !important;
   display: block;
   image-rendering: pixelated;
 }
@@ -664,6 +666,9 @@ a:focus-visible,
   gap: 8px;
 }
 .agent-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
   padding: 12px;
   text-align: left;
   display: flex;
@@ -869,5 +874,49 @@ a:focus-visible,
   *::before,
   *::after {
     scroll-behavior: auto !important;
+  }
+}
+
+.guild-camera-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.guild-camera-controls button {
+  min-height: 36px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.guild-camera-controls button[aria-pressed='true'] {
+  background: #59436b;
+  border-color: #b99ae4;
+}
+.guild-map-heading {
+  flex-wrap: wrap;
+}
+.agent-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 0;
+  min-height: 40px;
+}
+.crew-key {
+  min-height: 32px;
+  text-align: left;
+  font-size: 12px;
+  padding: 4px 8px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .guild-map-heading {
+    gap: 8px;
+    padding: 10px;
+  }
+  .guild-camera-controls {
+    width: 100%;
   }
 }

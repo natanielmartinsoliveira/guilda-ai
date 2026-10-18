@@ -4,6 +4,8 @@ import { Link } from 'react-router';
 import { useLive } from '../LiveProvider';
 import { ago, stageLabel, sortTasks } from '../live';
 import { DecisionPopup } from '../office/DecisionPopup';
+import { seatsFor } from '../office/seats';
+import type { CameraMode } from '../office/camera';
 import type { OfficeView } from '../office/game';
 import { demoModel, officeModel, SPOTS, currentJob } from '../office/spots';
 import { TaskDetail } from './TaskDetail';
@@ -34,6 +36,8 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
   const [demo, setDemo] = useState(false);
   const [step, setStep] = useState(0);
   const [failed, setFailed] = useState(false);
+  const [cameraMode, setCameraMode] = useState<CameraMode>('follow');
+  const previousSeats = useRef({ key: '', seats: 1 });
   const panel = useRef<HTMLElement>(null);
   const holder = useRef<HTMLDivElement>(null);
   const view = useRef<OfficeView | undefined>(undefined);
@@ -46,14 +50,20 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
     () => officeModel(roomTasks, roomDecisions),
     [roomTasks, roomDecisions],
   );
-  const model = useMemo(
-    () => ({
-      ...(demo ? demoModel(step) : liveModel),
-      roomKey: demo ? 'demo' : tenant,
-      loaded: demo || loaded,
-    }),
-    [demo, step, liveModel, tenant, loaded],
-  );
+  const concurrency = tenants.find((t) => t.id === tenant)?.concurrency ?? 1;
+  const model = useMemo(() => {
+    const base = demo ? demoModel(step) : liveModel;
+    const key = demo ? 'demo' : tenant;
+    const seats = demo
+      ? 2
+      : seatsFor(
+          concurrency,
+          base.crew,
+          previousSeats.current.key === key ? previousSeats.current.seats : 1,
+        );
+    previousSeats.current = { key, seats };
+    return { ...base, roomKey: key, loaded: demo || loaded, seats };
+  }, [demo, step, liveModel, tenant, loaded, concurrency]);
   const latest = useRef(model);
   latest.current = model;
   const demoRef = useRef(demo);
@@ -72,7 +82,9 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
             setSelected(id);
           });
           view.current = created;
+          created.onCameraModeChange(setCameraMode);
           created.update(latest.current);
+          created.setCameraMode('follow');
         } catch {
           setFailed(true);
         }
@@ -93,6 +105,15 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
     const timer = setInterval(() => setStep((s) => s + 1), 1500);
     return () => clearInterval(timer);
   }, [demo]);
+  useEffect(() => {
+    setCameraMode('follow');
+    view.current?.setCameraMode('follow');
+  }, [model.roomKey]);
+  const focusTask = (id: string) => {
+    view.current?.focus(id);
+    setCameraMode('manual');
+    if (!demo) setSelected(id);
+  };
   // Selections never cross company boundaries.
   const switchRoom = (id: string) => {
     setPicked(id);
@@ -136,16 +157,25 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
       </header>
       <div className="guild-toolbar">
         <div className="segmented" role="group" aria-label={tr('guild.room')}>
-          {tenants.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              aria-pressed={!demo && tenant === t.id}
-              onClick={() => switchRoom(t.id)}
-            >
-              {t.name}
-            </button>
-          ))}
+          {tenants.map((t) => {
+            const running = tasks.filter(
+              (task) => task.tenantId === t.id && currentJob(task).status === 'RUNNING',
+            ).length;
+            return (
+              <button
+                key={t.id}
+                aria-label={
+                  running ? tr('guild.roomRunning', { name: t.name, n: running }) : t.name
+                }
+                type="button"
+                aria-pressed={!demo && tenant === t.id}
+                onClick={() => switchRoom(t.id)}
+              >
+                {t.name}
+                {running ? ` ◆ ${running}` : ''}
+              </button>
+            );
+          })}
         </div>
         <div className="guild-live">
           <span className={connected ? 'live-dot' : 'live-dot disconnected'} />
@@ -174,7 +204,48 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
         {!demo && <DecisionPopup decisions={decisions} tenants={tenants} />}
         <div className="guild-map-heading">
           <strong>⌂ {tr('guild.office')}</strong>
-          <span>{tr('guild.clickHint')}</span>
+          <div className="guild-camera-controls" role="group" aria-label={tr('guild.camera')}>
+            <button
+              type="button"
+              aria-pressed={cameraMode === 'follow'}
+              onClick={() => {
+                setCameraMode('follow');
+                view.current?.setCameraMode('follow');
+              }}
+            >
+              {tr('guild.follow')}
+            </button>
+            <button
+              type="button"
+              aria-pressed={cameraMode === 'overview'}
+              onClick={() => {
+                setCameraMode('overview');
+                view.current?.setCameraMode('overview');
+              }}
+            >
+              {tr('guild.overview')}
+            </button>
+            <button
+              type="button"
+              aria-label={tr('guild.zoomIn')}
+              onClick={() => {
+                setCameraMode('manual');
+                view.current?.zoomBy(1.2);
+              }}
+            >
+              +
+            </button>
+            <button
+              type="button"
+              aria-label={tr('guild.zoomOut')}
+              onClick={() => {
+                setCameraMode('manual');
+                view.current?.zoomBy(1 / 1.2);
+              }}
+            >
+              −
+            </button>
+          </div>
         </div>
         <div
           className="guild-map-scroll"
@@ -194,7 +265,6 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
           <span>◷ {tr('guild.waiting')}</span>
           <span>○ {tr('guild.free')}</span>
           <span>! {tr('guild.error')}</span>
-          <span className="map-hint">↔ {tr('guild.scrollHint')}</span>
         </div>
       </div>
       <div className="guild-areas" aria-label={tr('guild.areas')}>
@@ -226,23 +296,40 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
       </div>
       <div className="guild-roster" aria-label={tr('guild.stations')}>
         {guild.agents.map((a) => (
-          <button
-            type="button"
+          <div
             key={a.role}
             className={`agent-card ${a.tone}`}
-            aria-expanded={area === a.role}
-            onClick={() => setSelected('@' + a.role)}
+            role="group"
+            aria-label={SPOTS[a.role].label}
           >
-            <strong>{SPOTS[a.role].label}</strong>
-            <span className="agent-status">
-              {ICONS[a.tone]} {ready || demo ? a.status : tr('guild.loading')}
-            </span>
-            <small>
-              {a.task
-                ? `${a.task.key ?? a.task.id.slice(0, 8)} · ${a.name}`
-                : tr('guild.noMission')}
-            </small>
-          </button>
+            <button
+              type="button"
+              className="agent-summary"
+              aria-expanded={area === a.role}
+              onClick={() => setSelected('@' + a.role)}
+            >
+              <strong>{SPOTS[a.role].label}</strong>
+              <span className="agent-status">
+                {ICONS[a.tone]} {ready || demo ? a.status : tr('guild.loading')}
+              </span>
+            </button>
+            {model.crew
+              .filter((m) => m.role === a.role)
+              .map((m) => (
+                <button
+                  type="button"
+                  className="crew-key"
+                  key={m.id}
+                  onClick={() => {
+                    focusTask(m.taskId);
+                    if (demo) setSelected('@' + a.role);
+                  }}
+                >
+                  {m.key}
+                </button>
+              ))}
+            {!a.tasks.length && <small>{tr('guild.noMission')}</small>}
+          </div>
         ))}
       </div>
       {selected && (
@@ -289,7 +376,7 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
               ) : list.length ? (
                 list.map((t) => (
                   <div className="guild-mission" key={t.id}>
-                    <button type="button" className="link" onClick={() => setSelected(t.id)}>
+                    <button type="button" className="link" onClick={() => focusTask(t.id)}>
                       <strong>{t.key ?? t.id.slice(0, 8)}</strong> ·{' '}
                       {t.title ?? tr('guild.untitled')}
                     </button>
@@ -331,7 +418,7 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
               .map((t) => (
                 <li key={t.id}>
                   <time dateTime={t.updatedAt}>{ago(t.updatedAt)}</time>
-                  <button type="button" className="link" onClick={() => setSelected(t.id)}>
+                  <button type="button" className="link" onClick={() => focusTask(t.id)}>
                     {t.key ?? t.id.slice(0, 8)}
                   </button>
                   <span>{stageLabel(currentJob(t).stage)}</span>

@@ -1,7 +1,8 @@
-import { act, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { api } from '../api';
+import type { CameraMode } from '../office/camera';
 import type { OfficeModel } from '../office/spots';
 import { renderWithLive } from '../test-utils';
 import type { DecisionView, TaskView, Tenant } from '../types';
@@ -37,11 +38,29 @@ function wide(matches: boolean) {
   }));
 }
 function fakeGame() {
-  const views: { update: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> }[] = [];
+  type FakeView = {
+    update: ReturnType<typeof vi.fn>;
+    destroy: ReturnType<typeof vi.fn>;
+    setCameraMode: ReturnType<typeof vi.fn>;
+    zoomBy: ReturnType<typeof vi.fn>;
+    focus: ReturnType<typeof vi.fn>;
+    onCameraModeChange: ReturnType<typeof vi.fn>;
+  };
+  const views: FakeView[] = [];
+  let reportMode: (mode: CameraMode) => void = () => undefined;
   let select: (taskId: string) => void = () => undefined;
   const createOffice = vi.fn((_parent: HTMLElement, onSelect: (taskId: string) => void) => {
     select = onSelect;
-    const view = { update: vi.fn(), destroy: vi.fn() };
+    const view = {
+      update: vi.fn(),
+      destroy: vi.fn(),
+      setCameraMode: vi.fn(),
+      zoomBy: vi.fn(),
+      focus: vi.fn(),
+      onCameraModeChange: vi.fn((cb: (mode: CameraMode) => void) => {
+        reportMode = cb;
+      }),
+    };
     views.push(view);
     return view;
   });
@@ -49,6 +68,7 @@ function fakeGame() {
     loadGame: vi.fn(async () => ({ createOffice })),
     createOffice,
     views,
+    reportMode: (mode: CameraMode) => act(() => reportMode(mode)),
     select: (id: string) => act(() => select(id)),
     lastModel: () => {
       const update = views[views.length - 1].update;
@@ -81,7 +101,7 @@ test('one room per company: the scene gets only that company tasks', async () =>
   await waitFor(() => expect(game.createOffice).toHaveBeenCalledTimes(1));
   expect(game.createOffice.mock.calls[0][0]).toBe(screen.getByTestId('office-canvas'));
   await waitFor(() => expect(game.lastModel().folders.map((f) => f.key)).toEqual(['PF-1']));
-  await userEvent.click(screen.getByRole('button', { name: 'Globex' }));
+  await userEvent.click(screen.getByRole('button', { name: /Globex/ }));
   await waitFor(() => expect(game.lastModel().folders.map((f) => f.key)).toEqual(['T-9']));
 });
 test('clicking a folder opens the task beside the room', async () => {
@@ -208,4 +228,53 @@ test('no open decision, or the demo, shows no request', async () => {
   ]);
   await waitFor(() => expect(game.loadGame).toHaveBeenCalled());
   expect(screen.queryByRole('dialog', { name: 'Pedido de decisão' })).toBeNull();
+});
+
+test('other company running counts remain visible in room tabs', async () => {
+  mount(fakeGame());
+  expect(screen.getByRole('button', { name: 'Globex, 1 em execução' })).toHaveTextContent(
+    'Globex ◆ 1',
+  );
+});
+test('camera controls call the game and track manual mode changes', async () => {
+  const game = fakeGame();
+  mount(game);
+  await waitFor(() => expect(game.createOffice).toHaveBeenCalled());
+  await userEvent.click(screen.getByRole('button', { name: 'Visão geral' }));
+  expect(game.views[0].setCameraMode).toHaveBeenCalledWith('overview');
+  game.reportMode('overview');
+  expect(screen.getByRole('button', { name: 'Visão geral' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await userEvent.click(screen.getByRole('button', { name: 'Aproximar' }));
+  expect(game.views[0].zoomBy).toHaveBeenCalledWith(1.2);
+  await userEvent.click(screen.getByRole('button', { name: 'Afastar' }));
+  expect(game.views[0].zoomBy).toHaveBeenCalledWith(1 / 1.2);
+  game.reportMode('manual');
+  expect(screen.getByRole('button', { name: 'Acompanhar' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  await userEvent.click(screen.getByRole('button', { name: 'Acompanhar' }));
+  expect(game.views[0].setCameraMode).toHaveBeenLastCalledWith('follow');
+  await userEvent.click(screen.getByRole('button', { name: /Globex/ }));
+  expect(game.views[0].setCameraMode).toHaveBeenLastCalledWith('follow');
+});
+test('parallel station keys focus their own member and open real task details', async () => {
+  const game = fakeGame();
+  const second = task('a2', 'acme', 'PF-2');
+  vi.spyOn(api, 'task').mockResolvedValue(second);
+  renderWithLive(<Office loadGame={game.loadGame} />, {
+    path: '/escritorio',
+    route: '/escritorio',
+    live: { tenants, tasks: [tasks[0], second] },
+  });
+  await waitFor(() => expect(game.createOffice).toHaveBeenCalled());
+  const station = screen.getByRole('group', { name: 'Programador' });
+  expect(within(station).getByRole('button', { name: 'PF-1' })).toBeInTheDocument();
+  await userEvent.click(within(station).getByRole('button', { name: 'PF-2' }));
+  expect(game.views[0].focus).toHaveBeenCalledWith('a2');
+  expect(await screen.findByRole('article')).toBeInTheDocument();
+  expect(api.task).toHaveBeenCalledWith('acme', 'a2');
 });
