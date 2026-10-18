@@ -1,3 +1,4 @@
+import * as tenantConfig from '../src/tenants/tenants';
 import { INestApplication, Module } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DataSource } from 'typeorm';
@@ -58,8 +59,19 @@ test('lists tenants and projects without secrets', async () => {
   const r = await fetch(`${url}/tenants`, { headers: auth });
   const text = await r.text();
   expect(JSON.parse(text).map((t: { id: string }) => t.id)).toEqual(['acme', 'globex']);
+  expect(JSON.parse(text).map((t: { concurrency: number }) => t.concurrency)).toEqual([1, 1]);
   expect(text).not.toContain('test-acme');
   expect(text).not.toContain('test-globex');
+});
+test('lists configured concurrency without changing the worker', async () => {
+  const list = tenantConfig.tenants();
+  jest
+    .spyOn(tenantConfig, 'tenants')
+    .mockReturnValue(list.map((t, i) => ({ ...t, worker: { concurrency: i ? 3 : 1 } })));
+  const response = await fetch(`${url}/tenants`, { headers: auth });
+  expect((await response.json()).map((t: { concurrency: number }) => t.concurrency)).toEqual([
+    1, 3,
+  ]);
 });
 test('creates a task with sanitized attachments stored before the task is queued', async () => {
   const r = await fetch(`${url}/tenants/acme/tasks`, {

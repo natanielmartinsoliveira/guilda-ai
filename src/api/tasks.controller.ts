@@ -109,6 +109,7 @@ export class TasksController {
     return tenants().map((t) => ({
       id: t.id,
       name: t.name,
+      concurrency: t.worker.concurrency,
       providers: t.ai.providers,
       jira: t.sources.some((s) => s.type === 'jira'),
       // Sources that start a card the operator names by its key (Jira, Businessmap…).

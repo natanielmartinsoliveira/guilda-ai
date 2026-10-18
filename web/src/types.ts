@@ -1,5 +1,6 @@
 export type Status = 'PENDING' | 'RUNNING' | 'WAITING' | 'SUCCESS' | 'FAILED' | 'CANCELLED';
 export interface Tenant {
+  concurrency?: number;
   id: string;
   name: string;
   providers: string[];
