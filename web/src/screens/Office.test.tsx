@@ -445,3 +445,55 @@ test('campus keys scope camera focus and detail requests when task ids collide',
   expect(await screen.findByRole('article')).toBeInTheDocument();
   expect(api.task).toHaveBeenCalledWith('globex', 'a1');
 });
+
+test('company theme defaults to guild and is sent to the game when configured', async () => {
+  const game = fakeGame();
+  const result = mount(game);
+  await waitFor(() => expect(game.createOffice).toHaveBeenCalled());
+  expect(game.lastModel().theme).toBe('guild');
+  expect(screen.queryByRole('combobox', { name: 'Tema' })).toBeNull();
+  result.unmount();
+  renderWithLive(<Office loadGame={game.loadGame} />, {
+    live: { tenants: [{ ...tenants[0], officeTheme: 'studio' }], tasks: [tasks[0]] },
+  });
+  await waitFor(() => expect(game.views).toHaveLength(2));
+  expect(game.lastModel().theme).toBe('studio');
+});
+test('demo previews themes without changing the company configuration', async () => {
+  const game = fakeGame();
+  renderWithLive(<Office loadGame={game.loadGame} />, {
+    live: { tenants: [{ ...tenants[0], officeTheme: 'studio' }], tasks: [tasks[0]] },
+  });
+  await waitFor(() => expect(game.createOffice).toHaveBeenCalled());
+  const demo = screen.getByRole('button', { name: 'Demonstração' });
+  await userEvent.click(demo);
+  const select = screen.getByRole('combobox', { name: 'Tema' });
+  expect(select).toHaveValue('studio');
+  for (const theme of ['pipeline', 'guild', 'studio', 'pipeline']) {
+    await userEvent.selectOptions(select, theme);
+    expect(game.lastModel().theme).toBe(theme);
+  }
+  await userEvent.click(demo);
+  expect(screen.queryByRole('combobox', { name: 'Tema' })).toBeNull();
+  expect(game.lastModel().theme).toBe('studio');
+  await userEvent.click(demo);
+  expect(screen.getByRole('combobox', { name: 'Tema' })).toHaveValue('studio');
+});
+test('campus passes the configured theme of each company', async () => {
+  const game = fakeGame();
+  renderWithLive(<Office loadGame={game.loadGame} />, {
+    live: {
+      tenants: [
+        { ...tenants[0], officeTheme: 'studio' },
+        { ...tenants[1], officeTheme: 'pipeline' },
+      ],
+      tasks,
+    },
+  });
+  await waitFor(() => expect(game.createOffice).toHaveBeenCalled());
+  await userEvent.click(allRooms());
+  expect(game.lastModel().rooms?.map((r) => [r.tenantId, r.theme, r.model.theme])).toEqual([
+    ['acme', 'studio', 'studio'],
+    ['globex', 'pipeline', 'pipeline'],
+  ]);
+});

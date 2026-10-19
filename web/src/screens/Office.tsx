@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { useLive } from '../LiveProvider';
 import { ago, stageLabel, sortTasks } from '../live';
 import { DecisionPopup } from '../office/DecisionPopup';
+import { themeFor, type OfficeThemeId } from '../office/themes';
 import { seatsFor } from '../office/seats';
 import type { CameraMode } from '../office/camera';
 import { campusModel, campusGuild, COMPANY_COLORS } from '../office/campus';
@@ -42,6 +43,7 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
   const tenant = all ? (tenants[0]?.id ?? '') : room;
   const [selected, setSelected] = useState<OfficeSelection>();
   const [demo, setDemo] = useState(false);
+  const [previewTheme, setPreviewTheme] = useState<OfficeThemeId>();
   const [step, setStep] = useState(0);
   const [failed, setFailed] = useState(false);
   const [cameraMode, setCameraMode] = useState<CameraMode>('follow');
@@ -65,7 +67,9 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
     }),
     [roomTasks, roomDecisions, all, rooms],
   );
-  const concurrency = tenants.find((t) => t.id === tenant)?.concurrency ?? 1;
+  const company = tenants.find((t) => t.id === tenant);
+  const companyTheme = themeFor(company?.officeTheme).id;
+  const concurrency = company?.concurrency ?? 1;
   const model = useMemo(() => {
     const key = demo ? 'demo' : room;
     if (previousSeats.current.key !== key) previousSeats.current = { key, seats: new Map() };
@@ -82,8 +86,28 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
     const base = demo ? demoModel(step) : liveModel;
     const seats = demo ? 2 : seatsFor(concurrency, base.crew, previous.get(tenant) ?? 1);
     previous.set(tenant, seats);
-    return { ...base, roomKey: key, tenantId: tenant, loaded: demo || loaded, seats };
-  }, [all, demo, room, rooms, tenants, liveModel, loaded, step, concurrency, tenant]);
+    return {
+      ...base,
+      roomKey: key,
+      tenantId: tenant,
+      loaded: demo || loaded,
+      seats,
+      theme: demo ? (previewTheme ?? companyTheme) : companyTheme,
+    };
+  }, [
+    all,
+    demo,
+    room,
+    rooms,
+    tenants,
+    liveModel,
+    loaded,
+    step,
+    concurrency,
+    tenant,
+    companyTheme,
+    previewTheme,
+  ]);
   const latest = useRef(model);
   latest.current = model;
   const demoRef = useRef(demo);
@@ -263,6 +287,7 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
           aria-pressed={demo}
           onClick={() => {
             if (!demo && all) setRoom(tenant);
+            setPreviewTheme(undefined);
             setDemo((d) => !d);
             setSelected(undefined);
           }}
@@ -270,7 +295,24 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
           {tr('guild.demo')}
         </button>
       </div>
-      {demo && <p className="guild-notice">{tr('guild.demoNotice')}</p>}
+      {demo && (
+        <div className="guild-preview">
+          <label>
+            {tr('guild.theme')}{' '}
+            <select
+              value={previewTheme ?? companyTheme}
+              onChange={(e) => setPreviewTheme(themeFor(e.target.value).id)}
+            >
+              {(['guild', 'studio', 'pipeline'] as const).map((id) => (
+                <option key={id} value={id}>
+                  {tr(`guild.theme.${id}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="guild-notice">{tr('guild.demoNotice')}</p>
+        </div>
+      )}
       {failed && <p role="alert">{tr('guild.loadFailed')}</p>}
       {!loaded && <p role="status">{tr('guild.loadingMissions')}</p>}
       {loaded && !tenants.length && <p className="empty">{tr('guild.noCompany')}</p>}

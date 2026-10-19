@@ -301,6 +301,7 @@ Uma instalação atende várias empresas. Cada uma declara, em `tenants.yaml` (m
 - `hosts`: onde o código mora e com qual token (hoje: `github`);
 - `sources`: de onde vêm as tarefas (hoje: `github-issues` e `jira`; a API/VS Code existe sempre);
 - `projects`: repositórios aceitos, branch base e comandos `test`/`prepare`;
+- `office.theme` (opcional, padrão `guild`): aparência da sala no painel. Aceita `guild` (Salão da guilda), `studio` (Estúdio) e `pipeline` (Linha de montagem).
 - `worker.concurrency` (opcional, padrão 1, máximo 8): quantas tarefas da empresa rodam ao mesmo tempo. Cada empresa tem a própria fila, então uma empresa ocupada (ou parada em perguntas) não segura as outras. Mensagens de antes desta mudança, na fila antiga `ai-dev-tasks`, ainda são consumidas, uma por vez.
 
 Segredos ficam no `.env` e o YAML os referencia como `${NOME}`. Variável ausente impede API e worker de subirem, com o caminho exato do campo. `npm run doctor` valida o arquivo.
@@ -667,9 +668,19 @@ O sandbox não é um mecanismo de recuperação universal. Uma queda no meio do 
 
 Com a API em `localhost:3000` e a autenticação web configurada, execute `npm --prefix web run dev` e acesse `http://localhost:5173/app/escritorio`. O frontend mantém o login e as rotas existentes. Cada tarefa ou revisão em uma função tem seu próprio personagem, identificado pela chave da missão. O mesmo personagem caminha entre as estações quando a etapa muda. Clique nele para abrir o detalhe e suas ações; os personagens-base e as mesas abrem o resumo da função. O mural reúne tarefas e PRs, o aviso abre decisões e o baú lista entregas concluídas.
 
+A empresa escolhe o visual no seu arquivo de configuração:
+
+```yaml
+office: { theme: pipeline } # guild (padrão), studio ou pipeline
+```
+
+**Salão da guilda** (`guild`) preserva o salão de pedra original. **Estúdio** (`studio`) mantém a disposição de três estações por duas fileiras, com mesas claras, janelas maiores, quadro branco e caixa de expedição. **Linha de montagem** (`pipeline`) coloca as seis funções em uma única fileira, com fila à esquerda, entregas à direita e uma esteira abaixo do corredor. Personagens circulam pelo corredor, sem passar sobre a esteira. A escolha é lida quando a configuração é carregada: reinicie a API após editar o arquivo. Arquivos antigos usam `guild`; um valor inválido impede o carregamento e aponta `office.theme`.
+
+Na **Demonstração**, o seletor **Tema** permite experimentar os três visuais. A prévia começa com o tema da empresa aberta, não grava alterações e desaparece ao desligar a demonstração. Para aplicar a escolha às tarefas reais, edite `office.theme` no arquivo da empresa.
+
 Cada estação oferece de um a quatro lugares, conforme `worker.concurrency` da empresa e o número de membros na função. A sala alarga e mantém o tamanho durante a visita; ao trocar de empresa ou alternar a demonstração, o cálculo recomeça. Se houver mais de quatro membros em uma função, o rótulo mostra `+N` e todos continuam acessíveis nos cartões, inclusive os excedentes. Tarefas trabalhando têm prioridade de lugar. As abas mostram também quantas tarefas de cada empresa estão em execução, mesmo quando você está em outra sala.
 
-A aba **Todas as empresas** é opcional e aparece quando há pelo menos duas empresas. O escritório continua abrindo na primeira empresa, e a escolha não é lembrada entre visitas. Essa aba mostra um campus com salas independentes em uma grade de até três por linha, separadas por pátios. Cada sala mantém seus lugares e personagens; eles não atravessam entre empresas. Ligar a demonstração sai do campus e usa uma sala só.
+A aba **Todas as empresas** é opcional e aparece quando há pelo menos duas empresas. O escritório continua abrindo na primeira empresa, e a escolha não é lembrada entre visitas. Essa aba mostra um campus com salas independentes em uma grade de até três por linha, separadas por pátios. Cada sala usa o tema da própria empresa, com sua largura e altura; cada linha reserva a altura da maior sala. Cada sala mantém seus lugares e personagens; eles não atravessam entre empresas. Ligar a demonstração sai do campus e usa uma sala só.
 
 Cada empresa recebe uma cor de uma paleta de oito tons. No campus, essa cor identifica a placa da sala, os chips nos painéis e uma faixa sob a chave dos personagens. Clique na placa para enquadrar a sala em modo manual; os botões de sala acima do mapa oferecem a mesma ação pelo teclado. Os cartões agrupam todas as chaves por empresa, as áreas e o histórico agregam os dados, e o detalhe sempre abre na empresa da tarefa, inclusive para executar suas ações. **Abrir sala** no painel de uma estação volta à aba daquela empresa. Uma atualização SSE preserva os personagens e animações das salas que não mudaram; o crescimento dos lugares é controlado por empresa durante a visita ao campus.
 
@@ -677,4 +688,4 @@ A câmera inicia em **Acompanhar**: enquadra os personagens andando; quando eles
 
 Credenciais, estados e atualizações vêm das tarefas e revisões via SSE, sem inventar progresso percentual ou identidades de agentes. Contagens e histórico estão limitados às 50 missões retornadas por empresa. A demonstração exibe cinco tarefas simuladas, duas vagas por estação e paralelismo; seus painéis continuam consultando apenas missões reais.
 
-A apresentação Phaser fica em `web/src/office/game.ts`, o desenho de cada sala em `room.ts`, a grade e o modelo do campus em `campus.ts`, os corredores e marcos em `layout.ts`, os lugares em `seats.ts`, o enquadramento em `camera.ts` e a associação de dados às funções em `spots.ts`. Os sprites existentes são reutilizados, sem novas dependências. A preferência de movimento reduzido posiciona personagens e câmera diretamente, sem caminhadas ou balanço. Valide com `npm --prefix web test`, `npm --prefix web run build` e `npm test`.
+A apresentação Phaser fica em `web/src/office/game.ts`, o desenho de cada sala em `room.ts`, a grade e o modelo do campus em `campus.ts`, os temas, paletas e decoração em `themes/`, a interface de layout e as rotas dos corredores em `layout.ts`, os lugares em `seats.ts`, o enquadramento em `camera.ts` e a associação de dados às funções em `spots.ts`. Os sprites existentes são reutilizados, sem novas dependências. A preferência de movimento reduzido posiciona personagens e câmera diretamente, sem caminhadas ou balanço; a esteira também fica parada. Valide com `npm --prefix web test`, `npm --prefix web run build` e `npm test`.
