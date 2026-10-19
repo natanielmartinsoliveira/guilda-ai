@@ -920,3 +920,51 @@ a:focus-visible,
     width: 100%;
   }
 }
+
+.company-chip {
+  max-width: 100%;
+  display: inline-block;
+  border: 1px solid;
+  background: #30293c;
+  border-radius: 5px;
+  padding: 3px 7px;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.crew-company {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+.guild-panel-company {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 16px;
+}
+.guild-campus-signs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #292332;
+}
+.guild-campus-signs button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  min-height: 36px;
+  font-size: 12px;
+}
+.guild-history li .company-chip {
+  flex: none;
+}
+@media (max-width: 600px) {
+  .guild-history li {
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px 0;
+  }
+}

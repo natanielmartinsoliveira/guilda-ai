@@ -1,8 +1,11 @@
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router';
+import { LiveContext } from '../LiveProvider';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { api } from '../api';
 import type { CameraMode } from '../office/camera';
+import type { OfficeSelection } from '../office/game';
 import type { OfficeModel } from '../office/spots';
 import { renderWithLive } from '../test-utils';
 import type { DecisionView, TaskView, Tenant } from '../types';
@@ -44,32 +47,36 @@ function fakeGame() {
     setCameraMode: ReturnType<typeof vi.fn>;
     zoomBy: ReturnType<typeof vi.fn>;
     focus: ReturnType<typeof vi.fn>;
+    focusRoom: ReturnType<typeof vi.fn>;
     onCameraModeChange: ReturnType<typeof vi.fn>;
   };
   const views: FakeView[] = [];
   let reportMode: (mode: CameraMode) => void = () => undefined;
-  let select: (taskId: string) => void = () => undefined;
-  const createOffice = vi.fn((_parent: HTMLElement, onSelect: (taskId: string) => void) => {
-    select = onSelect;
-    const view = {
-      update: vi.fn(),
-      destroy: vi.fn(),
-      setCameraMode: vi.fn(),
-      zoomBy: vi.fn(),
-      focus: vi.fn(),
-      onCameraModeChange: vi.fn((cb: (mode: CameraMode) => void) => {
-        reportMode = cb;
-      }),
-    };
-    views.push(view);
-    return view;
-  });
+  let select: (selection: OfficeSelection) => void = () => undefined;
+  const createOffice = vi.fn(
+    (_parent: HTMLElement, onSelect: (selection: OfficeSelection) => void) => {
+      select = onSelect;
+      const view = {
+        update: vi.fn(),
+        destroy: vi.fn(),
+        setCameraMode: vi.fn(),
+        zoomBy: vi.fn(),
+        focus: vi.fn(),
+        focusRoom: vi.fn(),
+        onCameraModeChange: vi.fn((cb: (mode: CameraMode) => void) => {
+          reportMode = cb;
+        }),
+      };
+      views.push(view);
+      return view;
+    },
+  );
   return {
     loadGame: vi.fn(async () => ({ createOffice })),
     createOffice,
     views,
     reportMode: (mode: CameraMode) => act(() => reportMode(mode)),
-    select: (id: string) => act(() => select(id)),
+    select: (id: string, tenantId = 'acme') => act(() => select({ tenantId, id })),
     lastModel: () => {
       const update = views[views.length - 1].update;
       return update.mock.calls[update.mock.calls.length - 1][0] as OfficeModel;
@@ -277,4 +284,131 @@ test('parallel station keys focus their own member and open real task details', 
   expect(game.views[0].focus).toHaveBeenCalledWith('a2');
   expect(await screen.findByRole('article')).toBeInTheDocument();
   expect(api.task).toHaveBeenCalledWith('acme', 'a2');
+});
+
+const allRooms = () => screen.getByRole('button', { name: /^Todas as empresas/ });
+test('all companies is optional, not selected by default and hidden for one company', async () => {
+  const game = fakeGame();
+  const result = mount(game);
+  expect(allRooms()).toHaveAttribute('aria-pressed', 'false');
+  result.unmount();
+  renderWithLive(<Office loadGame={game.loadGame} />, {
+    live: { tenants: [tenants[0]], tasks: [tasks[0]] },
+  });
+  expect(screen.queryByRole('button', { name: /Todas as empresas/ })).toBeNull();
+});
+test('all companies sends isolated rooms, updates the eyebrow and exits when demo starts', async () => {
+  const game = fakeGame();
+  mount(game);
+  await waitFor(() => expect(game.createOffice).toHaveBeenCalled());
+  await userEvent.click(allRooms());
+  expect(game.lastModel().rooms?.map((r) => r.tenantId)).toEqual(['acme', 'globex']);
+  expect(game.lastModel().rooms![0].model.crew.map((m) => m.taskId)).toEqual(['a1']);
+  expect(document.querySelector('.eyebrow')).toHaveTextContent('Todas as empresas');
+  expect(allRooms()).toHaveTextContent('◆ 2');
+  await userEvent.click(screen.getByRole('button', { name: 'Demonstração' }));
+  expect(allRooms()).toHaveAttribute('aria-pressed', 'false');
+  expect(game.lastModel().rooms).toBeUndefined();
+});
+test('campus canvas selections fetch the task from its own company and open room resets follow', async () => {
+  const game = fakeGame();
+  vi.spyOn(api, 'task').mockResolvedValue(tasks[1]);
+  mount(game);
+  await waitFor(() => expect(game.createOffice).toHaveBeenCalled());
+  await userEvent.click(allRooms());
+  game.select('g1', 'globex');
+  expect(await screen.findByRole('article')).toBeInTheDocument();
+  expect(api.task).toHaveBeenCalledWith('globex', 'g1');
+  const panel = screen.getByRole('complementary', { name: 'Painel da guilda' });
+  expect(within(panel).getByLabelText('Empresa: Globex')).toBeInTheDocument();
+  game.select('@coder', 'globex');
+  await userEvent.click(screen.getByRole('button', { name: 'Abrir sala' }));
+  expect(allRooms()).toHaveAttribute('aria-pressed', 'false');
+  expect(game.lastModel().roomKey).toBe('globex');
+  expect(game.views[0].setCameraMode).toHaveBeenLastCalledWith('follow');
+});
+test('campus cards group keys by company, preserve urgent tones and fetch the correct task', async () => {
+  const game = fakeGame();
+  vi.spyOn(api, 'task').mockResolvedValue(tasks[1]);
+  mount(game);
+  await waitFor(() => expect(game.createOffice).toHaveBeenCalled());
+  await userEvent.click(allRooms());
+  const coder = screen.getByRole('group', { name: 'Programador' });
+  expect(within(coder).getByLabelText('Empresa: Acme')).toBeInTheDocument();
+  expect(within(coder).getByLabelText('Empresa: Globex')).toBeInTheDocument();
+  await userEvent.click(within(coder).getByRole('button', { name: 'T-9' }));
+  expect(game.views[0].focus).toHaveBeenCalledWith('g1');
+  expect(await screen.findByRole('article')).toBeInTheDocument();
+  expect(api.task).toHaveBeenCalledWith('globex', 'g1');
+});
+test('campus areas show decisions and pending tasks with both company chips', async () => {
+  const game = fakeGame();
+  const pending = tasks.map((t) => ({ ...t, status: 'PENDING' as const, stage: 'QUEUED' }));
+  renderWithLive(<Office loadGame={game.loadGame} />, {
+    live: {
+      tenants,
+      tasks: pending,
+      decisions: [
+        decision('a', 'acme', '2026-10-18T12:00:00Z', 'A'),
+        decision('g', 'globex', '2026-10-18T12:01:00Z', 'G'),
+      ],
+    },
+  });
+  await waitFor(() => expect(game.createOffice).toHaveBeenCalled());
+  await userEvent.click(allRooms());
+  await userEvent.click(screen.getByRole('button', { name: /Esperando você/ }));
+  const panel = screen.getByRole('complementary', { name: 'Painel da guilda' });
+  expect(within(panel).getByLabelText('Empresa: Acme')).toBeInTheDocument();
+  expect(within(panel).getByLabelText('Empresa: Globex')).toBeInTheDocument();
+  expect(within(panel).getAllByRole('link')).toHaveLength(2);
+  await userEvent.click(screen.getByRole('button', { name: /Fila de tarefas/ }));
+  expect(within(panel).getByLabelText('Empresa: Acme')).toBeInTheDocument();
+  expect(within(panel).getByLabelText('Empresa: Globex')).toBeInTheDocument();
+});
+
+test('campus seats grow independently, remain during updates and reset after leaving the campus', async () => {
+  const game = fakeGame();
+  const live = {
+    tenants,
+    tasks,
+    decisions: [],
+    loaded: true,
+    connected: true,
+    reload: vi.fn(async () => {}),
+    subscribe: () => () => {},
+  };
+  const ui = (current: typeof live) => (
+    <MemoryRouter>
+      <LiveContext.Provider value={current}>
+        <Office loadGame={game.loadGame} />
+      </LiveContext.Provider>
+    </MemoryRouter>
+  );
+  const result = render(ui(live));
+  await waitFor(() => expect(game.createOffice).toHaveBeenCalled());
+  await userEvent.click(allRooms());
+  const crowded = [...tasks, task('a2', 'acme', 'PF-2'), task('a3', 'acme', 'PF-3')];
+  result.rerender(ui({ ...live, tasks: crowded }));
+  await waitFor(() => expect(game.lastModel().rooms?.map((r) => r.seats)).toEqual([3, 1]));
+  result.rerender(ui(live));
+  expect(game.lastModel().rooms?.map((r) => r.seats)).toEqual([3, 1]);
+  await userEvent.click(
+    within(screen.getByRole('group', { name: 'Sala' })).getByRole('button', { name: /Acme/ }),
+  );
+  await userEvent.click(allRooms());
+  expect(game.lastModel().rooms?.map((r) => r.seats)).toEqual([1, 1]);
+  result.unmount();
+  mount(fakeGame());
+  expect(allRooms()).toHaveAttribute('aria-pressed', 'false');
+});
+test('accessible company signs focus a room without changing the selected campus', async () => {
+  const game = fakeGame();
+  mount(game);
+  await waitFor(() => expect(game.createOffice).toHaveBeenCalled());
+  await userEvent.click(allRooms());
+  await userEvent.click(
+    screen.getByRole('button', { name: 'Enquadrar sala Globex, 1 em execução' }),
+  );
+  expect(game.views[0].focusRoom).toHaveBeenCalledWith('globex');
+  expect(allRooms()).toHaveAttribute('aria-pressed', 'true');
 });
