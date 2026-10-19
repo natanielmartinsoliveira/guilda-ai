@@ -1,6 +1,7 @@
 import type { Tenant, TaskView, DecisionView } from '../types';
 import { officeModel, currentJob, ROLES, type OfficeModel, type GuildState } from './spots';
-import { officeLayout, type Point } from './layout';
+import type { OfficeLayout, Point } from './layout';
+import { themeFor, type OfficeThemeId } from './themes';
 import { seatsFor } from './seats';
 import { cameraFocus } from './camera';
 export const COMPANY_COLORS = [
@@ -18,6 +19,7 @@ export function companyCaption(name: string, running: number) {
   return `${characters.length > 40 ? characters.slice(0, 39).join('').trimEnd() + '…' : name} ◆ ${running}`;
 }
 export interface RoomModel {
+  theme?: OfficeThemeId;
   tenantId: string;
   name: string;
   model: OfficeModel;
@@ -28,7 +30,7 @@ export interface RoomModel {
 export interface CampusLayout {
   width: number;
   height: number;
-  rooms: { tenantId: string; offset: Point; layout: ReturnType<typeof officeLayout> }[];
+  rooms: { tenantId: string; offset: Point; layout: OfficeLayout }[];
 }
 export function campusModel(
   tenants: Tenant[],
@@ -46,13 +48,22 @@ export function campusModel(
       tenantId: tenant.id,
       name: tenant.name,
       seats,
-      model: { ...model, roomKey: tenant.id, tenantId: tenant.id, seats },
+      theme: themeFor(tenant.officeTheme).id,
+      model: {
+        ...model,
+        roomKey: tenant.id,
+        tenantId: tenant.id,
+        seats,
+        theme: themeFor(tenant.officeTheme).id,
+      },
       taskCount: own.length,
       running: own.filter((t) => currentJob(t).status === 'RUNNING').length,
     };
   });
 }
-export function campusLayout(rooms: { tenantId: string; seats: number }[]): CampusLayout {
+export function campusLayout(
+  rooms: { tenantId: string; seats: number; theme?: string }[],
+): CampusLayout {
   const placed: CampusLayout['rooms'] = [];
   let y = rooms.length > 1 ? 96 : 0,
     width = 0;
@@ -60,7 +71,7 @@ export function campusLayout(rooms: { tenantId: string; seats: number }[]): Camp
     let x = 0,
       height = 0;
     for (const room of rooms.slice(row, row + 3)) {
-      const layout = officeLayout(room.seats);
+      const layout = themeFor(room.theme).layout(room.seats);
       placed.push({ tenantId: room.tenantId, offset: { x, y }, layout });
       x += layout.width + 96;
       height = Math.max(height, layout.height);

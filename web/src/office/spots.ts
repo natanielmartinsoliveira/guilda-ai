@@ -1,3 +1,4 @@
+import type { OfficeThemeId } from './themes';
 import type { RoomModel } from './campus';
 import { t, type Key } from '../i18n';
 import type { AgentAttempt, DecisionView, TaskView } from '../types';
@@ -175,6 +176,7 @@ export interface Desk {
   ai?: string;
 }
 export interface OfficeModel {
+  theme?: OfficeThemeId;
   tenantId?: string;
   rooms?: RoomModel[];
   roomKey?: string;

@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { t } from '../i18n';
 import { type OfficeModel, ROLES, SPOTS, type CrewMember, type GuildRole } from './spots';
-import { officeLayout, corridorRoute, type Point } from './layout';
+import { corridorRoute, type Point, type OfficeLayout } from './layout';
+import { themeFor, type OfficeTheme, type RoomPainter } from './themes';
+import { plant } from './themes/paint';
 import { assignSeats, type Seat } from './seats';
 import type { RoomModel, CampusActor } from './campus';
 export interface OfficeSelection {
@@ -20,10 +22,11 @@ interface Actor {
   exiting?: boolean;
   generation: number;
 }
-const COLORS = { working: '#a9efbc', waiting: '#ffe09c', error: '#ffadad', idle: '#d6c7ee' };
 /** A room draws in local coordinates. Its root alone translates it into the campus. */
 export class RoomView {
-  layout: ReturnType<typeof officeLayout>;
+  layout: OfficeLayout;
+  private theme: OfficeTheme;
+  private belt: Phaser.GameObjects.Rectangle[] = [];
   readonly root: Phaser.GameObjects.Container;
   private add: Phaser.GameObjects.GameObjectFactory;
   private members = new Map<string, Actor>();
@@ -47,7 +50,8 @@ export class RoomView {
     private selected: (pointer: Phaser.Input.Pointer, selection: OfficeSelection) => void,
     private requestCamera: () => void,
   ) {
-    this.layout = officeLayout(room.seats);
+    this.theme = themeFor(room.theme ?? room.model.theme);
+    this.layout = this.theme.layout(room.seats);
     this.root = scene.add.container(offset.x, offset.y).setName(room.tenantId + ':room');
     // Reparent every factory object, including nested actors, without changing the one-room drawing.
     this.add = new Proxy(scene.add, {
@@ -89,14 +93,14 @@ export class RoomView {
     for (const actor of this.members.values())
       actor.stripe?.setFillStyle(Phaser.Display.Color.HexStringToColor(color).color);
   }
-  private text(x: number, y: number, value: string, size = 14, color = '#fff2d9') {
+  private text(x: number, y: number, value: string, size = 14, color = this.theme.palette.label) {
     return this.add
       .text(x, y, value, {
         fontFamily: 'monospace',
         fontSize: `${size}px`,
         color,
         resolution: 2,
-        backgroundColor: '#30293c',
+        backgroundColor: this.theme.palette.labelBackground,
         padding: { x: 6, y: 4 },
       })
       .setOrigin(0.5)
@@ -105,17 +109,18 @@ export class RoomView {
   private rect(x: number, y: number, w: number, h: number, color: number) {
     return this.add.rectangle(x, y, w, h, color).setOrigin(0);
   }
-  private plant(x: number, y: number) {
-    this.rect(x - 10, y, 20, 18, 0x9c6455);
-    this.rect(x - 15, y - 22, 30, 22, 0x365f48);
-    this.rect(x - 8, y - 34, 16, 34, 0x648e59);
-    this.rect(x + 3, y - 25, 13, 12, 0x8ba86a);
+  private painter(): RoomPainter {
+    return {
+      rect: (x, y, w, h, c) => this.rect(x, y, w, h, c),
+      text: (x, y, value, size, color) => this.text(x, y, value, size, color),
+      circle: (x, y, r, c, alpha) => this.add.circle(x, y, r, c, alpha),
+      polygon: (x, y, points, c) => this.add.polygon(x, y, points, c),
+      sprite: (sheet, frame, x, y, scale = 1) => this.add.image(x, y, sheet, frame).setScale(scale),
+      zone: (x, y, w, h) => this.add.zone(x, y, w, h),
+    };
   }
-  private bookcase(x: number, y: number) {
-    this.rect(x, y, 78, 38, 0x382c29);
-    for (let i = 0; i < 9; i++)
-      this.rect(x + 5 + i * 8, y + 5, 5, 23, [0x8a6999, 0x62856c, 0xc09d6a][i % 3]);
-    this.rect(x, y + 30, 78, 6, 0xa07b54);
+  private plant(x: number, y: number) {
+    plant(this.painter(), x, y, this.theme.id !== 'guild');
   }
   private monitor(x: number, y: number, role: string) {
     this.rect(x - 25, y - 25, 50, 31, 0x252c3a);
@@ -130,10 +135,6 @@ export class RoomView {
       height: HEIGHT,
       stations: STATIONS,
       stationWidth,
-      plants,
-      lamps,
-      windows,
-      bookcases,
       mural,
       waiting,
       planning,
@@ -142,45 +143,43 @@ export class RoomView {
       chest,
     } = this.layout;
     const extra = stationWidth - 216;
-    this.rect(0, 0, WIDTH, HEIGHT, 0x383542);
+    const p = this.theme.palette;
+    this.rect(0, 0, WIDTH, HEIGHT, p.floor);
     for (let y = 32; y < HEIGHT - 30; y += 24)
       for (let x = 32; x < WIDTH - 30; x += 64) {
         const offset = ((y / 24) % 2) * 32;
-        this.rect(Math.max(32, x - offset), y, 62, 22, (x + y) % 3 ? 0x866045 : 0x916b4d);
-        this.rect(Math.max(34, x - offset + 5), y + 17, 30, 1, 0xa67c56);
+        this.rect(Math.max(32, x - offset), y, 62, 22, (x + y) % 3 ? p.plank : p.plankAlt);
+        this.rect(Math.max(34, x - offset + 5), y + 17, 30, 1, p.grain);
       }
     for (let x = 0; x < WIDTH; x += 48) {
-      this.rect(x, 0, 46, 28, 0x5d5864);
-      this.rect(x, HEIGHT - 28, 46, 26, 0x504b57);
+      this.rect(x, 0, 46, 28, p.wall);
+      this.rect(x, HEIGHT - 28, 46, 26, p.wallShade);
     }
     for (let y = 30; y < HEIGHT - 30; y += 32) {
-      this.rect(0, y, 28, 30, 0x5d5864);
-      this.rect(WIDTH - 28, y, 28, 30, 0x5d5864);
+      this.rect(0, y, 28, 30, p.wall);
+      this.rect(WIDTH - 28, y, 28, 30, p.wall);
     }
-    for (const { x } of windows) {
-      this.rect(x - 20, 39, 40, 53, 0x352d43);
-      this.rect(x - 15, 44, 30, 42, 0x768d91);
-      this.rect(x - 2, 44, 4, 42, 0xc3a274);
-      this.rect(x - 15, 62, 30, 4, 0xc3a274);
-    }
-    for (const { x, y } of lamps) {
-      this.add.circle(x, y, 40, 0xffc676, 0.08);
-      this.rect(x - 6, y - 8, 12, 20, 0xdfb069);
-      this.rect(x - 3, y - 12, 6, 12, 0xffe6a3);
-    }
-    for (const { x, y } of plants) this.plant(x, y);
-    for (const p of bookcases) this.bookcase(p.x, p.y);
-    this.rect(mural.x - 70, mural.y - 22, 140, 46, 0x503c30);
-    this.rect(mural.x - 63, mural.y - 16, 126, 31, 0xbe9c70);
-    for (let i = 0; i < 4; i++) this.rect(mural.x - 53 + i * 28, mural.y - 11, 18, 22, 0xe8d5a5);
-    this.text(mural.x, mural.y + 36, t('guild.missionBoard'), 13);
-    this.rect(waiting.x - 65, waiting.y - 19, 130, 39, 0x645077);
-    this.text(waiting.x, waiting.y, t('status.waiting'), 12, '#ffe0a6');
+    this.theme.decorate(this.painter(), this.layout);
+    this.belt = this.root.list.filter((o) =>
+      o.getData('officeBelt'),
+    ) as Phaser.GameObjects.Rectangle[];
+    for (const segment of this.belt) segment.setData('startX', segment.x);
+    this.rect(mural.x - 70, mural.y - 22, 140, 46, p.board);
+    this.rect(mural.x - 63, mural.y - 16, 126, 31, p.boardInner);
+    for (let i = 0; i < 4; i++) this.rect(mural.x - 53 + i * 28, mural.y - 11, 18, 22, p.paper);
+    this.text(
+      mural.x,
+      mural.y + Number(this.layout.decor.muralLabelOffset ?? 36),
+      t('guild.missionBoard'),
+      13,
+    );
+    this.rect(waiting.x - 65, waiting.y - 19, 130, 39, p.waiting);
+    this.text(waiting.x, waiting.y, t('status.waiting'), 12, p.waitingText);
     // Collaboration table is between the two aisles; neither crosses it.
-    this.rect(planning.x + (336 - 480), planning.y + (281 - 304), 288, 52, 0x674d77);
-    this.rect(planning.x + (345 - 480), planning.y + (285 - 304), 270, 44, 0x856493);
-    this.rect(planning.x + (382 - 480), planning.y + (291 - 304), 194, 35, 0x4e342b);
-    this.rect(planning.x + (387 - 480), planning.y + (287 - 304), 184, 33, 0xb48a5b);
+    this.rect(planning.x + (336 - 480), planning.y + (281 - 304), 288, 52, p.planningRug);
+    this.rect(planning.x + (345 - 480), planning.y + (285 - 304), 270, 44, p.planningRugInner);
+    this.rect(planning.x + (382 - 480), planning.y + (291 - 304), 194, 35, p.planningEdge);
+    this.rect(planning.x + (387 - 480), planning.y + (287 - 304), 184, 33, p.planningDesk);
     for (const x of [416, 473, 530]) {
       this.rect(planning.x + x - 480, planning.y - 9, 25, 18, 0xe4d3a7);
       this.rect(planning.x + x - 476, planning.y - 4, 16, 2, 0x8a9a83);
@@ -188,12 +187,12 @@ export class RoomView {
     this.text(planning.x, planning.y, t('guild.planningTable'), 12);
     ROLES.forEach((role) => {
       const { x, y } = STATIONS[role];
-      this.rect(x - stationWidth / 2, y - 52, stationWidth, 108, 0x594750);
-      this.rect(x - stationWidth / 2 + 4, y - 48, stationWidth - 8, 100, 0x756078);
-      this.rect(x - 73 - extra / 2, y - 20, 146 + extra, 43, 0x493329);
-      this.rect(x - 70 - extra / 2, y - 23, 140 + extra, 37, 0xb08a60);
-      this.rect(x - 63 - extra / 2, y + 16, 10, 13, 0x493329);
-      this.rect(x + 53 + extra / 2, y + 16, 10, 13, 0x493329);
+      this.rect(x - stationWidth / 2, y - 52, stationWidth, 108, p.rug);
+      this.rect(x - stationWidth / 2 + 4, y - 48, stationWidth - 8, 100, p.rugInner);
+      this.rect(x - 73 - extra / 2, y - 20, 146 + extra, 43, p.deskEdge);
+      this.rect(x - 70 - extra / 2, y - 23, 140 + extra, 37, p.desk);
+      this.rect(x - 63 - extra / 2, y + 16, 10, 13, p.deskEdge);
+      this.rect(x + 53 + extra / 2, y + 16, 10, 13, p.deskEdge);
       if (role === 'coder' || role === 'guard') {
         this.monitor(x - 30, y - 12, role);
         this.monitor(x + 30, y - 12, role + '2');
@@ -238,21 +237,26 @@ export class RoomView {
         .setInteractive({ useHandCursor: true })
         .on('pointerup', (p: Phaser.Input.Pointer) => this.select(p, '@' + role));
     });
-    this.rect(pantry.x - 120, pantry.y - 40, 210, 25, 0x4b6558);
-    this.rect(pantry.x - 120, pantry.y - 50, 210, 14, 0x78967e);
-    this.rect(pantry.x + 99, pantry.y - 39, 40, 28, 0x53382d);
-    this.rect(pantry.x + 99, pantry.y - 43, 40, 8, 0xb28758);
-    this.rect(pantry.x + 111, pantry.y - 59, 12, 14, 0xe5cf9d);
+    this.rect(pantry.x - 120, pantry.y - 40, 210, 25, p.sofa);
+    this.rect(pantry.x - 120, pantry.y - 50, 210, 14, p.sofaBack);
+    this.rect(pantry.x + 99, pantry.y - 39, 40, 28, p.coffee);
+    this.rect(pantry.x + 99, pantry.y - 43, 40, 8, p.coffeeTop);
+    this.rect(pantry.x + 111, pantry.y - 59, 12, 14, p.coffeeCup);
     this.text(pantry.x, pantry.y, t('guild.pantryLong'), 12);
-    this.rect(queue.x - 76, queue.y - 8, 153, 26, 0x513d30);
-    for (let i = 0; i < 4; i++) this.rect(queue.x - 67 + i * 34, queue.y - 3, 25, 14, 0xd9c49b);
+    this.rect(queue.x - 76, queue.y - 8, 153, 26, p.queue);
+    for (let i = 0; i < 4; i++) this.rect(queue.x - 67 + i * 34, queue.y - 3, 25, 14, p.queuePaper);
     this.text(queue.x, queue.y + 31, t('guild.taskQueue'), 12);
     this.chest = this.add.container(chest.x, chest.y, [
-      this.add.rectangle(0, 0, 68, 34, 0x7c5338),
-      this.add.rectangle(0, -14, 72, 8, 0xd6ad62),
-      this.add.rectangle(0, 0, 9, 14, 0xe1c475),
+      this.add.rectangle(0, 0, 68, 34, p.chest),
+      this.add.rectangle(0, -14, 72, 8, p.chestLid),
+      this.add.rectangle(0, 0, 9, 14, p.chestLatch),
     ]);
-    this.text(chest.x, chest.y + 32, t('guild.deliveryChest'), 12);
+    this.text(
+      chest.x,
+      chest.y + 32,
+      t(this.theme.id === 'guild' ? 'guild.deliveryChest' : 'guild.deliveryBox'),
+      12,
+    );
     this.chest
       .setSize(85, 46)
       .setInteractive({ useHandCursor: true })
@@ -276,8 +280,8 @@ export class RoomView {
       .text(12, -23, '!', {
         fontFamily: 'monospace',
         fontSize: '14px',
-        color: COLORS.waiting,
-        backgroundColor: '#30293c',
+        color: this.theme.palette.status.waiting,
+        backgroundColor: this.theme.palette.labelBackground,
       })
       .setVisible(false);
     const node = this.add
@@ -360,11 +364,14 @@ export class RoomView {
     const model = room.model;
     const signature = JSON.stringify(model);
     this.room = room;
-    if (!force && this.signature === signature && this.layout.seats === room.seats) return;
+    const theme = themeFor(room.theme ?? model.theme);
+    const themeChanged = theme.id !== this.theme.id;
+    if (!force && this.signature === signature && this.layout.seats === room.seats && !themeChanged)
+      return;
     this.signature = signature;
     if (!model.guild || model.loaded === false) return;
     const roomChanged = this.previousRoom === undefined;
-    const rebuild = roomChanged || this.layout.seats !== room.seats;
+    const rebuild = roomChanged || this.layout.seats !== room.seats || themeChanged;
     if (rebuild) {
       this.stopOwned();
       this.members.clear();
@@ -374,7 +381,8 @@ export class RoomView {
       this.titles.clear();
       this.screens.clear();
       this.root.removeAll(true);
-      this.layout = officeLayout(room.seats);
+      this.theme = theme;
+      this.layout = theme.layout(room.seats);
       this.drawRoom();
       if (roomChanged) this.previousCompleted = undefined;
       this.previousRoom = this.room.tenantId;
@@ -429,8 +437,8 @@ export class RoomView {
       actor.warning
         .setText(member.tone === 'waiting' ? '◷' : '!')
         .setVisible(member.tone !== 'working')
-        .setColor(COLORS[member.tone]);
-      actor.label?.setColor(COLORS[member.tone]);
+        .setColor(this.theme.palette.status[member.tone]);
+      actor.label?.setColor(this.theme.palette.status[member.tone]);
       this.tweens.killTweensOf(actor.sprite);
       actor.sprite.y = 0;
       const current = actor;
@@ -471,7 +479,7 @@ export class RoomView {
         .setText(
           `${agent.tone === 'working' ? '◆' : agent.tone === 'error' ? '!' : agent.tone === 'waiting' ? '◷' : '○'} ${agent.status}${agent.tasks.length > 1 ? ' · ' + agent.tasks.length : ''}`,
         )
-        .setColor(COLORS[agent.tone]);
+        .setColor(this.theme.palette.status[agent.tone]);
       const working = model.crew.some((m) => m.role === agent.role && m.tone === 'working');
       for (const key of [agent.role, agent.role + '2']) {
         const screen = this.screens.get(this.key(key));
@@ -501,9 +509,17 @@ export class RoomView {
         yoyo: true,
         repeat: 2,
       });
+    this.animateDecorations();
     this.previousCompleted = new Set(model.guild.completed);
     this.requestCamera();
     this.readableLabels();
+  }
+  private animateDecorations() {
+    if (!this.belt.length || (!this.reduced && this.tweens.getTweensOf(this.belt[0]).length))
+      return;
+    this.tweens.killTweensOf(this.belt);
+    for (const segment of this.belt) segment.x = segment.getData('startX');
+    if (!this.reduced) this.tweens.add({ targets: this.belt, x: '+=8', duration: 650, repeat: -1 });
   }
   private readableLabels() {
     const zoom = this.cameras.main.zoom;
@@ -539,6 +555,7 @@ export class RoomView {
     this.readableLabels();
   }
   private stopOwned() {
+    if (this.belt.length) this.tweens.killTweensOf(this.belt);
     for (const actor of [...this.members.values(), ...this.bases.values()]) {
       actor.generation++;
       this.tweens.killTweensOf(actor.node);

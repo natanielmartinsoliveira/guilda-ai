@@ -13,6 +13,7 @@ import {
 } from './campus';
 import { cameraFocus, type CameraMode, type Focus } from './camera';
 import type { Point } from './layout';
+import { themeFor } from './themes';
 export type { OfficeSelection } from './room';
 export interface OfficeView {
   update(model: OfficeModel): void;
@@ -51,6 +52,10 @@ export function createOffice(
       super('guild');
     }
     preload() {
+      this.load.spritesheet('town', '/app/assets/office/town.png', {
+        frameWidth: 16,
+        frameHeight: 16,
+      });
       this.load.spritesheet('people', '/app/assets/office/dungeon.png', {
         frameWidth: 16,
         frameHeight: 16,
@@ -114,12 +119,20 @@ export function createOffice(
           name: '',
           model,
           seats: model.seats ?? 1,
+          theme: model.theme,
         },
       ];
       const reset = this.modeKey !== model.roomKey;
       const layout = campusLayout(definitions);
       const geometry = JSON.stringify(
-        layout.rooms.map((r) => [r.tenantId, r.offset, r.layout.seats]),
+        layout.rooms.map((r, i) => [
+          r.tenantId,
+          r.offset,
+          r.layout.seats,
+          r.layout.width,
+          r.layout.height,
+          definitions[i].theme,
+        ]),
       );
       const changed = reset || geometry !== this.geometry;
       this.batching = true;
@@ -137,7 +150,12 @@ export function createOffice(
       if (changed) {
         this.starts.clear();
         this.dragged = true;
-        this.cameras.main.setBounds(0, 0, layout.width, layout.height);
+        const camera = this.cameras.main;
+        camera.setBounds(0, 0, layout.width, layout.height);
+        if (mode === 'manual') {
+          const min = Math.min(this.scale.width / layout.width, this.scale.height / layout.height);
+          camera.setZoom(Phaser.Math.Clamp(camera.zoom, min, Math.max(2.5, min)));
+        }
         this.drawYard();
       }
       for (const [id, room] of this.rooms)
@@ -189,9 +207,12 @@ export function createOffice(
             );
             this.plates.set(definition.tenantId, plate);
           }
+          const palette = themeFor(definition.theme).palette;
           plate
+            .setBackgroundColor(palette.plate)
             .setPosition(placement.offset.x + room.layout.width / 2, placement.offset.y - 48)
-            .setColor(color)
+            .setColor(palette.plateText ?? color)
+            .setStroke(color, palette.plateText ? 2 : 0)
             .setText(
               companyCaption(
                 definition.name,
