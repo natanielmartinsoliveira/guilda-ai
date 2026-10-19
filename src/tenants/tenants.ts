@@ -501,6 +501,12 @@ const tenant = z
       .string()
       .regex(/^[a-z0-9][a-z0-9-]*$/)
       .optional(),
+    /** How the company's room in the panel's office looks. */
+    office: z
+      .object({
+        theme: z.enum(['guild', 'studio', 'pipeline']).default('guild'),
+      })
+      .prefault({}),
     /** How the worker takes this company's tasks. */
     worker: z
       .object({

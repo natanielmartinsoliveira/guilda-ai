@@ -13,6 +13,8 @@ tenants:
     # Tasks of this company that may run at once (default 1). Each company has its own queue,
     # so a busy company never holds back another.
     worker: { concurrency: 1 }
+    # How this company's room looks in the panel's office: guild (default), studio or pipeline.
+    office: { theme: guild }
     ai:
       # Providers the company's contract allows to receive its code.
       providers: [codex, claude, gemini] # add openrouter only if the contract allows it

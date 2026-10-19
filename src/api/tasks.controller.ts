@@ -110,6 +110,7 @@ export class TasksController {
       id: t.id,
       name: t.name,
       concurrency: t.worker.concurrency,
+      officeTheme: t.office.theme,
       providers: t.ai.providers,
       jira: t.sources.some((s) => s.type === 'jira'),
       // Sources that start a card the operator names by its key (Jira, Businessmap…).

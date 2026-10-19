@@ -60,6 +60,10 @@ test('lists tenants and projects without secrets', async () => {
   const text = await r.text();
   expect(JSON.parse(text).map((t: { id: string }) => t.id)).toEqual(['acme', 'globex']);
   expect(JSON.parse(text).map((t: { concurrency: number }) => t.concurrency)).toEqual([1, 1]);
+  expect(JSON.parse(text).map((t: { officeTheme: string }) => t.officeTheme)).toEqual([
+    'guild',
+    'guild',
+  ]);
   expect(text).not.toContain('test-acme');
   expect(text).not.toContain('test-globex');
 });
@@ -592,4 +596,20 @@ describe('live updates', () => {
     await new Promise((done) => setTimeout(done, 300));
     expect(spy).not.toHaveBeenCalled();
   });
+});
+
+test('lists each company office theme without configuration secrets', async () => {
+  const list = tenantConfig.tenants();
+  const spy = jest
+    .spyOn(tenantConfig, 'tenants')
+    .mockReturnValue(list.map((t, i) => ({ ...t, office: { theme: i ? 'pipeline' : 'studio' } })));
+  try {
+    const response = await fetch(`${url}/tenants`, { headers: auth });
+    expect((await response.json()).map((t: { officeTheme: string }) => t.officeTheme)).toEqual([
+      'studio',
+      'pipeline',
+    ]);
+  } finally {
+    spy.mockRestore();
+  }
 });
