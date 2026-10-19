@@ -18,7 +18,7 @@ export interface OfficeView {
   update(model: OfficeModel): void;
   setCameraMode(mode: CameraMode): void;
   zoomBy(factor: number): void;
-  focus(taskId: string): void;
+  focus(taskId: string, tenantId: string): void;
   focusRoom(tenantId: string): void;
   onCameraModeChange(cb: (mode: CameraMode) => void): void;
   destroy(): void;
@@ -30,7 +30,7 @@ export function createOffice(
   let latest: OfficeModel | undefined, scene: GuildScene | undefined;
   let mode: CameraMode = 'follow',
     modeChanged: ((mode: CameraMode) => void) | undefined;
-  let pendingFocus: string | undefined;
+  let pendingFocus: { taskId: string; tenantId: string } | undefined;
   const media = window.matchMedia('(prefers-reduced-motion: reduce)');
   let reduced = media.matches;
   class GuildScene extends Phaser.Scene {
@@ -80,7 +80,7 @@ export function createOffice(
       });
       scene = this;
       if (latest) this.apply(latest);
-      if (pendingFocus) this.focusMember(pendingFocus);
+      if (pendingFocus) this.focusMember(pendingFocus.taskId, pendingFocus.tenantId);
     }
     private click(pointer: Phaser.Input.Pointer, action: () => void) {
       const start = this.starts.get(pointer.id);
@@ -284,11 +284,11 @@ export function createOffice(
       }
       for (const room of this.rooms.values()) room.tick();
     }
-    focusMember(taskId: string) {
+    focusMember(taskId: string, tenantId: string) {
       this.setMode('manual');
-      for (const room of this.rooms.values()) {
-        const point = room.focusPoint(taskId);
-        if (!point) continue;
+      const room = this.rooms.get(tenantId);
+      const point = room?.focusPoint(taskId);
+      if (room && point) {
         this.applyFocus(
           cameraFocus(
             [{ x: room.offset.x + point.x, y: room.offset.y + point.y }],
@@ -422,9 +422,9 @@ export function createOffice(
     zoomBy(factor) {
       scene?.zoom(factor);
     },
-    focus(taskId) {
-      if (scene) scene.focusMember(taskId);
-      else pendingFocus = taskId;
+    focus(taskId, tenantId) {
+      if (scene) scene.focusMember(taskId, tenantId);
+      else pendingFocus = { taskId, tenantId };
     },
     focusRoom(tenantId) {
       scene?.focusRoom(tenantId);

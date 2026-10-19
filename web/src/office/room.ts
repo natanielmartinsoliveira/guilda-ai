@@ -140,7 +140,6 @@ export class RoomView {
       queue,
       pantry,
       chest,
-      doors,
     } = this.layout;
     const extra = stationWidth - 216;
     this.rect(0, 0, WIDTH, HEIGHT, 0x383542);
@@ -171,7 +170,6 @@ export class RoomView {
     }
     for (const { x, y } of plants) this.plant(x, y);
     for (const p of bookcases) this.bookcase(p.x, p.y);
-    for (const p of doors) this.rect(p.x - 14, p.y - 14, 28, 28, 0x352d43);
     this.rect(mural.x - 70, mural.y - 22, 140, 46, 0x503c30);
     this.rect(mural.x - 63, mural.y - 16, 126, 31, 0xbe9c70);
     for (let i = 0; i < 4; i++) this.rect(mural.x - 53 + i * 28, mural.y - 11, 18, 22, 0xe8d5a5);

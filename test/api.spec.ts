@@ -65,13 +65,18 @@ test('lists tenants and projects without secrets', async () => {
 });
 test('lists configured concurrency without changing the worker', async () => {
   const list = tenantConfig.tenants();
-  jest
+  const spy = jest
     .spyOn(tenantConfig, 'tenants')
     .mockReturnValue(list.map((t, i) => ({ ...t, worker: { concurrency: i ? 3 : 1 } })));
-  const response = await fetch(`${url}/tenants`, { headers: auth });
-  expect((await response.json()).map((t: { concurrency: number }) => t.concurrency)).toEqual([
-    1, 3,
-  ]);
+  try {
+    const response = await fetch(`${url}/tenants`, { headers: auth });
+    expect((await response.json()).map((t: { concurrency: number }) => t.concurrency)).toEqual([
+      1, 3,
+    ]);
+  } finally {
+    spy.mockRestore();
+  }
+  expect(tenantConfig.tenants()).toEqual(list);
 });
 test('creates a task with sanitized attachments stored before the task is queued', async () => {
   const r = await fetch(`${url}/tenants/acme/tasks`, {

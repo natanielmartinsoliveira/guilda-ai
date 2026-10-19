@@ -397,11 +397,14 @@ function jobEntries(tasks: TaskView[], decisions: DecisionView[]) {
     const job = currentJob(task);
     const last = job.attempts?.at(-1);
     const stageRole = STAGE_SPOTS[job.stage];
-    const role = ROLES.includes(stageRole as GuildRole)
-      ? (stageRole as GuildRole)
-      : last?.role
-        ? ATTEMPT_ROLE[last.role]
-        : undefined;
+    const role =
+      job.stage === 'QUEUED'
+        ? undefined
+        : ROLES.includes(stageRole as GuildRole)
+          ? (stageRole as GuildRole)
+          : last?.role
+            ? ATTEMPT_ROLE[last.role]
+            : undefined;
     return {
       task,
       job,

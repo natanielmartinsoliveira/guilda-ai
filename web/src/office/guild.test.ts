@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { corridorRoute, PASSAGES, STATIONS } from './layout';
-import { guildState, ROLES } from './spots';
+import { officeModel, guildState, ROLES } from './spots';
 import type { TaskView, RevisionView, DecisionView } from '../types';
 const task = (over: Partial<TaskView> = {}): TaskView => ({
   id: 'a',
@@ -150,4 +150,26 @@ test('a state change halfway through a passage continues toward the new station'
     { x: 480, y: 245 },
     { x: 480, y: 231 },
   ]);
+});
+
+test('a retried queued task with historical attempts frees its station and remains in the queue', () => {
+  const retried = task({
+    status: 'PENDING',
+    stage: 'QUEUED',
+    key: 'T-1',
+    agentAttempts: [{ role: 'coder', credential: 'worker', outcome: 'error', provider: 'codex' }],
+  });
+  const model = officeModel([retried], []);
+  expect(model.crew).toEqual([]);
+  expect(model.guild!.agents.find((a) => a.role === 'coder')).toMatchObject({
+    status: 'Livre',
+    tone: 'idle',
+    tasks: [],
+  });
+  expect(model.guild!.queued).toBe(1);
+  expect(model.guild!.active).toBe(0);
+  expect(model.folders.find((f) => f.taskId === retried.id)).toMatchObject({
+    spot: 'queue',
+    key: 'T-1',
+  });
 });

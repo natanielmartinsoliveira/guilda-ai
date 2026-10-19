@@ -130,7 +130,7 @@ export function Office({ loadGame = loadPhaser }: { loadGame?: Loader }) {
     view.current?.setCameraMode('follow');
   }, [model.roomKey]);
   const focusTask = (id: string, owner = tenant) => {
-    view.current?.focus(id);
+    view.current?.focus(id, owner);
     setCameraMode('manual');
     if (!demo) setSelected({ tenantId: owner, id });
   };

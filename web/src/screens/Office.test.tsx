@@ -249,7 +249,6 @@ test('camera controls call the game and track manual mode changes', async () => 
   await waitFor(() => expect(game.createOffice).toHaveBeenCalled());
   await userEvent.click(screen.getByRole('button', { name: 'Visão geral' }));
   expect(game.views[0].setCameraMode).toHaveBeenCalledWith('overview');
-  game.reportMode('overview');
   expect(screen.getByRole('button', { name: 'Visão geral' })).toHaveAttribute(
     'aria-pressed',
     'true',
@@ -265,8 +264,14 @@ test('camera controls call the game and track manual mode changes', async () => 
   );
   await userEvent.click(screen.getByRole('button', { name: 'Acompanhar' }));
   expect(game.views[0].setCameraMode).toHaveBeenLastCalledWith('follow');
+  game.reportMode('manual');
+  game.views[0].setCameraMode.mockClear();
   await userEvent.click(screen.getByRole('button', { name: /Globex/ }));
-  expect(game.views[0].setCameraMode).toHaveBeenLastCalledWith('follow');
+  expect(game.views[0].setCameraMode.mock.calls).toEqual([['follow']]);
+  expect(screen.getByRole('button', { name: 'Acompanhar' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
 });
 test('parallel station keys focus their own member and open real task details', async () => {
   const game = fakeGame();
@@ -281,7 +286,7 @@ test('parallel station keys focus their own member and open real task details', 
   const station = screen.getByRole('group', { name: 'Programador' });
   expect(within(station).getByRole('button', { name: 'PF-1' })).toBeInTheDocument();
   await userEvent.click(within(station).getByRole('button', { name: 'PF-2' }));
-  expect(game.views[0].focus).toHaveBeenCalledWith('a2');
+  expect(game.views[0].focus).toHaveBeenCalledWith('a2', 'acme');
   expect(await screen.findByRole('article')).toBeInTheDocument();
   expect(api.task).toHaveBeenCalledWith('acme', 'a2');
 });
@@ -322,10 +327,16 @@ test('campus canvas selections fetch the task from its own company and open room
   const panel = screen.getByRole('complementary', { name: 'Painel da guilda' });
   expect(within(panel).getByLabelText('Empresa: Globex')).toBeInTheDocument();
   game.select('@coder', 'globex');
+  game.reportMode('manual');
+  game.views[0].setCameraMode.mockClear();
   await userEvent.click(screen.getByRole('button', { name: 'Abrir sala' }));
   expect(allRooms()).toHaveAttribute('aria-pressed', 'false');
   expect(game.lastModel().roomKey).toBe('globex');
-  expect(game.views[0].setCameraMode).toHaveBeenLastCalledWith('follow');
+  expect(game.views[0].setCameraMode.mock.calls).toEqual([['follow']]);
+  expect(screen.getByRole('button', { name: 'Acompanhar' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
 });
 test('campus cards group keys by company, preserve urgent tones and fetch the correct task', async () => {
   const game = fakeGame();
@@ -337,7 +348,7 @@ test('campus cards group keys by company, preserve urgent tones and fetch the co
   expect(within(coder).getByLabelText('Empresa: Acme')).toBeInTheDocument();
   expect(within(coder).getByLabelText('Empresa: Globex')).toBeInTheDocument();
   await userEvent.click(within(coder).getByRole('button', { name: 'T-9' }));
-  expect(game.views[0].focus).toHaveBeenCalledWith('g1');
+  expect(game.views[0].focus).toHaveBeenCalledWith('g1', 'globex');
   expect(await screen.findByRole('article')).toBeInTheDocument();
   expect(api.task).toHaveBeenCalledWith('globex', 'g1');
 });
@@ -406,9 +417,31 @@ test('accessible company signs focus a room without changing the selected campus
   mount(game);
   await waitFor(() => expect(game.createOffice).toHaveBeenCalled());
   await userEvent.click(allRooms());
+  game.views[0].focusRoom.mockClear();
   await userEvent.click(
     screen.getByRole('button', { name: 'Enquadrar sala Globex, 1 em execução' }),
   );
-  expect(game.views[0].focusRoom).toHaveBeenCalledWith('globex');
+  expect(game.views[0].focusRoom.mock.calls).toEqual([['globex']]);
+  expect(screen.getByRole('button', { name: 'Acompanhar' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
   expect(allRooms()).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('campus keys scope camera focus and detail requests when task ids collide', async () => {
+  const game = fakeGame();
+  const duplicate = task('a1', 'globex', 'T-9');
+  vi.spyOn(api, 'task').mockResolvedValue(duplicate);
+  renderWithLive(<Office loadGame={game.loadGame} />, {
+    live: { tenants, tasks: [tasks[0], duplicate] },
+  });
+  await waitFor(() => expect(game.createOffice).toHaveBeenCalled());
+  await userEvent.click(allRooms());
+  await userEvent.click(
+    within(screen.getByRole('group', { name: 'Programador' })).getByRole('button', { name: 'T-9' }),
+  );
+  expect(game.views[0].focus.mock.calls).toEqual([['a1', 'globex']]);
+  expect(await screen.findByRole('article')).toBeInTheDocument();
+  expect(api.task).toHaveBeenCalledWith('globex', 'a1');
 });
