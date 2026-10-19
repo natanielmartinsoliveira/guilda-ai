@@ -1,3 +1,4 @@
+import type { RoomModel } from './campus';
 import { t, type Key } from '../i18n';
 import type { AgentAttempt, DecisionView, TaskView } from '../types';
 export const TILE = 16;
@@ -174,6 +175,8 @@ export interface Desk {
   ai?: string;
 }
 export interface OfficeModel {
+  tenantId?: string;
+  rooms?: RoomModel[];
   roomKey?: string;
   loaded?: boolean;
   guild?: GuildState;
