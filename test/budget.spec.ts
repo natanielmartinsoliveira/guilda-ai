@@ -29,6 +29,8 @@ const withBudget = (perTaskUsd: number) => {
   const tenant = findTenant('acme')!;
   return { ...tenant, ai: { ...tenant.ai, budget: { perTaskUsd } } };
 };
+const spent = (id: string, usd: number) =>
+  db.query(`UPDATE tasks SET "costUsd" = $1 WHERE id = $2`, [usd, id]);
 const cost = async (id: string) =>
   Number((await db.getRepository(Task).findOneByOrFail({ id })).costUsd);
 
@@ -52,7 +54,7 @@ test('each run adds what it cost to the task, also across runs; unknown cost add
 
 test('at the budget a run does not start: the task asks to release more', async () => {
   const t = await task();
-  await db.getRepository(Task).update(t.id, { costUsd: 2.1 } as never);
+  await spent(t.id, 2.1);
   const agents = { execute: jest.fn().mockResolvedValue(ok(1)) };
   const router = new AgentRouter(db, agents as never);
   const input = { taskId: t.id, tenantId: 'acme', workspace: '/w', prompt: 'p' };
@@ -67,7 +69,7 @@ test('at the budget a run does not start: the task asks to release more', async 
 
 test('releasing (the option or a plain approval) raises the budget by one more share; anything else keeps it', async () => {
   const t = await task();
-  await db.getRepository(Task).update(t.id, { costUsd: 2.1 } as never);
+  await spent(t.id, 2.1);
   const agents = { execute: jest.fn().mockResolvedValue(ok(1)) };
   const router = new AgentRouter(db, agents as never);
   const input = { taskId: t.id, tenantId: 'acme', workspace: '/w', prompt: 'p' };
@@ -96,7 +98,7 @@ test('releasing (the option or a plain approval) raises the budget by one more s
 
 test('without a budget nothing ever waits on cost', async () => {
   const t = await task();
-  await db.getRepository(Task).update(t.id, { costUsd: 999 } as never);
+  await spent(t.id, 999);
   const agents = { execute: jest.fn().mockResolvedValue(ok(1)) };
   await new AgentRouter(db, agents as never).run(
     findTenant('acme')!,
@@ -177,4 +179,19 @@ test('each run keeps its usage and phase on its own row, and the task sums them'
       sonnet: { input: 5, output: 1, cacheCreation: 0, cacheRead: 10 },
     },
   });
+});
+
+test('saving a task loaded before a run keeps what the run added (cost and usage)', async () => {
+  const t = await task();
+  const stale = await db.getRepository(Task).findOneByOrFail({ id: t.id });
+  const usage = { input: 1, output: 2, cacheCreation: 0, cacheRead: 3 };
+  const agents = { execute: jest.fn().mockResolvedValue({ ...ok(0.75), usage }) };
+  const input = { taskId: t.id, tenantId: 'acme', workspace: '/w', prompt: 'p' };
+  await new AgentRouter(db, agents as never).run(findTenant('acme')!, 'coder', input, jest.fn());
+  stale.stage = 'DELIVER';
+  await db.getRepository(Task).save(stale);
+  const saved = await db.getRepository(Task).findOneByOrFail({ id: t.id });
+  expect(saved.stage).toBe('DELIVER');
+  expect(Number(saved.costUsd)).toBeCloseTo(0.75);
+  expect(saved.usage).toEqual(usage);
 });

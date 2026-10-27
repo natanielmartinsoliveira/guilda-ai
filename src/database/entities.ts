@@ -118,10 +118,13 @@ export class Task extends Base {
   @Column({ type: 'text', nullable: true }) error!: string | null;
   @Column({ default: 0 }) attempts!: number;
   @Column({ default: 'QUEUED' }) stage!: string;
-  /** What its AI runs cost, as the providers report it (kept across retries and answers). */
-  @Column({ type: 'double precision', default: 0 }) costUsd!: number;
-  /** Tokens, turns and agent time of its AI runs, summed like costUsd. */
-  @Column({ type: 'jsonb', nullable: true }) usage!: RunUsage | null;
+  /**
+   * What its AI runs cost, as the providers report it (kept across retries and answers). Only
+   * AgentRouter writes it, in SQL: a save of a task loaded before a run must not undo the run's.
+   */
+  @Column({ type: 'double precision', default: 0, update: false }) costUsd!: number;
+  /** Tokens, turns and agent time of its AI runs, summed like costUsd (same rule). */
+  @Column({ type: 'jsonb', nullable: true, update: false }) usage!: RunUsage | null;
 }
 @Entity('agent_runs')
 export class AgentRun {

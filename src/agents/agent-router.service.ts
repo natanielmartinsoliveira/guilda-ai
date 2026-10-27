@@ -151,13 +151,14 @@ export class AgentRouter {
         .getRepository(AgentRun)
         .update(result.runId, { usage: result.usage ?? null, phase: phase ?? null });
     if (!result.costUsd && !result.usage) return;
-    const tasks = this.db.getRepository(Task);
-    const task = await tasks.findOneBy({ id: taskId });
+    const task = await this.db.getRepository(Task).findOneBy({ id: taskId });
     if (!task) return;
-    await tasks.update(taskId, {
-      costUsd: Number(task.costUsd ?? 0) + (result.costUsd ?? 0),
-      ...(result.usage ? { usage: addUsage(task.usage, result.usage) } : {}),
-    });
+    const usage = result.usage ? addUsage(task.usage, result.usage) : task.usage;
+    await this.db.query(`UPDATE tasks SET "costUsd" = $1, "usage" = $2 WHERE id = $3`, [
+      Number(task.costUsd ?? 0) + (result.costUsd ?? 0),
+      usage ? JSON.stringify(usage) : null,
+      taskId,
+    ]);
   }
   private async checkBudget(tenant: Tenant, taskId: string) {
     const share = tenant.ai.budget?.perTaskUsd;
