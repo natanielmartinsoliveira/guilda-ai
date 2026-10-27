@@ -110,6 +110,25 @@ describe('BusinessmapPoller', () => {
     expect(again).toEqual({ skipped: 'Esse card já tem tarefa', taskId: task.id });
   });
 
+  test('the operator restarts a card whose task published nothing; a poll never does', async () => {
+    const x = setup({ 101: card(101) });
+    await x.poller.poll(tenant, source);
+    const stored = await db.getRepository(Issue).findOneByOrFail({ source: 'businessmap' });
+    const first = await db.getRepository(Task).findOneByOrFail({ issueId: stored.id });
+    await db.getRepository(Task).update(first.id, { status: 'SUCCESS' } as never);
+    await x.poller.poll(tenant, source);
+    expect(x.accept).toHaveBeenCalledTimes(1);
+    const restarted = await x.poller.startById(tenant, source, 101, undefined, true);
+    expect(x.accept).toHaveBeenCalledTimes(2);
+    expect(x.accept.mock.calls[1][2]).toEqual({ again: true });
+    expect(restarted.taskId).not.toBe(first.id);
+    // the card's task is now the new one, for polls too
+    expect(await x.poller.ingest(tenant, source, x.client as any, card(101), new Map())).toEqual({
+      skipped: 'Esse card já tem tarefa',
+      taskId: restarted.taskId,
+    });
+  });
+
   test('without the repository field, or with an unknown repository, the card waits until fixed', async () => {
     const cards = { 102: card(102, { custom_fields: [] }) };
     const x = setup(cards);

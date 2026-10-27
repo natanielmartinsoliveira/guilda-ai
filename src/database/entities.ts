@@ -105,9 +105,11 @@ export class Issue extends Base {
   @Column('uuid') projectId!: string;
 }
 @Entity('tasks')
+@Index(['issueId', 'createdAt'])
 export class Task extends Base {
   @Column() tenantId!: string;
-  @Column({ type: 'uuid', unique: true }) issueId!: string;
+  /** A card's tasks: one at a time; the operator may restart a card whose last published nothing. */
+  @Column('uuid') issueId!: string;
   @Column({ default: 'CODE' }) type!: string;
   @Column({ default: 'PENDING' }) status!: Status;
   @Column({ default: 'codex' }) provider!: Provider;

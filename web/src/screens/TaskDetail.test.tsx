@@ -218,3 +218,50 @@ test('metrics: where the time went, the tokens per model and per method phase', 
     ),
   ).toBeTruthy();
 });
+test('a card whose task published nothing starts again on the route picked; the old one links to the new', async () => {
+  vi.spyOn(api, 'task').mockResolvedValue({
+    ...rehearsed(),
+    source: 'businessmap',
+    key: '49145',
+    restartable: true,
+  });
+  const start = vi.spyOn(api, 'startCard').mockResolvedValue({ taskId: 't2' });
+  renderWithLive(<TaskDetail tenant="initech" id="t1" />, {
+    path: '/',
+    route: '/',
+    live: {
+      tenants: [
+        {
+          id: 'initech',
+          name: 'Initech',
+          providers: [],
+          jira: false,
+          projects: [
+            {
+              id: 'svc',
+              repository: 'x/svc',
+              method: 'review-gate',
+              routes: [{ id: 'proof', label: 'Testes' }],
+            },
+          ],
+        },
+      ],
+    },
+  });
+  const go = await screen.findByRole('button', { name: 'Refazer' });
+  expect((go as HTMLButtonElement).disabled).toBe(true);
+  await userEvent.selectOptions(screen.getByLabelText('Rota'), 'proof');
+  await userEvent.click(go);
+  expect(start).toHaveBeenCalledWith('initech', 'businessmap', '49145', undefined, 'proof', true);
+  expect((await screen.findByTestId('where')).textContent).toBe('/tarefas/initech/t2');
+});
+test('a superseded task links to the new one and offers no restart', async () => {
+  vi.spyOn(api, 'task').mockResolvedValue({
+    ...rehearsed(),
+    supersededBy: 't2',
+    restartable: false,
+  });
+  show();
+  expect(await screen.findByText('Abrir a tarefa nova')).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Refazer' })).toBeNull();
+});

@@ -14,7 +14,7 @@ import { Issue, Project, PullRequest, StepPlan, StoryPlan, Task } from '../../da
 import { CodeHost, ReviewComment } from '../../hosts/code-host';
 import { createHost } from '../../tenants/tenant-registry.service';
 import { renderBranch } from '../../tasks/branch';
-import { OrchestratorService } from '../../tasks/orchestrator.service';
+import { latestTask, OrchestratorService } from '../../tasks/orchestrator.service';
 import { JiraSource, Tenant, tenants } from '../../tenants/tenants';
 import { SourceReporter } from '../source-reporter.service';
 import { adfToText } from './adf';
@@ -118,6 +118,8 @@ export class JiraPoller implements OnModuleInit, OnModuleDestroy {
     source: JiraSource,
     client: JiraClient,
     issue: JiraIssue,
+    /** The operator restarts a card whose last task published nothing (never a poll). */
+    again = false,
   ): Promise<IngestResult> {
     // Cards stay in the JQL until someone moves them: already accepted ones cost one lookup.
     if (!/^\d+$/.test(issue.id)) throw new Error(`Unexpected Jira issue id ${issue.id}`);
@@ -127,8 +129,8 @@ export class JiraPoller implements OnModuleInit, OnModuleDestroy {
     const existing = await this.db
       .getRepository(Issue)
       .findOneBy({ tenantId: tenant.id, source: source.id, externalId: issue.id });
-    if (existing) {
-      const task = await this.db.getRepository(Task).findOneBy({ issueId: existing.id });
+    if (existing && !again) {
+      const task = await latestTask(this.db.manager, existing.id);
       return { skipped: 'Esse card já tem tarefa', taskId: task?.id };
     }
     const projectKey = issue.fields.project?.key ?? issue.key.split('-')[0];
@@ -185,18 +187,22 @@ export class JiraPoller implements OnModuleInit, OnModuleDestroy {
               : own.attachments,
         });
       }
-    const task = await this.orchestrator.accept(tenant.id, {
-      source: source.id,
-      externalId: issue.id,
-      key: issue.key,
-      title: (issue.fields.summary || issue.key).slice(0, 256),
-      body: parent.body,
-      url: `${source.baseUrl}/browse/${issue.key}`,
-      project,
-      // The first step's files travel with the task, next to the parent's.
-      attachments: [...parent.attachments, ...(steps[0]?.attachments ?? [])],
-      steps,
-    });
+    const task = await this.orchestrator.accept(
+      tenant.id,
+      {
+        source: source.id,
+        externalId: issue.id,
+        key: issue.key,
+        title: (issue.fields.summary || issue.key).slice(0, 256),
+        body: parent.body,
+        url: `${source.baseUrl}/browse/${issue.key}`,
+        project,
+        // The first step's files travel with the task, next to the parent's.
+        attachments: [...parent.attachments, ...(steps[0]?.attachments ?? [])],
+        steps,
+      },
+      { again },
+    );
     log('jira.accepted', {
       tenant: tenant.id,
       source: source.id,
@@ -237,13 +243,14 @@ export class JiraPoller implements OnModuleInit, OnModuleDestroy {
     source: JiraSource,
     key: string,
     base?: string,
+    again = false,
   ): Promise<IngestResult> {
     const client = this.client(source);
     const issue = await client.issue(key);
     return this.exclusive(`${tenant.id}/${source.id}`, () =>
       issue.fields.issuetype?.subtask && source.subtasks === 'branch-per-subtask'
         ? this.startSubtask(tenant, source, client, issue, base)
-        : this.ingest(tenant, source, client, issue),
+        : this.ingest(tenant, source, client, issue, again),
     );
   }
   /** Where a sub-task started on its own may begin: the story branch or a sibling's. */
@@ -318,7 +325,7 @@ export class JiraPoller implements OnModuleInit, OnModuleDestroy {
       .getRepository(Issue)
       .findOneBy({ tenantId: tenant.id, source: source.id, externalId: issue.id });
     if (existing) {
-      const task = await this.db.getRepository(Task).findOneBy({ issueId: existing.id });
+      const task = await latestTask(this.db.manager, existing.id);
       return { skipped: 'Esse card já tem tarefa', taskId: task?.id };
     }
     const ctx = await this.subtaskContext(tenant, source, client, issue);
@@ -555,7 +562,8 @@ export class JiraPoller implements OnModuleInit, OnModuleDestroy {
     for (const card of await client.search(50, jql)) {
       const issue = candidates.find((i) => i.externalId === card.id);
       if (!issue) continue;
-      const task = await this.db.getRepository(Task).findOneByOrFail({ issueId: issue.id });
+      const task = await latestTask(this.db.manager, issue.id);
+      if (!task) continue;
       const last = Number(issue.meta?.lastCommentId ?? 0);
       const fresh = (await client.comments(card.key))
         .filter((c) => Number(c.id) > last)

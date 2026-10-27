@@ -60,6 +60,8 @@ Regras (erro ao carregar a configuração): `coder` só funciona com host `gitla
 
 O fluxo inteiro roda (agente → testes → revisão → commit **local** na branch da tarefa) e termina como **"Ensaio concluído — nada foi publicado"**, com o caminho no workspace (`<workspace>:<root>/<tarefa>`), a branch, o commit e os arquivos. Confira abrindo a pasta pelo VS Code do Coder. Depois use **Descartar ensaio** na tela da tarefa para apagar a pasta (também vale para tarefas `coder` que falharam ou foram canceladas; nunca para uma tarefa rodando).
 
+**Refazer card** (tela da tarefa, ou `again: true` em `POST /api/tenants/:tenant/sources/:source/start`) dá ao card uma tarefa nova, na rota que você escolher: vale para um card cuja última tarefa terminou sem publicar nada (ensaio sem MR rascunho, falha ou cancelamento). A tarefa anterior fica no histórico, marcada como substituída e com link para a nova, e a pasta dela no workspace é descartada. Card com PR/MR nunca é refeito (peça um ajuste ou abra uma correção), e o poller nunca refaz sozinho: um card que continua na coluna de gatilho mantém a tarefa que tem.
+
 **Abrir MR rascunho** (tela da tarefa, ou `promote_task` pelo MCP) publica um ensaio conferido: sobre o branch base atual, um commit só com os arquivos da entrega (sem os caminhos de `publish.exclude` do método), com a identidade `git` da empresa e o título do PR como mensagem; depois push e MR rascunho sem revisores. Se o branch base mudou os mesmos arquivos desde o ensaio, nada é enviado e a tarefa falha dizendo isso. Os commits do próprio ensaio ficam na pasta em `refs/ai-dev-team/rehearsal/<tarefa>`.
 
 ## Proteções

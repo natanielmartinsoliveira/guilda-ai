@@ -2,8 +2,8 @@ import { loadMethod } from '../../methods/method';
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { config, log } from '../../config';
-import { Issue, IssueMeta, Task } from '../../database/entities';
-import { OrchestratorService } from '../../tasks/orchestrator.service';
+import { Issue, IssueMeta } from '../../database/entities';
+import { latestTask, OrchestratorService } from '../../tasks/orchestrator.service';
 import { BusinessmapSource, Tenant, tenants } from '../../tenants/tenants';
 import type { IngestResult } from '../jira/jira.poller';
 import { BmCard, BusinessmapClient } from './businessmap.client';
@@ -92,14 +92,16 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
     tags: Map<number, string>,
     /** The route the operator chose when starting the card by hand. */
     chosen?: string,
+    /** The operator restarts a card whose last task published nothing (never a poll). */
+    again = false,
   ): Promise<IngestResult> {
     const externalId = String(ref.card_id);
     // Cards stay in the trigger column after being taken: already accepted ones cost one lookup.
     const existing = await this.db
       .getRepository(Issue)
       .findOneBy({ tenantId: tenant.id, source: source.id, externalId });
-    if (existing) {
-      const task = await this.db.getRepository(Task).findOneBy({ issueId: existing.id });
+    if (existing && !again) {
+      const task = await latestTask(this.db.manager, existing.id);
       return { skipped: 'Esse card já tem tarefa', taskId: task?.id };
     }
     const card = await client.card(ref.card_id);
@@ -185,16 +187,20 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
           `${l.link_type === 'parent' ? 'Card pai' : 'Card relacionado'}: ${other.title} (${l.card_id})`,
         );
     }
-    const task = await this.orchestrator.accept(tenant.id, {
-      source: source.id,
-      externalId,
-      key: externalId,
-      title: (card.title || externalId).slice(0, 256),
-      body: [htmlToText(card.description), linked.join('\n')].filter(Boolean).join('\n\n'),
-      url: `${source.baseUrl}/ctrl_board/${source.boardId}/cards/${externalId}/details/`,
-      project: project.id,
-      ...(route ? { delivery: { route } } : {}),
-    });
+    const task = await this.orchestrator.accept(
+      tenant.id,
+      {
+        source: source.id,
+        externalId,
+        key: externalId,
+        title: (card.title || externalId).slice(0, 256),
+        body: [htmlToText(card.description), linked.join('\n')].filter(Boolean).join('\n\n'),
+        url: `${source.baseUrl}/ctrl_board/${source.boardId}/cards/${externalId}/details/`,
+        project: project.id,
+        ...(route ? { delivery: { route } } : {}),
+      },
+      { again },
+    );
     log('businessmap.accepted', {
       tenant: tenant.id,
       source: source.id,
@@ -213,6 +219,7 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
     source: BusinessmapSource,
     id: number,
     route?: string,
+    again = false,
   ): Promise<IngestResult> {
     const client = this.client(source);
     const card = await client.card(id);
@@ -221,7 +228,7 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
       return { skipped: `O card ${id} não é do quadro desta origem (quadro ${source.boardId})` };
     const tags = await client.tags();
     return this.exclusive(`${tenant.id}/${source.id}`, () =>
-      this.ingest(tenant, source, client, card, tags, route),
+      this.ingest(tenant, source, client, card, tags, route, again),
     );
   }
   private skip(tenant: Tenant, source: BusinessmapSource, card: string, reason: string) {

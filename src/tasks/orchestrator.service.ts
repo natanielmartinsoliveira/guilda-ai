@@ -3,7 +3,7 @@ import { DataSource, EntityManager, EntityTarget, IsNull } from 'typeorm';
 import { assertTransition } from './status';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
-import { config, TaskError, workspace } from '../config';
+import { config, log, TaskError, workspace } from '../config';
 import { isSafeBranch, renderBranch } from './branch';
 import { WorkItem } from '../sources/task-source';
 import { TenantRegistry } from '../tenants/tenant-registry.service';
@@ -69,6 +69,22 @@ export type DecisionAnswer =
   | { answers: string[] }
   | { action: 'retry' | 'cancel' }
   | { action: 'retry_with_instructions'; instructions: string };
+/** A card's current task: the latest (earlier ones were restarted by the operator). */
+export function latestTask(em: Pick<EntityManager, 'findOne'>, issueId: string) {
+  return em.findOne(Task, { where: { issueId }, order: { createdAt: 'DESC' } });
+}
+/**
+ * Why a card cannot get a new task now, or undefined when it can: its last task ended and
+ * published nothing (a pull request is changed by adjustments, never restarted).
+ */
+export function restartRefusal(task: Task, hasPullRequest: boolean): string | undefined {
+  if (['PENDING', 'RUNNING', 'WAITING'].includes(task.status))
+    return 'A tarefa anterior do card ainda está em andamento: termine ou cancele antes de refazer';
+  const rehearsal = task.result?.rehearsal as { promoted?: boolean } | undefined;
+  if (hasPullRequest || rehearsal?.promoted || task.result?.prUrl)
+    return 'O card já tem PR/MR: peça um ajuste ou abra uma correção em vez de refazer';
+  return undefined;
+}
 @Injectable()
 export class OrchestratorService {
   constructor(
@@ -104,7 +120,32 @@ export class OrchestratorService {
       return 'discarded';
     });
   }
-  async accept(tenantId: string, item: WorkItem): Promise<Task> {
+  /**
+   * The card's task: the existing one, or a new one. With `again` (the operator, never a poller)
+   * a card whose last task published nothing gets a new task; the earlier one is kept, marked
+   * superseded, and its workspace folder is discarded.
+   */
+  async accept(tenantId: string, item: WorkItem, opts: { again?: boolean } = {}): Promise<Task> {
+    let superseded: Task | undefined;
+    const task = await this.acceptIn(tenantId, item, !!opts.again, (t) => (superseded = t));
+    const done = superseded?.result as
+      { discarded?: boolean; rehearsal?: { discarded?: boolean } } | undefined;
+    // After the commit: the folder lives in the company's workspace (ssh), never inside the lock.
+    if (superseded && !done?.discarded && !done?.rehearsal?.discarded)
+      await this.discard(tenantId, superseded.id).catch((error: unknown) =>
+        log('task.restart_discard_failed', {
+          taskId: superseded!.id,
+          error: error instanceof Error ? error.message.slice(0, 300) : String(error),
+        }),
+      );
+    return task;
+  }
+  private async acceptIn(
+    tenantId: string,
+    item: WorkItem,
+    again: boolean,
+    supersede: (previous: Task) => void,
+  ): Promise<Task> {
     const { tenant, project: cfg } = this.tenants.project(tenantId, item.project);
     return this.db.transaction(async (em) => {
       // Serializes duplicate deliveries and project upserts across API replicas.
@@ -114,9 +155,14 @@ export class OrchestratorService {
         source: item.source,
         externalId: item.externalId,
       });
-      if (existingIssue) {
-        const task = await em.findOneBy(Task, { issueId: existingIssue.id });
-        if (task) return task;
+      const previous = existingIssue ? await latestTask(em, existingIssue.id) : null;
+      if (previous && !again) return previous;
+      if (previous) {
+        const refusal = restartRefusal(
+          previous,
+          !!(await em.findOneBy(PullRequest, { taskId: previous.id })),
+        );
+        if (refusal) throw new TaskError(refusal, false);
       }
       const id = randomUUID();
       // Generated from the project pattern; never the default, a protected branch or the
@@ -179,6 +225,11 @@ export class OrchestratorService {
         stage: 'QUEUED',
       });
       await em.save(Outbox, { taskId: id });
+      if (previous) {
+        previous.result = { ...(previous.result ?? {}), supersededBy: id };
+        await em.save(previous);
+        supersede(previous);
+      }
       return task;
     });
   }

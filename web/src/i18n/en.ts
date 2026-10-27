@@ -124,6 +124,13 @@ export const en: Record<Key, string> = {
   'detail.aiUsed': 'AI used',
   'detail.usedModels': 'models: {models}',
   'detail.cost': 'US$ {usd}',
+  'detail.superseded': 'This card was started again in a new task.',
+  'detail.supersededLink': 'Open the new task',
+  'detail.restart': 'Start card again',
+  'detail.restartHint':
+    'A new task for this card; this one stays in the history and its workspace folder is discarded.',
+  'detail.restartRoute': 'Route',
+  'detail.restartGo': 'Start again',
   'detail.ai': 'AI',
   'detail.runs': 'Runs',
   'detail.metrics': 'Metrics',

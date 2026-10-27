@@ -60,6 +60,8 @@ Rules (an error when the configuration loads): `coder` works only with a `gitlab
 
 The whole flow runs (agent → tests → review → a **local** commit on the task branch) and ends as **"Rehearsal finished — nothing was published"**, with the path in the workspace (`<workspace>:<root>/<task>`), the branch, the commit and the files. Check it by opening the folder in Coder's VS Code. Then use **Discard rehearsal** on the task screen to remove the folder (also for `coder` tasks that failed or were cancelled; never for a running task).
 
+**Start card again** (task screen, or `again: true` on `POST /api/tenants/:tenant/sources/:source/start`) gives the card a new task, on the route you pick: for a card whose last task ended and published nothing (a rehearsal without a draft PR, a failure, a cancellation). The earlier task stays in the history, marked as superseded with a link to the new one, and its workspace folder is discarded. A card with a PR/MR is never started again (ask for an adjustment or open a fix), and polls never do it: a card still in the trigger column keeps its task.
+
 **Open draft PR** (task screen, or `promote_task` over MCP) publishes a checked rehearsal: on the current base branch, one commit with only the delivery's files (a method's `publish.exclude` paths left out), the company `git` identity and the PR title as message; then a push and a draft PR without reviewers. If the base branch changed the same files since the rehearsal, nothing is sent and the task fails saying so. The rehearsal's own commits stay in the folder under `refs/ai-dev-team/rehearsal/<task>`.
 
 ## Protections

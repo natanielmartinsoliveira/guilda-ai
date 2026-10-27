@@ -8,13 +8,15 @@ import { TenantRegistry } from '../src/tenants/tenant-registry.service';
 import { WebAuthService } from '../src/web/web-auth.service';
 import { JiraPoller } from '../src/sources/jira/jira.poller';
 import { CardStarters } from '../src/sources/card-starters';
+import { TaskError } from '../src/config';
 let db: DataSource, app: INestApplication, url: string;
 const auth = {
   Authorization: `Bearer ${process.env.API_TOKEN}`,
   'Content-Type': 'application/json',
 };
-const calls: { source: string; key: string; base?: string; route?: string }[] = [];
+const calls: { source: string; key: string; base?: string; route?: string; again?: boolean }[] = [];
 let failWith: string | undefined;
+let refuseWith: string | undefined;
 const starter = {
   type: 'jira',
   label: 'Jira',
@@ -27,9 +29,17 @@ const starter = {
     key: string,
     base?: string,
     route?: string,
+    again?: boolean,
   ) => {
     if (failWith) throw new Error(failWith);
-    calls.push({ source: source.id, key, ...(base ? { base } : {}), ...(route ? { route } : {}) });
+    if (refuseWith) throw new TaskError(refuseWith, false);
+    calls.push({
+      source: source.id,
+      key,
+      ...(base ? { base } : {}),
+      ...(route ? { route } : {}),
+      ...(again ? { again } : {}),
+    });
     return key === 'PF-9'
       ? { skipped: 'Esse card já tem tarefa', taskId: 't-old' }
       : { taskId: 't-new' };
@@ -54,6 +64,7 @@ beforeEach(async () => {
   calls.length = 0;
   starter.routes = false;
   failWith = undefined;
+  refuseWith = undefined;
   db = await database();
   @Module({
     controllers: [TasksController],
@@ -137,4 +148,14 @@ test('a route goes to sources that take one; others refuse it; a bad name is a 4
   const r = await start('acme', 'jira', { key: 'PF-12', route: 'fix' });
   expect(r.status).toBe(202);
   expect(calls).toEqual([{ source: 'jira', key: 'PF-12', route: 'fix' }]);
+});
+
+test('again restarts the card; a card that cannot be restarted is a 409 with the reason', async () => {
+  const r = await start('acme', 'jira', { key: 'PF-1', again: true });
+  expect(r.status).toBe(202);
+  expect(calls).toEqual([{ source: 'jira', key: 'PF-1', again: true }]);
+  refuseWith = 'O card já tem PR/MR: peça um ajuste ou abra uma correção em vez de refazer';
+  const refused = await start('acme', 'jira', { key: 'PF-1', again: true });
+  expect(refused.status).toBe(409);
+  expect((await refused.json()).message).toMatch(/PR\/MR/);
 });

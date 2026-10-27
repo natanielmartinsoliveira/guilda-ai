@@ -1,6 +1,6 @@
 import { t, type Key } from '../i18n';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { api, ApiError } from '../api';
 import { phaseIndex, PHASES, stageLabel, statusLabel } from '../live';
 import { useLive } from '../LiveProvider';
@@ -296,6 +296,63 @@ function Evidence({
     </section>
   );
 }
+/** A new task for a card whose task ended and published nothing, on the route the operator picks. */
+function Restart({ tenant, task }: { tenant: string; task: TaskView }) {
+  const { tenants } = useLive();
+  const navigate = useNavigate();
+  const routes = tenants
+    .find((c) => c.id === tenant)
+    ?.projects.find((p) => p.id === task.project)?.routes;
+  const [route, setRoute] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  if (!task.source || !task.key) return null;
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (busy || (routes?.length && !route)) return;
+    setBusy(true);
+    setError('');
+    try {
+      const result = await api.startCard(
+        tenant,
+        task.source!,
+        task.key!,
+        undefined,
+        route || undefined,
+        true,
+      );
+      if ('skipped' in result) setError(result.skipped);
+      else navigate(`/tarefas/${tenant}/${result.taskId}`);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : t('login.noServer'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form onSubmit={(e) => void submit(e)}>
+      <h3>{t('detail.restart')}</h3>
+      <p>{t('detail.restartHint')}</p>
+      {!!routes?.length && (
+        <label>
+          {t('detail.restartRoute')}
+          <select value={route} onChange={(e) => setRoute(e.target.value)}>
+            <option value="" />
+            {routes.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+      <button type="submit" disabled={busy || (!!routes?.length && !route)}>
+        {t('detail.restartGo')}
+      </button>
+      {error && <p className="error">{error}</p>}
+    </form>
+  );
+}
 export function TaskDetail({ tenant, id }: { tenant: string; id: string }) {
   const { subscribe } = useLive();
   const [task, setTask] = useState<TaskView>();
@@ -375,6 +432,12 @@ export function TaskDetail({ tenant, id }: { tenant: string; id: string }) {
         ))}
       </ol>
       {task.error && <pre className="error">{task.error}</pre>}
+      {task.supersededBy && (
+        <p>
+          {t('detail.superseded')}{' '}
+          <Link to={`/tarefas/${tenant}/${task.supersededBy}`}>{t('detail.supersededLink')}</Link>
+        </p>
+      )}
       {task.rehearsal && !task.rehearsal.promoted && (
         <Rehearsal tenant={tenant} id={id} rehearsal={task.rehearsal} onDone={() => void load()} />
       )}
@@ -407,6 +470,7 @@ export function TaskDetail({ tenant, id }: { tenant: string; id: string }) {
           </ul>
         </section>
       )}
+      {task.restartable && <Restart tenant={tenant} task={task} />}
       <Metrics task={task} />
       {!!task.runs?.length && (
         <section>

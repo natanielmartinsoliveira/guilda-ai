@@ -123,6 +123,13 @@ export const ptBR = {
   'detail.aiUsed': 'IA usada',
   'detail.usedModels': 'modelos: {models}',
   'detail.cost': 'US$ {usd}',
+  'detail.superseded': 'Este card foi refeito numa tarefa nova.',
+  'detail.supersededLink': 'Abrir a tarefa nova',
+  'detail.restart': 'Refazer card',
+  'detail.restartHint':
+    'Uma tarefa nova para este card; esta fica no histórico e a pasta dela no workspace é descartada.',
+  'detail.restartRoute': 'Rota',
+  'detail.restartGo': 'Refazer',
   'detail.ai': 'IA',
   'detail.runs': 'Execuções',
   'detail.metrics': 'Métricas',

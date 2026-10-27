@@ -154,3 +154,43 @@ describe('answering decisions', () => {
     );
   });
 });
+describe('restarting a card', () => {
+  const finish = (id: string, result: Record<string, unknown> = {}) =>
+    db.getRepository(Task).update(id, { status: 'SUCCESS', stage: 'REHEARSED', result } as never);
+  test('without again the card keeps its task; with again a finished one gets a new task', async () => {
+    const service = new OrchestratorService(db, new TenantRegistry());
+    const first = await service.accept('acme', item);
+    await finish(first.id, { rehearsal: { files: ['a.ts'] } });
+    expect((await service.accept('acme', item)).id).toBe(first.id);
+    const second = await service.accept('acme', item, { again: true });
+    expect(second.id).not.toBe(first.id);
+    expect(second.issueId).toBe(first.issueId);
+    expect(second.status).toBe('PENDING');
+    // the earlier task is kept, pointing at the new one; the card's task is now the newest
+    const earlier = await db.getRepository(Task).findOneByOrFail({ id: first.id });
+    expect(earlier.result).toMatchObject({
+      supersededBy: second.id,
+      rehearsal: { files: ['a.ts'] },
+    });
+    expect((await service.accept('acme', item)).id).toBe(second.id);
+    expect(await db.getRepository(Issue).count()).toBe(1);
+    expect(await db.getRepository(Outbox).count()).toBe(2);
+  });
+  test('a card whose task is still going, or that published a PR, is never restarted', async () => {
+    const service = new OrchestratorService(db, new TenantRegistry());
+    const task = await service.accept('acme', item);
+    await expect(service.accept('acme', item, { again: true })).rejects.toThrow(/em andamento/);
+    await finish(task.id, { prUrl: 'https://git.example.com/pr/1' });
+    await expect(service.accept('acme', item, { again: true })).rejects.toThrow(/PR\/MR/);
+    await finish(task.id, { rehearsal: { promoted: true } });
+    await expect(service.accept('acme', item, { again: true })).rejects.toThrow(/PR\/MR/);
+    expect(await db.getRepository(Task).count()).toBe(1);
+  });
+  test('a failed or cancelled task can be restarted too', async () => {
+    const service = new OrchestratorService(db, new TenantRegistry());
+    const task = await service.accept('acme', item);
+    await db.getRepository(Task).update(task.id, { status: 'FAILED' } as never);
+    const again = await service.accept('acme', item, { again: true });
+    expect(again.id).not.toBe(task.id);
+  });
+});

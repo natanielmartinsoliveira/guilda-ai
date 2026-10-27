@@ -18,6 +18,8 @@ export interface CardStarter {
     key: string,
     base?: string,
     route?: string,
+    /** The operator restarts a card whose last task published nothing. */
+    again?: boolean,
   ): Promise<IngestResult>;
   /** For sources with sub-tasks on their own: the branches one may start from. */
   bases?(tenant: Tenant, source: TenantSource, key: string): Promise<SubtaskBases>;
@@ -47,7 +49,8 @@ export class CardStarters {
         key: 'jira',
         example: 'PF-123',
         routes: false,
-        start: (tenant, source, key, base) => jira.startIn(tenant, source as JiraSource, key, base),
+        start: (tenant, source, key, base, _route, again) =>
+          jira.startIn(tenant, source as JiraSource, key, base, again),
         bases: (tenant, source, key) => jira.basesIn(tenant, source as JiraSource, key),
       },
       businessmap: {
@@ -56,8 +59,8 @@ export class CardStarters {
         key: 'number',
         example: '48816',
         routes: true,
-        start: (tenant, source, key, _base, route) =>
-          businessmap.startById(tenant, source as BusinessmapSource, Number(key), route),
+        start: (tenant, source, key, _base, route, again) =>
+          businessmap.startById(tenant, source as BusinessmapSource, Number(key), route, again),
       },
     };
   }

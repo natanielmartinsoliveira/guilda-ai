@@ -27,7 +27,7 @@ import { DataSource, In, MoreThan } from 'typeorm';
 import { randomUUID } from 'node:crypto';
 import { readFile, rm } from 'node:fs/promises';
 import { z } from 'zod';
-import { config, redact } from '../config';
+import { config, redact, TaskError } from '../config';
 import {
   attachmentsDir,
   IncomingFile,
@@ -59,6 +59,7 @@ function evidenceView(value: unknown) {
 import { OperatorGuard, OperatorRequest } from './api-token.guard';
 import { credentialStatus, roleTargets } from '../agents/agent-router.service';
 import { taskMetrics } from '../tasks/metrics';
+import { restartRefusal } from '../tasks/orchestrator.service';
 import { JiraPoller } from '../sources/jira/jira.poller';
 import { ChangeFeed } from './change-feed';
 const decisionAnswer = z.union([
@@ -502,20 +503,24 @@ export class TasksController {
           .string()
           .regex(/^[a-z][a-z0-9-]*$/)
           .optional(),
+        // A new task for a card whose last task published nothing (the earlier one is kept).
+        again: z.boolean().optional(),
       })
       .safeParse(body);
     const key = parsed.success ? normalizeCardKey(starter.key, parsed.data.key) : undefined;
     if (!parsed.success || !key)
       throw new BadRequestException(`Use a chave do card, ex.: ${starter.example}`);
-    const { base, route } = parsed.data;
+    const { base, route, again } = parsed.data;
     if (route && !starter.routes)
       throw new BadRequestException('Esta origem não recebe rota ao iniciar o card');
     return this.jira(async () => {
-      const result = await (route
-        ? starter.start(tenant, source, key, base, route)
-        : base
-          ? starter.start(tenant, source, key, base)
-          : starter.start(tenant, source, key));
+      const result = await (again
+        ? starter.start(tenant, source, key, base, route, true)
+        : route
+          ? starter.start(tenant, source, key, base, route)
+          : base
+            ? starter.start(tenant, source, key, base)
+            : starter.start(tenant, source, key));
       res.status('skipped' in result ? 200 : 202);
       return result;
     });
@@ -533,6 +538,10 @@ export class TasksController {
     if (!key) throw new BadRequestException(`Use a chave do card, ex.: ${starter.example}`);
     return this.jira(() => starter.bases!(tenant, source, key));
   }
+  private startsCards(tenantId: string, sourceId: string) {
+    const source = findTenant(tenantId)?.sources.find((s) => s.id === sourceId);
+    return !!source && !!this.starters?.for(source);
+  }
   private starter(tenantId: string, sourceId: string) {
     const tenant = this.tenant(tenantId);
     const source = tenant.sources.find((s) => s.id === sourceId);
@@ -547,6 +556,9 @@ export class TasksController {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (message === 'Empresa sem fonte Jira') throw new NotFoundException(message);
+      // The operator's own request refused (a card that cannot be restarted): not the source's.
+      if (error instanceof TaskError && !error.retryable)
+        throw new ConflictException(redact(message).slice(0, 500));
       throw new HttpException(redact(message).slice(0, 500), 502);
     }
   }
@@ -660,6 +672,14 @@ export class TasksController {
         attempts: t.attempts,
         error: t.error,
         costUsd: Number(t.costUsd ?? 0),
+        // Restarted by the operator: the card's newer task.
+        supersededBy: t.result?.supersededBy,
+        // The operator may start the card again (its source starts cards, nothing published).
+        restartable:
+          !!issue &&
+          this.startsCards(t.tenantId, issue.source) &&
+          !t.result?.supersededBy &&
+          !restartRefusal(t, !!t.result?.prUrl),
         usage: t.usage ?? undefined,
         // Per agent of the method, as its own telemetry counted it.
         methodTelemetry: t.result?.methodTelemetry,
