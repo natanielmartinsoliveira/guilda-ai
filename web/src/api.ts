@@ -92,6 +92,15 @@ export const api = {
         ...(again ? { again: true } : {}),
       }),
     ),
+  lessons: (tenant: string, project: string) =>
+    call<{ lessons: string[]; pack: boolean }>(
+      `${tenantPath(tenant)}/projects/${encodeURIComponent(project)}/lessons`,
+    ),
+  addLesson: (tenant: string, project: string, text: string, taskId?: string) =>
+    call<{ lesson: string; lessons: string[] }>(
+      `${tenantPath(tenant)}/projects/${encodeURIComponent(project)}/lessons`,
+      post({ text, ...(taskId ? { taskId } : {}) }),
+    ),
   cardBases: (tenant: string, source: string, key: string) =>
     call<SubtaskBases>(
       `${tenantPath(tenant)}/sources/${encodeURIComponent(source)}/cards/${encodeURIComponent(key)}/bases`,

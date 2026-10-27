@@ -61,6 +61,12 @@ Any core prompt (`prompts/*.md`: `coder.md`, `fixer.md`, `code-review.md`, `pr-s
 
 The first one that exists wins (project → pack → core). The `{{PLACEHOLDERS}}` are those of the core prompt; unknown ones stay as they are.
 
+## Lessons
+
+What the company learned running a project's tasks lives in the pack, so the team shares it through git: `lessons/<project>.md` for one project and `lessons/_all.md` for every project, one `- ` line per lesson. Every agent prompt of that project receives them (the newest that fit 8 KB). A method's prompts place them with `{{#LESSONS}}…{{LESSONS}}…{{/LESSONS}}`; `method:check` renders without them.
+
+**Save as lesson** on the task screen (prefilled with the task's failure) appends one to the project's file, uncommitted, with the card and the date: review it, then commit and push the pack.
+
 ## Formats
 
 In `formats:` of `company.yaml` (and, for one project, in the project's `formats:`, field by field):

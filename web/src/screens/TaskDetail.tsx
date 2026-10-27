@@ -296,6 +296,70 @@ function Evidence({
     </section>
   );
 }
+/** What the project's agents learned before (lessons/ in the pack), and recording a new one. */
+function Lessons({ tenant, task }: { tenant: string; task: TaskView }) {
+  const [lessons, setLessons] = useState<string[]>();
+  const [pack, setPack] = useState(false);
+  const [text, setText] = useState(task.error?.split('\n')[0]?.slice(0, 1000) ?? '');
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [error, setError] = useState('');
+  useEffect(() => {
+    if (!task.project) return;
+    api.lessons(tenant, task.project).then(
+      (found) => {
+        setLessons(found.lessons);
+        setPack(found.pack);
+      },
+      () => setLessons(undefined),
+    );
+  }, [tenant, task.project]);
+  if (!task.project || !lessons || !pack) return null;
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (busy || text.trim().length < 3) return;
+    setBusy(true);
+    setError('');
+    try {
+      const saved = await api.addLesson(tenant, task.project!, text, task.id);
+      setLessons(saved.lessons);
+      setText('');
+      setNotice(t('detail.lessonSaved'));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : t('login.noServer'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section>
+      <h3>{t('detail.lessons')}</h3>
+      <p>{t('detail.lessonsHint')}</p>
+      {lessons.length ? (
+        <ul>
+          {lessons.map((l, i) => (
+            <li key={i}>{l}</li>
+          ))}
+        </ul>
+      ) : (
+        <p>{t('detail.lessonsNone')}</p>
+      )}
+      <form onSubmit={(e) => void submit(e)}>
+        <textarea
+          aria-label={t('detail.lessonAdd')}
+          value={text}
+          maxLength={1000}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <button type="submit" disabled={busy || text.trim().length < 3}>
+          {t('detail.lessonAdd')}
+        </button>
+      </form>
+      {notice && <p>{notice}</p>}
+      {error && <p className="error">{error}</p>}
+    </section>
+  );
+}
 /** A new task for a card whose task ended and published nothing, on the route the operator picks. */
 function Restart({ tenant, task }: { tenant: string; task: TaskView }) {
   const { tenants } = useLive();
@@ -471,6 +535,7 @@ export function TaskDetail({ tenant, id }: { tenant: string; id: string }) {
         </section>
       )}
       {task.restartable && <Restart tenant={tenant} task={task} />}
+      <Lessons tenant={tenant} task={task} />
       <Metrics task={task} />
       {!!task.runs?.length && (
         <section>

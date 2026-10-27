@@ -11,4 +11,7 @@ Problemas apontados pelo revisor:
 {{ISSUES}}
 
 Tarefa original:
-{{TASK_PROMPT}}
+{{TASK_PROMPT}}{{#LESSONS}}
+
+Lições de tarefas anteriores deste projeto (registradas pela empresa; siga-as quando se aplicarem):
+{{LESSONS}}{{/LESSONS}}

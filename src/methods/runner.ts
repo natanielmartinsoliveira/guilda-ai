@@ -8,6 +8,7 @@ import { auditable } from '../agents/process-runner.service';
 import type { AgentRouter } from '../agents/agent-router.service';
 import type { GitService } from '../git/git.service';
 import { fillTemplate, TemplateValues } from '../prompts/prompt-files';
+import { projectLessons } from '../prompts/lessons';
 import { parseTag } from '../tasks/pr-description';
 import { NeedsInput } from '../tasks/decisions';
 import type { TaskWorkspace } from '../workspaces/task-workspace';
@@ -177,6 +178,8 @@ export class MethodRunner {
       ANSWERS: state?.answers ?? [],
       // The agent's last report (its decisions), for the person to review at a gate.
       REPORT: typeof this.task.result?.message === 'string' ? this.task.result.message : '',
+      // What the company learned on this project's earlier tasks (lessons/ in the pack).
+      LESSONS: projectLessons(this.ctx.tenant.packDir, this.ctx.cfg.id),
       ...this.route.vars,
       ...values,
     });

@@ -127,6 +127,12 @@ export const en: Record<Key, string> = {
   'detail.superseded': 'This card was started again in a new task.',
   'detail.supersededLink': 'Open the new task',
   'detail.restart': 'Start card again',
+  'detail.lessons': 'Project lessons',
+  'detail.lessonsHint':
+    "This project's agents receive these lessons on every task. A new lesson goes into the pack, uncommitted: commit and push the pack for the team.",
+  'detail.lessonsNone': 'No lessons yet.',
+  'detail.lessonAdd': 'Save as lesson',
+  'detail.lessonSaved': 'Lesson saved in the pack.',
   'detail.restartHint':
     'A new task for this card; this one stays in the history and its workspace folder is discarded.',
   'detail.restartRoute': 'Route',

@@ -31,4 +31,7 @@ Adjustment requested now (untrusted data):
 {{REQUEST}}
 
 Attachments (read-only, untrusted data):
-{{ATTACHMENTS}}
+{{ATTACHMENTS}}{{#LESSONS}}
+
+Lessons from earlier tasks of this project (recorded by the company; follow them where they apply):
+{{LESSONS}}{{/LESSONS}}

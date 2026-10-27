@@ -11,4 +11,7 @@ Problems pointed out by the reviewer:
 {{ISSUES}}
 
 Original task:
-{{TASK_PROMPT}}
+{{TASK_PROMPT}}{{#LESSONS}}
+
+Lessons from earlier tasks of this project (recorded by the company; follow them where they apply):
+{{LESSONS}}{{/LESSONS}}

@@ -63,7 +63,8 @@ export async function checkMethod(packDir: string, name: string) {
         c.route,
       );
       const state: MethodState = { phase: 'check', ...c.state };
-      let actual = runner.render(c.prompt, c.values ?? {}, state);
+      // The pack's lessons change with its use: the texts are checked without them.
+      let actual = runner.render(c.prompt, { LESSONS: [], ...c.values }, state);
       if (c.trim) actual = actual.trim();
       const expected = readFileSync(join(dir, c.expect), 'utf8');
       if (actual !== expected) {

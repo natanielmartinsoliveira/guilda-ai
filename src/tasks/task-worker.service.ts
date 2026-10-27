@@ -51,6 +51,7 @@ import {
 } from '../evidence/evidence';
 import { evidenceDir, kitDir } from '../evidence/evidence-store';
 import { renderPrompt } from '../prompts/prompt-files';
+import { projectLessons } from '../prompts/lessons';
 import { language, t } from '../i18n';
 import { loadMethod } from '../methods/method';
 import { routeFromAnswer, routeQuestion } from '../methods/route-choice';
@@ -603,7 +604,12 @@ export class TaskWorkerService implements OnModuleInit {
   }
   /** A prompt of the project, its company pack or the core (the first that has it). */
   private render(ctx: WorkContext, template: string, values: Record<string, string>) {
-    return renderPrompt(template, values, ctx.tenant.packDir, ctx.cfg.id);
+    return renderPrompt(
+      template,
+      { LESSONS: projectLessons(ctx.tenant.packDir, ctx.cfg.id), ...values },
+      ctx.tenant.packDir,
+      ctx.cfg.id,
+    );
   }
   /** mount: where the agent sees them (the sandbox mount, or the task folder in a workspace). */
   private listAttachments(attachments?: AgentInput['attachments'], mount = ATTACHMENTS_MOUNT) {

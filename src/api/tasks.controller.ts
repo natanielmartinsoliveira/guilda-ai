@@ -59,6 +59,7 @@ function evidenceView(value: unknown) {
 import { OperatorGuard, OperatorRequest } from './api-token.guard';
 import { credentialStatus, roleTargets } from '../agents/agent-router.service';
 import { taskMetrics } from '../tasks/metrics';
+import { addLesson, projectLessons } from '../prompts/lessons';
 import { restartRefusal } from '../tasks/orchestrator.service';
 import { JiraPoller } from '../sources/jira/jira.poller';
 import { ChangeFeed } from './change-feed';
@@ -524,6 +525,39 @@ export class TasksController {
       res.status('skipped' in result ? 200 : 202);
       return result;
     });
+  }
+  /** What the company learned on this project (lessons/ in its pack), as agents receive it. */
+  @Get('tenants/:tenant/projects/:project/lessons')
+  lessons(@Param('tenant') tenantId: string, @Param('project') projectId: string) {
+    const tenant = this.tenant(tenantId);
+    if (!tenant.projects.some((p) => p.id === projectId))
+      throw new NotFoundException('Projeto desconhecido');
+    return { lessons: projectLessons(tenant.packDir, projectId), pack: !!tenant.packDir };
+  }
+  /** A lesson the operator records (from a failure or a stop): appended to the pack, uncommitted. */
+  @Post('tenants/:tenant/projects/:project/lessons')
+  async addLesson(
+    @Param('tenant') tenantId: string,
+    @Param('project') projectId: string,
+    @Body() body: unknown,
+  ) {
+    const tenant = this.tenant(tenantId);
+    if (!tenant.projects.some((p) => p.id === projectId))
+      throw new NotFoundException('Projeto desconhecido');
+    if (!tenant.packDir) throw new BadRequestException('Lições ficam no pack da empresa');
+    const parsed = z
+      .object({ text: z.string().trim().min(3).max(1000), taskId: z.uuid().optional() })
+      .safeParse(body);
+    if (!parsed.success) throw new BadRequestException('Escreva a lição (3 a 1000 caracteres)');
+    const task = parsed.data.taskId
+      ? await this.db.getRepository(Task).findOneBy({ id: parsed.data.taskId, tenantId: tenant.id })
+      : null;
+    const issue = task ? await this.db.getRepository(Issue).findOneBy({ id: task.issueId }) : null;
+    const origin = [issue?.externalKey, new Date().toISOString().slice(0, 10)]
+      .filter(Boolean)
+      .join(', ');
+    const lesson = addLesson(tenant.packDir, projectId, parsed.data.text, origin);
+    return { lesson, lessons: projectLessons(tenant.packDir, projectId) };
   }
   /** For a sub-task of a source that has them: the branches it may start from. */
   @Get('tenants/:tenant/sources/:source/cards/:key/bases')

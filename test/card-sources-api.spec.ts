@@ -159,3 +159,17 @@ test('again restarts the card; a card that cannot be restarted is a 409 with the
   expect(refused.status).toBe(409);
   expect((await refused.json()).message).toMatch(/PR\/MR/);
 });
+
+test('lessons: a tenant without a pack lists none and cannot record; an unknown project is a 404', async () => {
+  const list = await fetch(`${url}/tenants/acme/projects/demo/lessons`, { headers: auth });
+  expect(list.status).toBe(200);
+  expect(await list.json()).toEqual({ lessons: [], pack: false });
+  const add = await fetch(`${url}/tenants/acme/projects/demo/lessons`, {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ text: 'rode o composer pelo wrapper' }),
+  });
+  expect(add.status).toBe(400);
+  const unknown = await fetch(`${url}/tenants/acme/projects/nope/lessons`, { headers: auth });
+  expect(unknown.status).toBe(404);
+});

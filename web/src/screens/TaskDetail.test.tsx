@@ -265,3 +265,34 @@ test('a superseded task links to the new one and offers no restart', async () =>
   expect(await screen.findByText('Abrir a tarefa nova')).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Refazer' })).toBeNull();
 });
+test('lessons: the project lessons are listed and a failure becomes a new one in the pack', async () => {
+  vi.spyOn(api, 'task').mockResolvedValue({
+    ...rehearsed(),
+    error: 'composer: command not found\nmais',
+  });
+  vi.spyOn(api, 'lessons').mockResolvedValue({ lessons: ['use a imagem com gd'], pack: true });
+  const add = vi
+    .spyOn(api, 'addLesson')
+    .mockResolvedValue({
+      lesson: 'x',
+      lessons: ['use a imagem com gd', 'rode o composer pelo wrapper'],
+    });
+  show();
+  expect(await screen.findByText('use a imagem com gd')).toBeTruthy();
+  const box = screen.getByLabelText('Guardar como lição') as HTMLTextAreaElement;
+  // prefilled with the first line of the task's failure
+  expect(box.value).toBe('composer: command not found');
+  await userEvent.clear(box);
+  await userEvent.type(box, 'rode o composer pelo wrapper');
+  await userEvent.click(screen.getByRole('button', { name: 'Guardar como lição' }));
+  expect(add).toHaveBeenCalledWith('initech', 'svc', 'rode o composer pelo wrapper', 't1');
+  expect(await screen.findByText('rode o composer pelo wrapper')).toBeTruthy();
+  expect(screen.getByText('Lição guardada no pack.')).toBeTruthy();
+});
+test('lessons: a company without a pack shows no lessons section', async () => {
+  vi.spyOn(api, 'task').mockResolvedValue(rehearsed());
+  vi.spyOn(api, 'lessons').mockResolvedValue({ lessons: [], pack: false });
+  show();
+  await screen.findByText(/Ensaio concluído — nada foi publicado/);
+  expect(screen.queryByText('Lições do projeto')).toBeNull();
+});

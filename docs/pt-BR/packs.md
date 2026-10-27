@@ -57,6 +57,12 @@ Qualquer prompt do núcleo (`prompts/*.md`: `coder.md`, `fixer.md`, `code-review
 
 Vale o primeiro que existir (projeto → pacote → núcleo). Os `{{PLACEHOLDERS}}` são os mesmos do prompt do núcleo; os desconhecidos ficam como estão.
 
+## Lições
+
+O que a empresa aprendeu rodando as tarefas de um projeto fica no pack, para o time compartilhar pelo git: `lessons/<projeto>.md` para um projeto e `lessons/_all.md` para todos, uma linha `- ` por lição. Todo prompt de agente daquele projeto recebe essas lições (as mais novas que cabem em 8 KB). Os prompts de um método escolhem onde elas entram com `{{#LESSONS}}…{{LESSONS}}…{{/LESSONS}}`; o `method:check` renderiza sem elas.
+
+**Guardar como lição**, na tela da tarefa (já preenchido com a falha da tarefa), acrescenta uma lição no arquivo do projeto, sem commit, com o card e a data: confira, commite e faça push do pack.
+
 ## Formatos
 
 Em `formats:` do `company.yaml` (e, para um projeto, em `formats:` do projeto, campo a campo):

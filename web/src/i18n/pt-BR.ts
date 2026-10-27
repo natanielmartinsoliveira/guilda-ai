@@ -126,6 +126,12 @@ export const ptBR = {
   'detail.superseded': 'Este card foi refeito numa tarefa nova.',
   'detail.supersededLink': 'Abrir a tarefa nova',
   'detail.restart': 'Refazer card',
+  'detail.lessons': 'Lições do projeto',
+  'detail.lessonsHint':
+    'Os agentes deste projeto recebem estas lições em toda tarefa. Uma lição nova fica no pack, sem commit: commite e faça push do pack para o time.',
+  'detail.lessonsNone': 'Nenhuma lição ainda.',
+  'detail.lessonAdd': 'Guardar como lição',
+  'detail.lessonSaved': 'Lição guardada no pack.',
   'detail.restartHint':
     'Uma tarefa nova para este card; esta fica no histórico e a pasta dela no workspace é descartada.',
   'detail.restartRoute': 'Rota',
