@@ -82,7 +82,14 @@ const methodFile = z
     commits: z.enum(['method', 'core']).default('core'),
     /** refuse: an adjustment request on a task of the method is refused. */
     revisions: z.enum(['allow', 'refuse']).default('allow'),
-    hooks: z.object({ prepare: inside.optional(), advance: inside.optional() }).default({}),
+    /** telemetry: after the phases; its JSON (MethodTelemetry) is kept on the task. */
+    hooks: z
+      .object({
+        prepare: inside.optional(),
+        advance: inside.optional(),
+        telemetry: inside.optional(),
+      })
+      .default({}),
     /**
      * What the method's agent needs with nobody to approve it: folders it may read besides the
      * task folder (absolute, or "~/…" in the workspace HOME, e.g. its skills' plugin cache) and
@@ -105,8 +112,10 @@ const methodFile = z
               .regex(/^[A-Za-z]+(\([^()\n\r,]*\))?$/, 'allowedTools: "Tool" or "Tool(rule)"'),
           )
           .default([]),
+        /** Keep the CLI's session transcripts (the method's own tools read them, e.g. telemetry). */
+        sessions: z.boolean().default(false),
       })
-      .default({ addDirs: [], allowedTools: [] }),
+      .default({ addDirs: [], allowedTools: [], sessions: false }),
     messages: z.record(z.string(), z.string()).default({}),
     /** A promoted rehearsal publishes the delivery without these paths (the method's own). */
     publish: z.object({ exclude: z.array(z.string().min(1)).default([]) }).default({ exclude: [] }),
@@ -222,3 +231,25 @@ export function methodProblems(
     problems.push(`project "${project.id}": method ${method.name} runs in a coder workspace`);
   return problems;
 }
+const tokens = z.number().int().nonnegative();
+/**
+ * What a method's telemetry hook reports: per agent of the method, how many runs, how many of
+ * them it could measure, their time and tokens.
+ */
+export const methodTelemetry = z.object({
+  agents: z.record(
+    z.string().regex(/^[A-Za-z0-9._:-]{1,100}$/),
+    z.object({
+      runs: tokens,
+      measured: tokens,
+      durationMs: z.number().nonnegative(),
+      input: tokens,
+      output: tokens,
+      cacheCreation: tokens,
+      cacheRead: tokens,
+    }),
+  ),
+  /** Where the method's own reports are, in the task folder. */
+  reports: z.array(z.string().max(300)).max(50).default([]),
+});
+export type MethodTelemetry = z.infer<typeof methodTelemetry>;

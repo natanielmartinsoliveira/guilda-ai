@@ -30,6 +30,8 @@ export interface AgentInput {
   addDirs?: string[];
   /** A method's agent: tools/commands it may run with nobody to approve them. */
   allowedTools?: string[];
+  /** A method's agent: the CLI keeps its session transcripts (its tools read them). */
+  keepSessions?: boolean;
   timeoutMs: number;
 }
 export interface AgentResult {
@@ -46,6 +48,24 @@ export interface AgentResult {
   models?: string[];
   /** What the run cost, as the provider reports it (USD). */
   costUsd?: number;
+  /** Tokens, turns and time, as the provider reports them (counts only, never content). */
+  usage?: RunUsage;
+  /** The agent_runs row of the command that produced this result. */
+  runId?: string;
+}
+export interface TokenUsage {
+  input: number;
+  output: number;
+  cacheCreation: number;
+  cacheRead: number;
+}
+export interface RunUsage extends TokenUsage {
+  durationMs?: number;
+  /** Time spent waiting on the model's API, within durationMs. */
+  apiDurationMs?: number;
+  turns?: number;
+  /** Per model (the session's and its subagents'). */
+  byModel?: Record<string, TokenUsage & { costUsd?: number }>;
 }
 export interface AgentProvider {
   execute(input: AgentInput): Promise<AgentResult>;

@@ -4,7 +4,7 @@ import { Link } from 'react-router';
 import { api, ApiError } from '../api';
 import { phaseIndex, PHASES, stageLabel, statusLabel } from '../live';
 import { useLive } from '../LiveProvider';
-import type { RunView, TaskView } from '../types';
+import type { RunUsage, RunView, TaskView } from '../types';
 const ROLES: Record<string, Key> = {
   coder: 'role.coder',
   fixer: 'role.fixer',
@@ -16,10 +16,94 @@ const REVIEW: Record<string, Key> = {
   'changes-addressed': 'review.addressed',
   skipped: 'review.skipped',
 };
+function elapsed(ms: number) {
+  const seconds = Math.round(ms / 1000);
+  if (seconds < 60) return `${seconds} s`;
+  const minutes = Math.round(seconds / 60);
+  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+}
 function duration(run: RunView) {
   if (!run.finishedAt) return t('detail.running');
-  const seconds = Math.round((Date.parse(run.finishedAt) - Date.parse(run.startedAt)) / 1000);
-  return seconds < 60 ? `${seconds} s` : `${Math.round(seconds / 60)} min`;
+  return elapsed(Date.parse(run.finishedAt) - Date.parse(run.startedAt));
+}
+const tokens = (n: number) => n.toLocaleString();
+function Tokens({ usage }: { usage: RunUsage }) {
+  return (
+    <>
+      {t('detail.tokens', {
+        input: tokens(usage.input),
+        output: tokens(usage.output),
+        cacheRead: tokens(usage.cacheRead),
+        cacheCreation: tokens(usage.cacheCreation),
+      })}
+      {usage.turns ? ` · ${t('detail.turns', { n: usage.turns })}` : ''}
+    </>
+  );
+}
+function Metrics({ task }: { task: TaskView }) {
+  const m = task.metrics;
+  if (!m) return null;
+  return (
+    <section>
+      <h3>{t('detail.metrics')}</h3>
+      <ul>
+        <li>
+          {t('detail.time', {
+            total: elapsed(m.totalMs),
+            agent: elapsed(m.agentMs),
+            waiting: elapsed(m.waitingMs),
+            other: elapsed(m.otherMs),
+          })}
+        </li>
+        {m.waits.questions + m.waits.failures > 0 && <li>{t('detail.waits', m.waits)}</li>}
+        {task.usage && (
+          <li>
+            <Tokens usage={task.usage} />
+          </li>
+        )}
+        {Object.entries(task.usage?.byModel ?? {}).map(([model, u]) => (
+          <li key={model}>
+            {model}: <Tokens usage={u} />
+            {u.costUsd !== undefined ? ` · ${t('detail.cost', { usd: u.costUsd.toFixed(2) })}` : ''}
+          </li>
+        ))}
+        {Object.entries(m.phases)
+          .filter(([phase]) => phase)
+          .map(([phase, p]) => (
+            <li key={phase}>
+              {t('detail.phase', { phase, runs: p.runs, agent: elapsed(p.agentMs) })}
+              {p.usage ? (
+                <>
+                  {' · '}
+                  <Tokens usage={p.usage} />
+                </>
+              ) : (
+                ''
+              )}
+            </li>
+          ))}
+      </ul>
+      {task.methodTelemetry && !!Object.keys(task.methodTelemetry.agents).length && (
+        <>
+          <h4>{t('detail.methodAgents')}</h4>
+          <ul>
+            {Object.entries(task.methodTelemetry.agents)
+              .sort(([, a], [, b]) => b.input + b.output - (a.input + a.output))
+              .map(([agent, a]) => (
+                <li key={agent}>
+                  {t('detail.methodAgent', { agent, runs: a.runs, time: elapsed(a.durationMs) })}
+                  {a.measured < a.runs
+                    ? ` ${t('detail.methodFloor', { measured: a.measured })}`
+                    : ''}
+                  {' · '}
+                  <Tokens usage={a} />
+                </li>
+              ))}
+          </ul>
+        </>
+      )}
+    </section>
+  );
 }
 function ReviseForm({ tenant, id, onDone }: { tenant: string; id: string; onDone: () => void }) {
   const [instructions, setInstructions] = useState('');
@@ -323,13 +407,19 @@ export function TaskDetail({ tenant, id }: { tenant: string; id: string }) {
           </ul>
         </section>
       )}
+      <Metrics task={task} />
       {!!task.runs?.length && (
         <section>
           <h3>{t('detail.runs')}</h3>
           <ul>
             {task.runs.map((run, i) => (
               <li key={i}>
-                {run.agent} · {run.provider} · {run.status} · {duration(run)}
+                {run.agent}
+                {run.phase ? ` (${run.phase})` : ''} · {run.provider} · {run.status} ·{' '}
+                {duration(run)}
+                {run.usage
+                  ? ` · ${tokens(run.usage.input + run.usage.cacheRead + run.usage.cacheCreation)} → ${tokens(run.usage.output)}`
+                  : ''}
               </li>
             ))}
           </ul>

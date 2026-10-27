@@ -13,6 +13,7 @@ import { Notifications1780000000007 } from './migrations/1780000000007-notificat
 import { WebAuth1780000000008 } from './migrations/1780000000008-web-auth';
 import { SessionPassword1780000000009 } from './migrations/1780000000009-session-password';
 import { TaskCost1780000000010 } from './migrations/1780000000010-task-cost';
+import { RunUsage1780000000011 } from './migrations/1780000000011-run-usage';
 /**
  * Connections per process. In the worker each running task holds one (its session lock) for the
  * whole run, so the companies' worker.concurrency must fit in it (checked when the worker starts).
@@ -40,6 +41,7 @@ export function databaseOptions(): DataSourceOptions {
       WebAuth1780000000008,
       SessionPassword1780000000009,
       TaskCost1780000000010,
+      RunUsage1780000000011,
     ],
     synchronize: false,
     // A full pool fails the query after 30s instead of hanging the worker.

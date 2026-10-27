@@ -1,7 +1,7 @@
 import { DataSource } from 'typeorm';
 import { database, item } from './db';
 import { AgentRouter } from '../src/agents/agent-router.service';
-import { Decision, Task } from '../src/database/entities';
+import { AgentRun, Decision, Task } from '../src/database/entities';
 import { OrchestratorService } from '../src/tasks/orchestrator.service';
 import { TenantRegistry } from '../src/tenants/tenant-registry.service';
 import { findTenant, loadTenants } from '../src/tenants/tenants';
@@ -115,4 +115,66 @@ test('ai.budget.perTaskUsd is a positive number', () => {
     );
   expect(loadTenants(yaml('{ perTaskUsd: 15 }'))[0].ai.budget).toEqual({ perTaskUsd: 15 });
   expect(() => loadTenants(yaml('{ perTaskUsd: 0 }'))).toThrow(/perTaskUsd/);
+});
+
+test('each run keeps its usage and phase on its own row, and the task sums them', async () => {
+  const t = await task();
+  const runs = db.getRepository(AgentRun);
+  const row = async () =>
+    (
+      await runs.save({
+        taskId: t.id,
+        agent: 'coder',
+        provider: 'claude',
+        status: 'SUCCESS',
+        command: 'claude',
+        startedAt: new Date(),
+      })
+    ).id;
+  const usage = (input: number, model: string) => ({
+    input,
+    output: 1,
+    cacheCreation: 0,
+    cacheRead: 10,
+    durationMs: 1000,
+    turns: 2,
+    byModel: { [model]: { input, output: 1, cacheCreation: 0, cacheRead: 10 } },
+  });
+  const first = await row();
+  const second = await row();
+  const agents = {
+    execute: jest
+      .fn()
+      .mockResolvedValueOnce({ ...ok(0.5), runId: first, usage: usage(100, 'opus') })
+      .mockResolvedValueOnce({ ...ok(), runId: second, usage: usage(5, 'sonnet') }),
+  };
+  const router = new AgentRouter(db, agents as never);
+  const input = { taskId: t.id, tenantId: 'acme', workspace: '/w', prompt: 'p' };
+  const out = await router.run(
+    findTenant('acme')!,
+    'coder',
+    { ...input, phase: 'spec' },
+    jest.fn(),
+  );
+  expect(out.attempts[0].usage?.input).toBe(100);
+  await router.run(findTenant('acme')!, 'coder', { ...input, phase: 'deliver' }, jest.fn());
+  expect(await runs.findOneByOrFail({ id: first })).toMatchObject({
+    phase: 'spec',
+    usage: { input: 100 },
+  });
+  expect((await runs.findOneByOrFail({ id: second })).phase).toBe('deliver');
+  const saved = await db.getRepository(Task).findOneByOrFail({ id: t.id });
+  expect(Number(saved.costUsd)).toBeCloseTo(0.5);
+  expect(saved.usage).toEqual({
+    input: 105,
+    output: 2,
+    cacheCreation: 0,
+    cacheRead: 20,
+    durationMs: 2000,
+    turns: 4,
+    byModel: {
+      opus: { input: 100, output: 1, cacheCreation: 0, cacheRead: 10 },
+      sonnet: { input: 5, output: 1, cacheCreation: 0, cacheRead: 10 },
+    },
+  });
 });

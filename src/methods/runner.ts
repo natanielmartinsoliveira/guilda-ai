@@ -14,7 +14,7 @@ import type { TaskWorkspace } from '../workspaces/task-workspace';
 import type { CoderWorkspace } from '../workspaces/coder-workspace';
 import type { Tenant, TenantProject } from '../tenants/tenants';
 import { isApproval } from './approval';
-import { loadMethod, Method, MethodRoute, methodOptions, routeOf } from './method';
+import { loadMethod, Method, MethodRoute, methodOptions, methodTelemetry, routeOf } from './method';
 /** Where a task of a method stands; kept in the job result so a resumed run redoes nothing. */
 export interface MethodState {
   phase: string;
@@ -194,6 +194,11 @@ export class MethodRunner {
   }
   /** Runs a hook of the method in the task folder; its last stdout line (JSON) adds variables. */
   async hook(path: string, first: boolean) {
+    const out = await this.runHook(path, first);
+    if (out) Object.assign(this.vars, out);
+  }
+  /** A hook's last stdout line, when it is a JSON object. */
+  private async runHook(path: string, first: boolean) {
     const ws = this.ctx.ws;
     if (!this.uploaded) {
       await ws.remove(HOOKS_DIR);
@@ -213,6 +218,8 @@ export class MethodRunner {
         slug: this.task.branch,
         route: this.routeId,
         root: ws.root,
+        // The commit the task started from (what this task added is what changed since).
+        base: this.task.result?.baseSha,
         options: this.options,
         vars: this.vars,
       }),
@@ -225,9 +232,25 @@ export class MethodRunner {
     const last = r.stdout.trim().split('\n').pop() ?? '';
     try {
       const out = JSON.parse(last) as unknown;
-      if (out && typeof out === 'object' && !Array.isArray(out)) Object.assign(this.vars, out);
+      if (out && typeof out === 'object' && !Array.isArray(out))
+        return out as Record<string, unknown>;
     } catch {
       // A hook that prints no JSON adds no variables.
+    }
+    return undefined;
+  }
+  /** The method's own measurement of its agents (tokens, time): kept on the task, never fatal. */
+  async measure() {
+    if (!this.method.hooks.telemetry) return;
+    try {
+      const out = methodTelemetry.safeParse(await this.runHook(this.method.hooks.telemetry, false));
+      if (out.success) (this.task.result ??= {}).methodTelemetry = out.data;
+      else log('method.telemetry_invalid', { taskId: this.task.id });
+    } catch (error) {
+      log('method.telemetry_failed', {
+        taskId: this.task.id,
+        error: error instanceof Error ? error.message.slice(0, 300) : String(error),
+      });
     }
   }
   /** Prepare hook (every run), then the route's own hooks. */
@@ -306,8 +329,10 @@ export class MethodRunner {
           env: this.env(),
           addDirs: this.method.agent.addDirs,
           allowedTools: this.method.agent.allowedTools,
+          keepSessions: this.method.agent.sessions,
           timeoutMs: this.method.timeoutMinutes * 60000,
           prompt,
+          phase: ms.phase,
         },
         async () => {},
       );
@@ -407,6 +432,8 @@ export class MethodRunner {
       ms.phase = phase.next === undefined ? 'done' : nextOf(phase.next);
       await deps.db.getRepository(Task).save(task);
     }
+    await this.measure();
+    await deps.db.getRepository(Task).save(task);
     // The project's own tests and checks, as for any delivery (no fixer: the method owns the code).
     if (this.route.tests) await deps.tests();
     if (this.route.finish) {

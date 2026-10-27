@@ -125,6 +125,17 @@ export const ptBR = {
   'detail.cost': 'US$ {usd}',
   'detail.ai': 'IA',
   'detail.runs': 'Execuções',
+  'detail.metrics': 'Métricas',
+  'detail.time':
+    'Tempo total {total} · IA {agent} · esperando você {waiting} · fila, testes e git {other}',
+  'detail.waits': '{questions} pergunta(s) e {failures} falha(s) esperaram você',
+  'detail.tokens':
+    'Tokens: entrada {input} · saída {output} · cache lido {cacheRead} · cache criado {cacheCreation}',
+  'detail.turns': '{n} turnos',
+  'detail.phase': 'Fase {phase}: {runs} execução(ões), {agent}',
+  'detail.methodAgents': 'Agentes do método',
+  'detail.methodAgent': '{agent}: {runs} execução(ões), {time}',
+  'detail.methodFloor': '(só {measured} medida(s): é um piso)',
   'detail.rounds': '{n} rodada(s)',
   'detail.findings': '{n} achado(s) novo(s)',
   'detail.toolsFailed': '{n} ferramenta(s) não rodaram',

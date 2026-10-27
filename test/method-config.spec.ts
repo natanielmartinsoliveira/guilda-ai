@@ -79,6 +79,7 @@ test('a method declares what its agent may read and run without approval', async
   expect(loadMethod(FIXTURES, 'review-gate').agent).toEqual({
     addDirs: ['~/.method-tools'],
     allowedTools: ['Bash(python3 -B:*)', 'Bash(git status:*)'],
+    sessions: true,
   });
   const { cp, mkdtemp, readFile, writeFile, rm } = await import('node:fs/promises');
   const { tmpdir } = await import('node:os');

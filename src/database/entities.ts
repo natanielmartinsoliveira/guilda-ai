@@ -8,6 +8,7 @@ import {
   Index,
 } from 'typeorm';
 import type { Attachment } from '../attachments/attachments';
+import type { RunUsage } from '../agents/agent.types';
 /** One sub-task of a delivery: step 0 is the task itself, later steps become revisions. */
 export interface StepPlan {
   externalId: string;
@@ -119,6 +120,8 @@ export class Task extends Base {
   @Column({ default: 'QUEUED' }) stage!: string;
   /** What its AI runs cost, as the providers report it (kept across retries and answers). */
   @Column({ type: 'double precision', default: 0 }) costUsd!: number;
+  /** Tokens, turns and agent time of its AI runs, summed like costUsd. */
+  @Column({ type: 'jsonb', nullable: true }) usage!: RunUsage | null;
 }
 @Entity('agent_runs')
 export class AgentRun {
@@ -133,6 +136,10 @@ export class AgentRun {
   @Column({ type: 'integer', nullable: true }) exitCode!: number | null;
   @Column({ type: 'timestamptz' }) startedAt!: Date;
   @Column({ type: 'timestamptz', nullable: true }) finishedAt!: Date | null;
+  /** An AI run's tokens, turns and time, as its provider reported them. */
+  @Column({ type: 'jsonb', nullable: true }) usage!: RunUsage | null;
+  /** The method phase it ran in (spec, gate, deliver…). */
+  @Column({ type: 'varchar', nullable: true }) phase!: string | null;
 }
 @Entity('pull_requests')
 export class PullRequest extends Base {

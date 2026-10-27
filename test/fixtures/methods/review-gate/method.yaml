@@ -21,11 +21,14 @@ timeoutMinutes: 240
 agent:
   addDirs: ["~/.method-tools"]
   allowedTools: ["Bash(python3 -B:*)", "Bash(git status:*)"]
+  # its telemetry reads the CLI's session transcripts
+  sessions: true
 commits: method
 revisions: refuse
 hooks:
   prepare: hooks/prepare.py
   advance: hooks/advance.py
+  telemetry: hooks/telemetry.py
 messages:
   noRoute: "Review gate: the task has no route (feature, screen or fix)"
   noSpecRoot: "review-gate.json has no spec_root: add it to the file in your clone"

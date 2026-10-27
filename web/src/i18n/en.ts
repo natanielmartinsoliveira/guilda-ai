@@ -126,6 +126,17 @@ export const en: Record<Key, string> = {
   'detail.cost': 'US$ {usd}',
   'detail.ai': 'AI',
   'detail.runs': 'Runs',
+  'detail.metrics': 'Metrics',
+  'detail.time':
+    'Total time {total} · AI {agent} · waiting for you {waiting} · queue, tests and git {other}',
+  'detail.waits': '{questions} question(s) and {failures} failure(s) waited for you',
+  'detail.tokens':
+    'Tokens: input {input} · output {output} · cache read {cacheRead} · cache written {cacheCreation}',
+  'detail.turns': '{n} turns',
+  'detail.phase': 'Phase {phase}: {runs} run(s), {agent}',
+  'detail.methodAgents': 'Method agents',
+  'detail.methodAgent': '{agent}: {runs} run(s), {time}',
+  'detail.methodFloor': '(only {measured} measured: a floor)',
   'detail.rounds': '{n} round(s)',
   'detail.findings': '{n} new finding(s)',
   'detail.toolsFailed': '{n} tool(s) did not run',

@@ -6,7 +6,7 @@ import { TaskWorkerService } from '../src/tasks/task-worker.service';
 import { TenantRegistry } from '../src/tenants/tenant-registry.service';
 import { AgentRouter } from '../src/agents/agent-router.service';
 import { Decision, Task } from '../src/database/entities';
-import { authorization, authorizationFor } from './fixtures/method-ws';
+import { authorization, authorizationFor, METHOD_TELEMETRY } from './fixtures/method-ws';
 import { config } from '../src/config';
 let db: DataSource;
 beforeEach(async () => {
@@ -181,7 +181,14 @@ async function setup(route: Route | undefined, script: Script = {}) {
   const prompts = () =>
     agents.execute.mock.calls.map(
       (c) =>
-        c[1] as { prompt: string; role: string; timeoutMs: number; env?: Record<string, string> },
+        c[1] as {
+          prompt: string;
+          role: string;
+          timeoutMs: number;
+          env?: Record<string, string>;
+          phase?: string;
+          keepSessions?: boolean;
+        },
     );
   /** The tracker events of the task, in order (their types, phases with their board step). */
   const events = () =>
@@ -262,6 +269,8 @@ test('feature: the specification step leaves the specification for review; adjus
   expect(deliver.prompt.startsWith('Deliver the scope')).toBe(true);
   expect(deliver.prompt).toContain(`«${authorization(x.task.branch, true)}»`);
   expect(deliver.timeoutMs).toBe(240 * 60000);
+  // each agent run is tagged with the method phase it ran in
+  expect(x.prompts().map((p) => p.phase)).toEqual(['spec', 'spec', 'deliver']);
   expect(deliver.env).toMatchObject({
     GIT_AUTHOR_NAME: expect.any(String),
     GIT_COMMITTER_EMAIL: expect.any(String),
@@ -296,6 +305,10 @@ test('feature: the specification step leaves the specification for review; adjus
   expect(task.result!.rehearsal).toMatchObject({
     files: [`${SPEC}/rules/desconto.md`, 'src/x.php'],
   });
+  // the method's telemetry hook ran after its phases, its report kept on the task; its agent
+  // kept the session transcripts that telemetry reads
+  expect(task.result!.methodTelemetry).toEqual(METHOD_TELEMETRY);
+  expect(x.prompts().every((p) => p.keepSessions)).toBe(true);
 });
 test('a specification step that writes outside the specification root is a stop, never a commit', async () => {
   const x = await setup('feature', { analyseWrites: [`${SPEC}/a.md`, 'app/Models/X.php'] });

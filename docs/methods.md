@@ -35,9 +35,11 @@ revisions: refuse # refuse: a change request on a task of the method is refused
 agent: # what the method's agent needs with nobody to approve it
   addDirs: ['~/.claude/plugins'] # folders it may read ("~/" = the workspace HOME)
   allowedTools: ['Bash(python3 -B:*)', 'Bash(git status:*)'] # Claude permission rules
+  sessions: true # keep the CLI's session transcripts (the method's tools read them); default false
 hooks:
   prepare: hooks/prepare.py # every run, after the branch is prepared
   advance: hooks/advance.py # when a rehearsal finishes
+  telemetry: hooks/telemetry.py # after the phases: the method's own count per agent
 messages: # the method's error texts
   noRoute: '…'
 routes:
@@ -113,8 +115,13 @@ A plain **Retry** of a failed task of a method resumes the phase it stopped in, 
 ## Scripts (hooks)
 
 - They run in the task folder in the workspace, with `python3` (`.py`) or `sh`, with the method's `env` and git's safety settings (no git hooks, no global config, no prompts).
-- They get a JSON on stdin: `first`, `taskId`, `project`, `slug`, `route`, `root` (the tasks folder), `options` and `vars`.
+- They get a JSON on stdin: `first`, `taskId`, `project`, `slug`, `route`, `root` (the tasks folder), `base` (the commit the task started from), `options` and `vars`.
 - The last stdout line, when it is a JSON object, becomes `{{vars.*}}`. A non-zero exit stops the task with the script's message.
+- `telemetry` is the exception: its JSON is kept on the task and shown in the panel's metrics, and a failure is only logged. Its shape: `{ "agents": { "<agent>": { "runs", "measured", "durationMs", "input", "output", "cacheCreation", "cacheRead" } }, "reports": ["<path>"] }`, where `measured` is how many of the runs it could count (below `runs`, the totals are a floor).
+
+## Metrics
+
+Every AI run keeps on its `agent_runs` row the tokens (input, output, cache read and written, per model), turns and time its CLI reported (counts only, never content, so also for Coder workspaces), and the method phase it ran in. The task sums them. The task view shows where the time went: the agents' own runs, the time decisions waited for the person, and the rest (queue, retry delays, tests, checks, git).
 
 ## Checking a method: `method:check`
 

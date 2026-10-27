@@ -37,6 +37,28 @@ export interface AgentAttempt {
   usedModels?: string[];
   /** What the run cost (USD), as the provider reported it. */
   costUsd?: number;
+  usage?: RunUsage;
+}
+export interface TokenUsage {
+  input: number;
+  output: number;
+  cacheCreation: number;
+  cacheRead: number;
+}
+export interface RunUsage extends TokenUsage {
+  durationMs?: number;
+  apiDurationMs?: number;
+  turns?: number;
+  byModel?: Record<string, TokenUsage & { costUsd?: number }>;
+}
+/** Where the task's wall-clock went (milliseconds). */
+export interface TaskMetrics {
+  totalMs: number;
+  agentMs: number;
+  waitingMs: number;
+  otherMs: number;
+  waits: { questions: number; failures: number };
+  phases: Record<string, { runs: number; agentMs: number; usage?: RunUsage }>;
 }
 export interface RevisionView {
   id: string;
@@ -58,11 +80,21 @@ export interface RunView {
   exitCode: number | null;
   startedAt: string;
   finishedAt: string | null;
+  phase?: string;
+  usage?: RunUsage;
 }
 export interface TaskView {
   id: string;
   /** What the task's AI runs cost so far (USD). */
   costUsd?: number;
+  /** Tokens, turns and agent time of its AI runs so far. */
+  usage?: RunUsage;
+  metrics?: TaskMetrics;
+  /** Per agent of the method, as the method's own telemetry counted it. */
+  methodTelemetry?: {
+    agents: Record<string, TokenUsage & { runs: number; measured: number; durationMs: number }>;
+    reports: string[];
+  };
   tenantId: string;
   project?: string;
   branch: string;

@@ -146,3 +146,66 @@ test('the models Claude really used come from modelUsage in its JSON result', as
   expect(r.models).toEqual(['claude-opus-5-5', 'claude-sonnet-5-5']);
   expect(r.costUsd).toBe(0.42);
 });
+test('tokens, turns and time come from its JSON result: modelUsage summed across models', async () => {
+  const { provider, input, ws } = remote();
+  ws.run.mockImplementation(async (argv: string[]) => {
+    if (argv[0] === 'claude' && argv[1] === '--help') return ok(HELP);
+    if (argv[0] === 'claude')
+      return ok(
+        JSON.stringify({
+          result: 'Feito.',
+          duration_ms: 90000,
+          duration_api_ms: 60000,
+          num_turns: 12,
+          usage: { input_tokens: 1, output_tokens: 1 },
+          modelUsage: {
+            'claude-sonnet-5-5': {
+              inputTokens: 100,
+              outputTokens: 20,
+              cacheReadInputTokens: 1000,
+              cacheCreationInputTokens: 50,
+              costUSD: 0.1,
+            },
+            'claude-opus-5-5': { inputTokens: 10, outputTokens: 5, costUSD: 0.3 },
+          },
+        }),
+      );
+    return ok('same\n');
+  });
+  const r = await provider.execute(input);
+  expect(r.usage).toEqual({
+    input: 110,
+    output: 25,
+    cacheCreation: 50,
+    cacheRead: 1000,
+    durationMs: 90000,
+    apiDurationMs: 60000,
+    turns: 12,
+    byModel: {
+      'claude-opus-5-5': { input: 10, output: 5, cacheCreation: 0, cacheRead: 0, costUsd: 0.3 },
+      'claude-sonnet-5-5': {
+        input: 100,
+        output: 20,
+        cacheCreation: 50,
+        cacheRead: 1000,
+        costUsd: 0.1,
+      },
+    },
+  });
+});
+test('without modelUsage the top-level usage counts; nothing measured is no usage', async () => {
+  const { claudeUsage } = await import('../src/agents/claude.provider');
+  expect(
+    claudeUsage({ usage: { input_tokens: 3, output_tokens: 4, cache_read_input_tokens: 5 } }, []),
+  ).toEqual({ input: 3, output: 4, cacheCreation: 0, cacheRead: 5 });
+  expect(claudeUsage({ result: 'x' }, [])).toBeUndefined();
+  expect(claudeUsage(undefined, [])).toBeUndefined();
+});
+test('a method that reads the session transcripts keeps them; otherwise none are kept', async () => {
+  const kept = remote();
+  await kept.provider.execute({ ...kept.input, keepSessions: true });
+  expect(kept.claudeCall()[0]).not.toContain('--no-session-persistence');
+  const plain = remote();
+  await plain.provider.execute(plain.input);
+  expect(plain.claudeCall()[0]).toContain('--no-session-persistence');
+});

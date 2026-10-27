@@ -9,6 +9,21 @@ export const EXAMPLE_METHOD = {
   options: { configFrom: '/workspaces/svc', pythonPath: '/workspaces/.ai-dev-team/pylib' },
 };
 const HOOKS = resolve(__dirname, 'methods/review-gate/hooks');
+/** What the example method's telemetry hook reports. */
+export const METHOD_TELEMETRY = {
+  agents: {
+    implementer: {
+      runs: 2,
+      measured: 2,
+      durationMs: 600000,
+      input: 1000,
+      output: 200,
+      cacheCreation: 10,
+      cacheRead: 5000,
+    },
+  },
+  reports: ['docs/telemetry/20261015T120000Z.json'],
+};
 const ok = (stdout: string) => ({ success: true, exitCode: 0, stdout, stderr: '' });
 /**
  * A workspace `run` for method tests: the prepare hook answers with the review-gate.json fields
@@ -43,6 +58,7 @@ export function methodRun(config: () => Record<string, unknown>) {
       };
     }
     if (hook === 'advance.py') return ok('{"advanced":true}');
+    if (hook === 'telemetry.py') return ok(JSON.stringify(METHOD_TELEMETRY));
     return ok('tests ok');
   });
 }

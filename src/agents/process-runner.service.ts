@@ -116,6 +116,6 @@ export class ProcessRunnerService {
       status: result.success ? 'SUCCESS' : 'FAILED',
       exitCode: result.exitCode,
     });
-    return result;
+    return record ? { ...result, runId: record.id } : result;
   }
 }

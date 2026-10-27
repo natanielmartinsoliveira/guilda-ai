@@ -34,9 +34,11 @@ revisions: refuse # refuse: pedido de ajuste numa tarefa do método é recusado
 agent: # o que o agente do método precisa sem ninguém para aprovar
   addDirs: ['~/.claude/plugins'] # pastas que ele pode ler ("~/" = HOME do workspace)
   allowedTools: ['Bash(python3 -B:*)', 'Bash(git status:*)'] # regras de permissão do Claude
+  sessions: true # mantém os transcripts de sessão da CLI (as ferramentas do método leem); padrão false
 hooks:
   prepare: hooks/prepare.py # toda execução, depois de preparar a branch
   advance: hooks/advance.py # quando um ensaio termina
+  telemetry: hooks/telemetry.py # depois das fases: a contagem do próprio método por agente
 messages: # textos de erro do método
   noRoute: '…'
 routes:
@@ -116,8 +118,13 @@ O **Repetir** simples de uma tarefa de método que falhou retoma a fase em que e
 ## Scripts (hooks)
 
 - Rodam na pasta da tarefa no workspace, com `python3` (`.py`) ou `sh`, e com o `env` do método.
-- Recebem no stdin um JSON: `first`, `taskId`, `project`, `slug`, `route`, `root` (pasta das tarefas), `options` e `vars`.
+- Recebem no stdin um JSON: `first`, `taskId`, `project`, `slug`, `route`, `root` (pasta das tarefas), `base` (o commit de onde a tarefa partiu), `options` e `vars`.
 - A última linha do stdout, se for um objeto JSON, vira `{{vars.*}}`. Saída diferente de 0 interrompe a tarefa com a mensagem do script.
+- O `telemetry` é a exceção: o JSON dele fica na tarefa e aparece nas métricas do painel, e uma falha só vai para o log. Formato: `{ "agents": { "<agente>": { "runs", "measured", "durationMs", "input", "output", "cacheCreation", "cacheRead" } }, "reports": ["<caminho>"] }`. `measured` diz quantas execuções ele conseguiu contar; abaixo de `runs`, os totais são um piso.
+
+## Métricas
+
+Cada execução de IA guarda na sua linha de `agent_runs` os tokens (entrada, saída, cache lido e criado, por modelo), os turnos e o tempo que a CLI informou (só números, nunca conteúdo, então também nos workspaces Coder) e a fase do método em que rodou. A tarefa soma tudo. A tela da tarefa mostra para onde foi o tempo: as execuções dos agentes, o tempo em que decisões esperaram a pessoa e o resto (fila, espera entre tentativas, testes, checks, git).
 
 ## Conferir o método: `method:check`
 

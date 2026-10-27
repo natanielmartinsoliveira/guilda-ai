@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { config, log, redact, TaskError } from '../config';
-import { CredentialState, Decision, Task } from '../database/entities';
+import { AgentRun, CredentialState, Decision, Task } from '../database/entities';
 import { t } from '../i18n';
 import { isApproval } from '../methods/approval';
 import { NeedsInput } from '../tasks/decisions';
 import { AiCredential, AiEffort, AiRole, Tenant } from '../tenants/tenants';
 import { AgentService } from './agent.service';
-import { AgentInput, AgentResult } from './agent.types';
+import { AgentInput, AgentResult, RunUsage } from './agent.types';
 import { classifyFailure, FailureKind, retryAfterMinutes } from './failure';
 export interface AgentAttempt {
   credential: string;
@@ -21,8 +21,44 @@ export interface AgentAttempt {
   usedModels?: string[];
   /** What the run cost (USD), as the provider reported it. */
   costUsd?: number;
+  /** Tokens, turns and time, as the provider reported them. */
+  usage?: RunUsage;
 }
 const BUDGET_MARK = '💰';
+const plus = (a: number | undefined, b: number | undefined) =>
+  a === undefined && b === undefined ? undefined : (a ?? 0) + (b ?? 0);
+/** A task's running total: tokens, turns and time summed, per model too. */
+export function addUsage(total: RunUsage | null | undefined, run: RunUsage): RunUsage {
+  const t = total ?? { input: 0, output: 0, cacheCreation: 0, cacheRead: 0 };
+  const byModel = { ...t.byModel };
+  for (const [model, u] of Object.entries(run.byModel ?? {})) {
+    const m = byModel[model] ?? { input: 0, output: 0, cacheCreation: 0, cacheRead: 0 };
+    const costUsd = plus(m.costUsd, u.costUsd);
+    byModel[model] = {
+      input: m.input + u.input,
+      output: m.output + u.output,
+      cacheCreation: m.cacheCreation + u.cacheCreation,
+      cacheRead: m.cacheRead + u.cacheRead,
+      ...(costUsd !== undefined ? { costUsd } : {}),
+    };
+  }
+  const sum: RunUsage = {
+    input: t.input + run.input,
+    output: t.output + run.output,
+    cacheCreation: t.cacheCreation + run.cacheCreation,
+    cacheRead: t.cacheRead + run.cacheRead,
+  };
+  const durationMs = plus(t.durationMs, run.durationMs);
+  const apiDurationMs = plus(t.apiDurationMs, run.apiDurationMs);
+  const turns = plus(t.turns, run.turns);
+  return {
+    ...sum,
+    ...(durationMs !== undefined ? { durationMs } : {}),
+    ...(apiDurationMs !== undefined ? { apiDurationMs } : {}),
+    ...(turns !== undefined ? { turns } : {}),
+    ...(Object.keys(byModel).length ? { byModel } : {}),
+  };
+}
 const usd = (n: number) => n.toFixed(2);
 /** Every credential is out of capacity: the task should wait, not fail. */
 export class CapacityError extends TaskError {
@@ -58,6 +94,8 @@ export type RouterInput = Omit<
 > & {
   /** Overrides the provider's default (e.g. a method route carrying a whole scope). */
   timeoutMs?: number;
+  /** The method phase this run belongs to, kept on its agent_runs row. */
+  phase?: string;
 };
 export interface RoleTarget {
   credential: AiCredential;
@@ -103,11 +141,23 @@ export class AgentRouter {
    * A task at its budget does not start another run: it asks to release one more share. Each
    * answered budget question that approved (its option, or a plain approval) adds one share.
    */
-  /** Adds a run's cost to its task (one run per task at a time: no race). */
-  private async addCost(taskId: string, costUsd: number) {
+  /**
+   * Adds a run's cost and usage to its task (one run per task at a time: no race), and keeps
+   * the usage and phase on the run's own row.
+   */
+  private async account(taskId: string, result: AgentResult, phase?: string) {
+    if (result.runId && (result.usage || phase))
+      await this.db
+        .getRepository(AgentRun)
+        .update(result.runId, { usage: result.usage ?? null, phase: phase ?? null });
+    if (!result.costUsd && !result.usage) return;
     const tasks = this.db.getRepository(Task);
     const task = await tasks.findOneBy({ id: taskId });
-    if (task) await tasks.update(taskId, { costUsd: Number(task.costUsd ?? 0) + costUsd });
+    if (!task) return;
+    await tasks.update(taskId, {
+      costUsd: Number(task.costUsd ?? 0) + (result.costUsd ?? 0),
+      ...(result.usage ? { usage: addUsage(task.usage, result.usage) } : {}),
+    });
   }
   private async checkBudget(tenant: Tenant, taskId: string) {
     const share = tenant.ai.budget?.perTaskUsd;
@@ -180,9 +230,10 @@ export class AgentRouter {
         outcome,
         ...(result.models?.length ? { usedModels: result.models } : {}),
         ...(result.costUsd !== undefined ? { costUsd: result.costUsd } : {}),
+        ...(result.usage ? { usage: result.usage } : {}),
       };
       attempts.push(attempt);
-      if (result.costUsd) await this.addCost(input.taskId, result.costUsd);
+      await this.account(input.taskId, result, input.phase);
       if (outcome === 'success' || outcome === 'task') return { result, credential, attempts };
       attempt.error = redact(result.errorText ?? result.stderr).slice(-500);
       await this.park(tenant, credential, outcome, result);

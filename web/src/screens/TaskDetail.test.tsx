@@ -169,3 +169,52 @@ test('the AI used shows what each run cost and the task total', async () => {
   expect(await screen.findByText(/US\$ 1\.75/)).toBeTruthy();
   expect(screen.getByText(/US\$ 1\.25/)).toBeTruthy();
 });
+test('metrics: where the time went, the tokens per model and per method phase', async () => {
+  const usage = { input: 1200, output: 300, cacheCreation: 50, cacheRead: 9000, turns: 14 };
+  vi.spyOn(api, 'task').mockResolvedValue({
+    ...rehearsed(),
+    usage: { ...usage, byModel: { 'claude-opus-5-5': { ...usage, costUsd: 0.4 } } },
+    metrics: {
+      totalMs: 3 * 3600000,
+      agentMs: 90 * 60000,
+      waitingMs: 60 * 60000,
+      otherMs: 30 * 60000,
+      waits: { questions: 2, failures: 1 },
+      phases: { deliver: { runs: 2, agentMs: 75 * 60000, usage } },
+    },
+    methodTelemetry: {
+      agents: {
+        'task-implementer': { ...usage, runs: 3, measured: 2, durationMs: 20 * 60000 },
+      },
+      reports: [],
+    },
+    runs: [
+      {
+        agent: 'coder',
+        provider: 'claude',
+        status: 'SUCCESS',
+        exitCode: 0,
+        phase: 'deliver',
+        usage,
+        startedAt: '2026-10-10T10:00:00Z',
+        finishedAt: '2026-10-10T10:30:00Z',
+      },
+    ],
+  });
+  show();
+  expect(
+    await screen.findByText(
+      'Tempo total 3 h 0 min · IA 1 h 30 min · esperando você 1 h 0 min · fila, testes e git 30 min',
+    ),
+  ).toBeTruthy();
+  expect(screen.getByText('2 pergunta(s) e 1 falha(s) esperaram você')).toBeTruthy();
+  expect(screen.getByText(/^claude-opus-5-5: Tokens: entrada 1.200/)).toBeTruthy();
+  expect(screen.getByText(/US\$ 0\.40/)).toBeTruthy();
+  expect(screen.getByText(/^Fase deliver: 2 execução\(ões\), 1 h 15 min · Tokens/)).toBeTruthy();
+  expect(screen.getByText(/coder \(deliver\) · claude · SUCCESS · 30 min/)).toBeTruthy();
+  expect(
+    screen.getByText(
+      /^task-implementer: 3 execução\(ões\), 20 min \(só 2 medida\(s\): é um piso\)/,
+    ),
+  ).toBeTruthy();
+});

@@ -58,6 +58,7 @@ function evidenceView(value: unknown) {
 }
 import { OperatorGuard, OperatorRequest } from './api-token.guard';
 import { credentialStatus, roleTargets } from '../agents/agent-router.service';
+import { taskMetrics } from '../tasks/metrics';
 import { JiraPoller } from '../sources/jira/jira.poller';
 import { ChangeFeed } from './change-feed';
 const decisionAnswer = z.union([
@@ -605,9 +606,11 @@ export class TasksController {
     const runs = await this.db
       .getRepository(AgentRun)
       .find({ where: { taskId: task.id }, order: { startedAt: 'ASC' }, take: 200 });
+    const decisions = await this.db.getRepository(Decision).findBy({ taskId: task.id });
     // Commands and output can carry prompts and secrets: only what happened, and when.
     return {
       ...view,
+      metrics: taskMetrics(task, runs, decisions),
       runs: runs.map((r) => ({
         agent: r.agent,
         provider: r.provider,
@@ -615,6 +618,8 @@ export class TasksController {
         exitCode: r.exitCode,
         startedAt: r.startedAt,
         finishedAt: r.finishedAt,
+        ...(r.phase ? { phase: r.phase } : {}),
+        ...(r.usage ? { usage: r.usage } : {}),
       })),
     };
   }
@@ -655,6 +660,9 @@ export class TasksController {
         attempts: t.attempts,
         error: t.error,
         costUsd: Number(t.costUsd ?? 0),
+        usage: t.usage ?? undefined,
+        // Per agent of the method, as its own telemetry counted it.
+        methodTelemetry: t.result?.methodTelemetry,
         prUrl: t.result?.prUrl,
         agentAttempts: t.result?.agentAttempts,
         // Rehearsal (nothing published): where to look in the company's workspace.

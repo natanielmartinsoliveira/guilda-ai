@@ -1,5 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { AgentInput, AgentProvider, AgentResult, ATTACHMENTS_MOUNT } from './agent.types';
+import {
+  AgentInput,
+  AgentProvider,
+  AgentResult,
+  ATTACHMENTS_MOUNT,
+  RunUsage,
+  TokenUsage,
+} from './agent.types';
 /** Matches CLAUDE_CONFIG_DIR set by the sandbox. */
 const CLAUDE_HOME = '/home/agent/.claude';
 const HARNESS_INSTRUCTIONS = '/home/agent/harness-instructions.md';
@@ -87,7 +94,7 @@ export class ClaudeProvider implements AgentProvider {
     // hooks and plugins live — come only from the throwaway home, and MCP servers declared by
     // the repository are ignored. The tenant harness is the only customization added.
     const optional = [
-      '--no-session-persistence',
+      ...(input.keepSessions ? [] : ['--no-session-persistence']),
       ...(help.includes('--setting-sources') ? ['--setting-sources', sources] : []),
       '--strict-mcp-config',
     ].filter((flag) => !flag.startsWith('--') || help.includes(flag));
@@ -227,6 +234,8 @@ export class ClaudeProvider implements AgentProvider {
     const cost = (raw as { total_cost_usd?: unknown } | undefined)?.total_cost_usd;
     if (typeof cost === 'number' && Number.isFinite(cost) && cost >= 0)
       result = { ...result, costUsd: cost };
+    const runUsage = claudeUsage(raw, models);
+    if (runUsage) result = { ...result, usage: runUsage };
     // The final JSON carries the API error (credits, limits) even when the exit code is non-zero.
     const errorText = raw?.is_error
       ? [raw.api_error_status && `status ${raw.api_error_status}`, raw.result]
@@ -238,4 +247,65 @@ export class ClaudeProvider implements AgentProvider {
     if (raw.is_error) return { ...result, success: false, raw, errorText };
     return { ...result, raw, message: typeof raw.result === 'string' ? raw.result : undefined };
   }
+}
+const count = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : 0);
+const optionalCount = (v: unknown) =>
+  typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined;
+const sum = (parts: TokenUsage[]): TokenUsage =>
+  parts.reduce(
+    (a, p) => ({
+      input: a.input + p.input,
+      output: a.output + p.output,
+      cacheCreation: a.cacheCreation + p.cacheCreation,
+      cacheRead: a.cacheRead + p.cacheRead,
+    }),
+    { input: 0, output: 0, cacheCreation: 0, cacheRead: 0 },
+  );
+/**
+ * Tokens and time from Claude's JSON result. modelUsage covers the session and its subagents
+ * (a method's agents run as subagents), so its sum is the total; the top-level usage is the fallback.
+ */
+export function claudeUsage(raw: unknown, models: string[]): RunUsage | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const perModel = (r.modelUsage ?? {}) as Record<string, Record<string, unknown>>;
+  const byModel = Object.fromEntries(
+    models.map((m) => {
+      const u = perModel[m] ?? {};
+      const costUsd = optionalCount(u.costUSD);
+      return [
+        m,
+        {
+          input: count(u.inputTokens),
+          output: count(u.outputTokens),
+          cacheCreation: count(u.cacheCreationInputTokens),
+          cacheRead: count(u.cacheReadInputTokens),
+          ...(costUsd !== undefined ? { costUsd } : {}),
+        },
+      ];
+    }),
+  );
+  const top = (r.usage ?? {}) as Record<string, unknown>;
+  const tokens = models.length
+    ? sum(Object.values(byModel))
+    : {
+        input: count(top.input_tokens),
+        output: count(top.output_tokens),
+        cacheCreation: count(top.cache_creation_input_tokens),
+        cacheRead: count(top.cache_read_input_tokens),
+      };
+  const durationMs = optionalCount(r.duration_ms);
+  const apiDurationMs = optionalCount(r.duration_api_ms);
+  const turns = optionalCount(r.num_turns);
+  const measured =
+    tokens.input + tokens.output + tokens.cacheCreation + tokens.cacheRead > 0 ||
+    durationMs !== undefined;
+  if (!measured) return undefined;
+  return {
+    ...tokens,
+    ...(durationMs !== undefined ? { durationMs } : {}),
+    ...(apiDurationMs !== undefined ? { apiDurationMs } : {}),
+    ...(turns !== undefined ? { turns } : {}),
+    ...(models.length ? { byModel } : {}),
+  };
 }
