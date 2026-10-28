@@ -707,7 +707,12 @@ export function withProjectDefaults<T>(company: T, stacks?: StackSource): T {
         const file = stacks(ref.name);
         if (!plain(file))
           throw new Error(`tenants: project "${id}": stack "${ref.name}" not found (stacks/)`);
-        const { vars: stackVars = {}, ...settings } = file;
+        // vars fill the placeholders; detect (root files that suggest the stack, for
+        // npm run project:add) is not a setting either.
+        const stackVars = file.vars ?? {};
+        const settings = { ...file };
+        delete settings.vars;
+        delete settings.detect;
         const whole = over(defaults, own) as Record<string, any>;
         const vars = {
           ...(plain(stackVars) ? (stackVars as Record<string, string>) : {}),

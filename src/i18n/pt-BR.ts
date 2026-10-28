@@ -71,6 +71,18 @@ export const ptBR = {
     'Pacotes das empresas: URLs git ou pastas, separados por espaço (vazio mantém: {current})',
   'setup.none': 'nenhum',
   'setup.cloning': 'Clonando {url} em {dir}',
+  'project.usage':
+    'Uso: npm run project:add -- <pasta do pack> <URL do repositório> [--id <id>] [--stack <stack>] [--yes]',
+  'project.hostFailed': 'O host não respondeu ({error}): sigo com o que a empresa já tem',
+  'project.loaded': 'prepare: {prepare}',
+  'project.test': 'test: {test}',
+  'project.confirm': 'Gravar este projeto em {file}?',
+  'project.cancelled': 'Nada foi gravado.',
+  'project.saved': 'Projeto {id} gravado em {file} (sem commit: confira e commite o pack).',
+  'project.cloneOk': 'O clone {path} existe no workspace.',
+  'project.cloneMissing':
+    'O clone {path} não está no workspace (ou o Coder não respondeu): clone o repositório lá antes da primeira tarefa.',
+  'project.next': 'Depois: commite o pack, reinicie o worker e rode um card de teste do projeto.',
   'setup.packExists': 'Usando {dir} (já existe; atualize com git pull quando quiser)',
   'setup.cloneFailed': 'Não consegui clonar {url}: {error}',
   'setup.notPack': '{dir} não é um pacote: falta o company.yaml',

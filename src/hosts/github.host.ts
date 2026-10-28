@@ -56,6 +56,21 @@ export class GithubHost implements CodeHost {
       throw error;
     }
   }
+  async repositoryInfo(repository: string) {
+    try {
+      const repo = await this.request<{ default_branch?: string }>(repository, '');
+      const branch = repo?.default_branch;
+      if (!branch) return undefined;
+      const root = await this.request<{ name: string }[]>(
+        repository,
+        `/contents?ref=${encodeURIComponent(branch)}`,
+      );
+      return { defaultBranch: branch, files: (root ?? []).map((f) => f.name) };
+    } catch (error) {
+      if (error instanceof TaskError && error.message.endsWith(' returned 404')) return undefined;
+      throw error;
+    }
+  }
   async pullRequestComments(repository: string, number: number, since?: string) {
     const after = since ? `&since=${encodeURIComponent(since)}` : '';
     // Conversation comments (the issue side of the PR) and comments on lines of code.

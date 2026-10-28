@@ -49,4 +49,10 @@ export interface CodeHost {
   pullRequestComments(repository: string, number: number, since?: string): Promise<ReviewComment[]>;
   /** Last commit date (ISO) of a branch; undefined when the branch does not exist. */
   branchDate(repository: string, branch: string): Promise<string | undefined>;
+  /** The default branch and the names at its root; undefined when the repository is unknown. */
+  repositoryInfo?(repository: string): Promise<RepositoryInfo | undefined>;
+}
+export interface RepositoryInfo {
+  defaultBranch: string;
+  files: string[];
 }

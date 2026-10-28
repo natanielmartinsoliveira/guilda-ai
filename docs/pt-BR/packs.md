@@ -106,6 +106,14 @@ projects:
 
 Ordem: `projectDefaults`, depois a stack, depois os valores do próprio projeto (que ganham: um projeto ainda pode escrever o seu `test`). Além das `vars`, uma stack pode usar `{{id}}`, `{{repository}}` e `{{reference}}` (a do workspace). Um placeholder sem valor, ou uma stack que não existe, interrompe a carga citando o projeto.
 
+### Acrescentar um projeto: `npm run project:add`
+
+```bash
+npm run project:add -- ~/guilda-packs/acme https://git.acme.test/shop/billing [--id billing] [--stack php-docker] [--yes]
+```
+
+Ele acha o host da empresa pela URL (https, `git@` ou `ssh://`), pergunta a ele a branch padrão e os arquivos da raiz, escolhe a stack cujos arquivos de `detect` o repositório tem (um arquivo de stack pode listá-los: `detect: [composer.json]`; a stack do `projectDefaults` não é repetida) e tira o `workspace.reference` de onde os outros projetos guardam os clones. Depois carrega o pack com o projeto novo numa cópia e mostra o bloco curto, com o `prepare` e o `test` que ele recebe e o que conferir. Respondendo sim (ou com `--yes`), o bloco entra no fim de `projects:` no `company.yaml`, com os comentários preservados e sem commit; com workspace Coder, ele também confere se o clone está lá.
+
 ## Lições
 
 O que a empresa aprendeu rodando as tarefas de um projeto fica no pack, para o time compartilhar pelo git: `lessons/<projeto>.md` para um projeto e `lessons/_all.md` para todos, uma linha `- ` por lição. Todo prompt de agente daquele projeto recebe essas lições (as mais novas que cabem em 8 KB). Os prompts de um método escolhem onde elas entram com `{{#LESSONS}}…{{LESSONS}}…{{/LESSONS}}`; o `method:check` renderiza sem elas.

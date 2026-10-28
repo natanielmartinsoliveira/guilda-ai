@@ -137,6 +137,21 @@ export class BitbucketHost implements CodeHost {
       throw error;
     }
   }
+  async repositoryInfo(repository: string) {
+    try {
+      const repo = await this.request<{ mainbranch?: { name?: string } }>(repository, '');
+      const branch = repo?.mainbranch?.name;
+      if (!branch) return undefined;
+      const root = await this.request<{ values?: { path: string }[] }>(
+        repository,
+        `/src/${encodeURIComponent(branch)}/?pagelen=100`,
+      );
+      return { defaultBranch: branch, files: (root?.values ?? []).map((f) => f.path) };
+    } catch (error) {
+      if (error instanceof TaskError && error.message.endsWith(' returned 404')) return undefined;
+      throw error;
+    }
+  }
   async commentOnPullRequest(repository: string, number: number, body: string) {
     await this.request(repository, `/pullrequests/${number}/comments`, 'POST', {
       content: { raw: body },

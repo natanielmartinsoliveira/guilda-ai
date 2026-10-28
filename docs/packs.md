@@ -110,6 +110,14 @@ projects:
 
 Order: `projectDefaults`, then the stack, then the project's own values (which win: a project may still write its own `test`). Besides `vars`, a stack can use `{{id}}`, `{{repository}}` and `{{reference}}` (the workspace's). A placeholder without a value, or an unknown stack, stops the load naming the project.
 
+### Adding a project: `npm run project:add`
+
+```bash
+npm run project:add -- ~/guilda-packs/acme https://git.acme.test/shop/billing [--id billing] [--stack php-docker] [--yes]
+```
+
+It finds the company's host for the URL (https, `git@` or `ssh://`), asks it for the default branch and the root files, picks the stack whose `detect` files the repository has (a stack file may list them: `detect: [composer.json]`; the defaults' stack is not repeated), and takes `workspace.reference` from where the other projects keep their clones. The pack is then loaded with the new project in a copy, and the short block is shown with the `prepare` and `test` it ends up with, and what to check. Answer yes (or pass `--yes`) and it is appended to `projects:` in `company.yaml`, comments kept, uncommitted; with a Coder workspace it also checks that the clone is there.
+
 ## Lessons
 
 What the company learned running a project's tasks lives in the pack, so the team shares it through git: `lessons/<project>.md` for one project and `lessons/_all.md` for every project, one `- ` line per lesson. Every agent prompt of that project receives them (the newest that fit 8 KB). A method's prompts place them with `{{#LESSONS}}…{{LESSONS}}…{{/LESSONS}}`; `method:check` renders without them.

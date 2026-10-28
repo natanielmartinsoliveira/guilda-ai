@@ -72,6 +72,18 @@ export const en: Record<MessageKey, string> = {
   'setup.packs': 'Company packs: git URLs or folders, separated by spaces (empty keeps: {current})',
   'setup.none': 'none',
   'setup.cloning': 'Cloning {url} into {dir}',
+  'project.usage':
+    'Usage: npm run project:add -- <pack folder> <repository URL> [--id <id>] [--stack <stack>] [--yes]',
+  'project.hostFailed': 'The host did not answer ({error}): going on with what the company has',
+  'project.loaded': 'prepare: {prepare}',
+  'project.test': 'test: {test}',
+  'project.confirm': 'Write this project into {file}?',
+  'project.cancelled': 'Nothing was written.',
+  'project.saved': 'Project {id} written into {file} (uncommitted: check and commit the pack).',
+  'project.cloneOk': 'The clone {path} is in the workspace.',
+  'project.cloneMissing':
+    'The clone {path} is not in the workspace (or Coder did not answer): clone the repository there before the first task.',
+  'project.next': 'Then: commit the pack, restart the worker and run a test card of the project.',
   'setup.packExists': 'Using {dir} (already there; update it with git pull when you want)',
   'setup.cloneFailed': 'Could not clone {url}: {error}',
   'setup.notPack': '{dir} is not a pack: company.yaml is missing',

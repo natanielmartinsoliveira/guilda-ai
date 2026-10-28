@@ -178,6 +178,20 @@ export class GitlabHost implements CodeHost {
       throw error;
     }
   }
+  async repositoryInfo(repository: string) {
+    try {
+      const project = await this.request<{ default_branch?: string }>(this.project(repository));
+      const branch = project?.default_branch;
+      if (!branch) return undefined;
+      const tree = await this.request<{ name: string }[]>(
+        `${this.project(repository)}/repository/tree?ref=${encodeURIComponent(branch)}&per_page=100`,
+      );
+      return { defaultBranch: branch, files: (tree ?? []).map((f) => f.name) };
+    } catch (error) {
+      if (error instanceof TaskError && error.message.endsWith(' returned 404')) return undefined;
+      throw error;
+    }
+  }
   /** opened, merged, closed or locked. */
   async mergeRequestState(repository: string, number: number) {
     const mr = await this.request<{ state?: string }>(
