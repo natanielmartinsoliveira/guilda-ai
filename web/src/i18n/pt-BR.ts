@@ -132,6 +132,12 @@ export const ptBR = {
   'detail.lessonsNone': 'Nenhuma lição ainda.',
   'detail.lessonAdd': 'Guardar como lição',
   'detail.lessonSaved': 'Lição guardada no pack.',
+  'detail.suggestions': 'Sugestões automáticas',
+  'detail.suggestionsHint':
+    'Paradas que você respondeu e falhas que se repetiram neste projeto. Ajuste o texto e guarde, ou descarte: uma sugestão descartada não volta.',
+  'detail.suggestionCount': '{n} vez(es)',
+  'detail.suggestionSave': 'Guardar',
+  'detail.suggestionDismiss': 'Descartar',
   'detail.restartHint':
     'Uma tarefa nova para este card; esta fica no histórico e a pasta dela no workspace é descartada.',
   'detail.restartRoute': 'Rota',

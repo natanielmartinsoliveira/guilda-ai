@@ -260,6 +260,24 @@ export class WebSession extends Base {
   @Column({ type: 'varchar', nullable: true }) userAgent!: string | null;
   @Column({ type: 'timestamptz', nullable: true }) lastSeenAt!: Date | null;
 }
+/**
+ * A lesson the system noticed on a project (a stop the operator answered, a failure that keeps
+ * coming back), waiting for the operator to save it into the pack or dismiss it.
+ */
+@Entity('lesson_suggestions')
+@Index(['tenantId', 'projectKey', 'signature'], { unique: true })
+export class LessonSuggestion extends Base {
+  @Column() tenantId!: string;
+  @Column() projectKey!: string;
+  /** The problem with what changes from task to task (ids, numbers, paths) taken out. */
+  @Column() signature!: string;
+  @Column('text') problem!: string;
+  /** How the operator answered it last (a stop's answer; none for a bare failure). */
+  @Column({ type: 'text', nullable: true }) answer!: string | null;
+  @Column({ type: 'integer', default: 1 }) count!: number;
+  @Column({ type: 'jsonb', default: () => "'[]'" }) taskIds!: string[];
+  @Column({ default: 'open' }) status!: 'open' | 'saved' | 'dismissed';
+}
 export const entities = [
   Project,
   Issue,
@@ -273,4 +291,5 @@ export const entities = [
   Notification,
   WebLogin,
   WebSession,
+  LessonSuggestion,
 ];

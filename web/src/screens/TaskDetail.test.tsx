@@ -270,13 +270,15 @@ test('lessons: the project lessons are listed and a failure becomes a new one in
     ...rehearsed(),
     error: 'composer: command not found\nmais',
   });
-  vi.spyOn(api, 'lessons').mockResolvedValue({ lessons: ['use a imagem com gd'], pack: true });
-  const add = vi
-    .spyOn(api, 'addLesson')
-    .mockResolvedValue({
-      lesson: 'x',
-      lessons: ['use a imagem com gd', 'rode o composer pelo wrapper'],
-    });
+  vi.spyOn(api, 'lessons').mockResolvedValue({
+    lessons: ['use a imagem com gd'],
+    pack: true,
+    suggestions: [],
+  });
+  const add = vi.spyOn(api, 'addLesson').mockResolvedValue({
+    lesson: 'x',
+    lessons: ['use a imagem com gd', 'rode o composer pelo wrapper'],
+  });
   show();
   expect(await screen.findByText('use a imagem com gd')).toBeTruthy();
   const box = screen.getByLabelText('Guardar como lição') as HTMLTextAreaElement;
@@ -291,8 +293,47 @@ test('lessons: the project lessons are listed and a failure becomes a new one in
 });
 test('lessons: a company without a pack shows no lessons section', async () => {
   vi.spyOn(api, 'task').mockResolvedValue(rehearsed());
-  vi.spyOn(api, 'lessons').mockResolvedValue({ lessons: [], pack: false });
+  vi.spyOn(api, 'lessons').mockResolvedValue({ lessons: [], pack: false, suggestions: [] });
   show();
   await screen.findByText(/Ensaio concluído — nada foi publicado/);
   expect(screen.queryByText('Lições do projeto')).toBeNull();
+});
+test('automatic suggestions: saved as worded (edited) or dismissed, and they leave the list', async () => {
+  vi.spyOn(api, 'task').mockResolvedValue(rehearsed());
+  const suggestion = (id: string, text: string) => ({
+    id,
+    problem: text,
+    answer: 'use o slug -cert',
+    count: 2,
+    text,
+    taskIds: ['t1'],
+  });
+  vi.spyOn(api, 'lessons').mockResolvedValue({
+    lessons: [],
+    pack: true,
+    suggestions: [
+      suggestion('s1', 'slug já é registro → use o slug -cert'),
+      suggestion('s2', 'outra'),
+    ],
+  });
+  const rule = vi
+    .spyOn(api, 'ruleSuggestion')
+    .mockResolvedValueOnce({ status: 'saved', lessons: ['a auditoria usa o slug -cert'] })
+    .mockResolvedValueOnce({ status: 'dismissed' });
+  show();
+  expect(await screen.findByText('Sugestões automáticas')).toBeTruthy();
+  expect(screen.getAllByText('2 vez(es)')).toHaveLength(2);
+  const [first] = screen.getAllByLabelText('Guardar') as HTMLTextAreaElement[];
+  expect(first.value).toBe('slug já é registro → use o slug -cert');
+  await userEvent.clear(first);
+  await userEvent.type(first, 'a auditoria usa o slug -cert');
+  await userEvent.click(screen.getAllByRole('button', { name: 'Guardar' })[0]);
+  expect(rule).toHaveBeenCalledWith('initech', 'svc', 's1', {
+    action: 'save',
+    text: 'a auditoria usa o slug -cert',
+  });
+  expect(await screen.findByText('a auditoria usa o slug -cert')).toBeTruthy();
+  await userEvent.click(screen.getByRole('button', { name: 'Descartar' }));
+  expect(rule).toHaveBeenLastCalledWith('initech', 'svc', 's2', { action: 'dismiss' });
+  await vi.waitFor(() => expect(screen.queryByText('Sugestões automáticas')).toBeNull());
 });

@@ -52,6 +52,7 @@ import {
 import { evidenceDir, kitDir } from '../evidence/evidence-store';
 import { renderPrompt } from '../prompts/prompt-files';
 import { projectLessons } from '../prompts/lessons';
+import { captureLesson } from '../prompts/lesson-capture';
 import { language, t } from '../i18n';
 import { loadMethod } from '../methods/method';
 import { routeFromAnswer, routeQuestion } from '../methods/route-choice';
@@ -386,6 +387,8 @@ export class TaskWorkerService implements OnModuleInit {
         }
       });
       log(`${kind}.failed`, { ...ids, status: job.status, error: job.error, retry });
+      // A failure that keeps coming back on the project becomes a suggested lesson.
+      if (!retry && job.error) await captureLesson(this.db, run.outbox.taskId, job.error);
       // Failed delivery retained in DLQ; a retry has its own durable outbox record.
       settle(() => channel.nack(message, false, false));
       if (job.status === 'FAILED') await run.failed(job.error);

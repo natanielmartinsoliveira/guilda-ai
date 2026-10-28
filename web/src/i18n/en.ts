@@ -133,6 +133,12 @@ export const en: Record<Key, string> = {
   'detail.lessonsNone': 'No lessons yet.',
   'detail.lessonAdd': 'Save as lesson',
   'detail.lessonSaved': 'Lesson saved in the pack.',
+  'detail.suggestions': 'Automatic suggestions',
+  'detail.suggestionsHint':
+    'Stops you answered and failures that repeated on this project. Adjust the text and save, or dismiss: a dismissed suggestion never comes back.',
+  'detail.suggestionCount': '{n} time(s)',
+  'detail.suggestionSave': 'Save',
+  'detail.suggestionDismiss': 'Dismiss',
   'detail.restartHint':
     'A new task for this card; this one stays in the history and its workspace folder is discarded.',
   'detail.restartRoute': 'Route',

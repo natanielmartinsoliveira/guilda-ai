@@ -67,6 +67,8 @@ What the company learned running a project's tasks lives in the pack, so the tea
 
 **Save as lesson** on the task screen (prefilled with the task's failure) appends one to the project's file, uncommitted, with the card and the date: review it, then commit and push the pack.
 
+**Automatic suggestions.** The system notices lessons on its own: a stop of a method's agent the operator answered (the problem, then the answer) is suggested at once; a final failure is counted per project, with ids, numbers, paths and `quoted` names left out, and suggested once the same one happens 3 times. Suggestions stay in the database until the operator rules on them in the task screen's **Project lessons**: **Save** writes the (editable) text into the pack like any lesson, **Dismiss** keeps it from coming back. Nothing reaches the prompts without that step.
+
 ## Formats
 
 In `formats:` of `company.yaml` (and, for one project, in the project's `formats:`, field by field):

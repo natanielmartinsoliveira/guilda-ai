@@ -3,6 +3,7 @@ import type {
   DecisionAnswer,
   DecisionView,
   StartResult,
+  LessonSuggestion,
   SubtaskBases,
   TaskView,
   Tenant,
@@ -93,8 +94,18 @@ export const api = {
       }),
     ),
   lessons: (tenant: string, project: string) =>
-    call<{ lessons: string[]; pack: boolean }>(
+    call<{ lessons: string[]; pack: boolean; suggestions: LessonSuggestion[] }>(
       `${tenantPath(tenant)}/projects/${encodeURIComponent(project)}/lessons`,
+    ),
+  ruleSuggestion: (
+    tenant: string,
+    project: string,
+    id: string,
+    rule: { action: 'save'; text: string } | { action: 'dismiss' },
+  ) =>
+    call<{ status: string; lessons?: string[] }>(
+      `${tenantPath(tenant)}/projects/${encodeURIComponent(project)}/lessons/suggestions/${encodeURIComponent(id)}`,
+      post(rule),
     ),
   addLesson: (tenant: string, project: string, text: string, taskId?: string) =>
     call<{ lesson: string; lessons: string[] }>(

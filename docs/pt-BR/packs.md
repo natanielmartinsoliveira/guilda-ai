@@ -63,6 +63,8 @@ O que a empresa aprendeu rodando as tarefas de um projeto fica no pack, para o t
 
 **Guardar como lição**, na tela da tarefa (já preenchido com a falha da tarefa), acrescenta uma lição no arquivo do projeto, sem commit, com o card e a data: confira, commite e faça push do pack.
 
+**Sugestões automáticas.** O sistema percebe lições sozinho: uma parada do agente de um método que você respondeu (o problema e a sua resposta) vira sugestão na hora; uma falha final é contada por projeto, sem ids, números, caminhos e nomes `entre crases`, e vira sugestão quando a mesma acontece 3 vezes. As sugestões ficam no banco até você decidir, em **Lições do projeto** na tela da tarefa: **Guardar** grava o texto (editável) no pack como qualquer lição, **Descartar** impede que ela volte. Nada chega aos prompts sem esse passo.
+
 ## Formatos
 
 Em `formats:` do `company.yaml` (e, para um projeto, em `formats:` do projeto, campo a campo):

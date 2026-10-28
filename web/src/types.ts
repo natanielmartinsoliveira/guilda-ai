@@ -174,6 +174,16 @@ export type DecisionAnswer =
   | { answers: string[] }
   | { action: 'retry' | 'cancel' }
   | { action: 'retry_with_instructions'; instructions: string };
+/** A lesson the system noticed (an answered stop, a failure that repeats), for the operator. */
+export interface LessonSuggestion {
+  id: string;
+  problem: string;
+  answer: string | null;
+  count: number;
+  /** The lesson as it would be saved: the problem, then how it was answered. */
+  text: string;
+  taskIds: string[];
+}
 export type StartResult = { taskId: string } | { skipped: string; taskId?: string };
 /** Where a sub-task started on its own may begin (story branch, sibling branches). */
 export type SubtaskBases =

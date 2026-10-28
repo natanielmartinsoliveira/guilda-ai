@@ -9,6 +9,7 @@ import type { AgentRouter } from '../agents/agent-router.service';
 import type { GitService } from '../git/git.service';
 import { fillTemplate, TemplateValues } from '../prompts/prompt-files';
 import { projectLessons } from '../prompts/lessons';
+import { captureLesson } from '../prompts/lesson-capture';
 import { parseTag } from '../tasks/pr-description';
 import { NeedsInput } from '../tasks/decisions';
 import type { TaskWorkspace } from '../workspaces/task-workspace';
@@ -356,8 +357,11 @@ export class MethodRunner {
       }
       // The operator's answer to the question this task left open, if any.
       const by = ms.askedBy;
+      const asked = ms.asked;
       let reply = await answer();
       ms.askedBy = undefined;
+      // A stop of the method's agent the operator answered: a lesson in the making.
+      if (reply && asked && by && by !== 'ask') await captureLesson(deps.db, task.id, asked, reply);
       if (reply && by && by !== 'ask') {
         ms[by] = [...(ms[by] ?? []), reply];
         reply = undefined;

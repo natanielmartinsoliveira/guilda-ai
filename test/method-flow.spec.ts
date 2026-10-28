@@ -5,7 +5,7 @@ import { OrchestratorService } from '../src/tasks/orchestrator.service';
 import { TaskWorkerService } from '../src/tasks/task-worker.service';
 import { TenantRegistry } from '../src/tenants/tenant-registry.service';
 import { AgentRouter } from '../src/agents/agent-router.service';
-import { Decision, Task } from '../src/database/entities';
+import { Decision, LessonSuggestion, Task } from '../src/database/entities';
 import { authorization, authorizationFor, METHOD_TELEMETRY } from './fixtures/method-ws';
 import { config } from '../src/config';
 let db: DataSource;
@@ -282,6 +282,11 @@ test('feature: the specification step leaves the specification for review; adjus
   expect(stop.questions![0].options).toEqual(['Use valid_until (recomendado)', 'Use expires_at']);
   await x.run();
   expect(x.prompts()[3].prompt).toContain('use valid_until');
+  // the answered stop became a suggested lesson of the project; the gates did not
+  const noticed = await db.getRepository(LessonSuggestion).find();
+  expect(noticed).toHaveLength(1);
+  expect(noticed[0].problem).toContain('Decide the field name');
+  expect(noticed[0].answer).toBe('use valid_until');
   task = await x.reload();
   expect(task.status).toBe('SUCCESS');
   expect(task.stage).toBe('REHEARSED');
@@ -328,6 +333,10 @@ test('a delivery that leaves files uncommitted fails, listing them; the AI Dev T
   expect(task.error).toContain('app/Leftover.php');
   expect(x.git.commit).not.toHaveBeenCalled();
   expect(x.git.commitPaths).not.toHaveBeenCalled();
+  // the final failure is counted on the project (suggested only once it repeats)
+  const [noticed] = await db.getRepository(LessonSuggestion).find();
+  expect(noticed).toMatchObject({ count: 1, answer: null, taskIds: [x.task.id] });
+  expect(noticed.problem).toContain('app/Leftover.php');
 });
 test('a review-gate.json without spec_root stops clearly (focus 3)', async () => {
   const x = await setup('feature', { config: {} });

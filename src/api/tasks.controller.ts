@@ -34,7 +34,15 @@ import {
   revisionFolder,
   saveAttachments,
 } from '../attachments/attachments';
-import { AgentRun, Decision, Issue, Project, Revision, Task } from '../database/entities';
+import {
+  AgentRun,
+  Decision,
+  Issue,
+  LessonSuggestion,
+  Project,
+  Revision,
+  Task,
+} from '../database/entities';
 import { API_SOURCE, findTenant, ROLES, tenants, Tenant } from '../tenants/tenants';
 import {
   DecisionAnswer,
@@ -60,6 +68,7 @@ import { OperatorGuard, OperatorRequest } from './api-token.guard';
 import { credentialStatus, roleTargets } from '../agents/agent-router.service';
 import { taskMetrics } from '../tasks/metrics';
 import { addLesson, projectLessons } from '../prompts/lessons';
+import { lessonText, visible } from '../prompts/lesson-capture';
 import { restartRefusal } from '../tasks/orchestrator.service';
 import { JiraPoller } from '../sources/jira/jira.poller';
 import { ChangeFeed } from './change-feed';
@@ -528,11 +537,27 @@ export class TasksController {
   }
   /** What the company learned on this project (lessons/ in its pack), as agents receive it. */
   @Get('tenants/:tenant/projects/:project/lessons')
-  lessons(@Param('tenant') tenantId: string, @Param('project') projectId: string) {
-    const tenant = this.tenant(tenantId);
-    if (!tenant.projects.some((p) => p.id === projectId))
-      throw new NotFoundException('Projeto desconhecido');
-    return { lessons: projectLessons(tenant.packDir, projectId), pack: !!tenant.packDir };
+  async lessons(@Param('tenant') tenantId: string, @Param('project') projectId: string) {
+    const tenant = this.projectOf(tenantId, projectId);
+    const open = await this.db
+      .getRepository(LessonSuggestion)
+      .find({ where: { tenantId: tenant.id, projectKey: projectId, status: 'open' } });
+    return {
+      lessons: projectLessons(tenant.packDir, projectId),
+      pack: !!tenant.packDir,
+      // Noticed by the system: answered stops at once, bare failures once they repeat.
+      suggestions: open
+        .filter(visible)
+        .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+        .map((x) => ({
+          id: x.id,
+          problem: x.problem,
+          answer: x.answer,
+          count: x.count,
+          text: lessonText(x),
+          taskIds: x.taskIds,
+        })),
+    };
   }
   /** A lesson the operator records (from a failure or a stop): appended to the pack, uncommitted. */
   @Post('tenants/:tenant/projects/:project/lessons')
@@ -541,9 +566,7 @@ export class TasksController {
     @Param('project') projectId: string,
     @Body() body: unknown,
   ) {
-    const tenant = this.tenant(tenantId);
-    if (!tenant.projects.some((p) => p.id === projectId))
-      throw new NotFoundException('Projeto desconhecido');
+    const tenant = this.projectOf(tenantId, projectId);
     if (!tenant.packDir) throw new BadRequestException('Lições ficam no pack da empresa');
     const parsed = z
       .object({ text: z.string().trim().min(3).max(1000), taskId: z.uuid().optional() })
@@ -558,6 +581,46 @@ export class TasksController {
       .join(', ');
     const lesson = addLesson(tenant.packDir, projectId, parsed.data.text, origin);
     return { lesson, lessons: projectLessons(tenant.packDir, projectId) };
+  }
+  /** A suggested lesson: saved into the pack (as the operator worded it) or dismissed for good. */
+  @Post('tenants/:tenant/projects/:project/lessons/suggestions/:id')
+  @HttpCode(200)
+  async ruleSuggestion(
+    @Param('tenant') tenantId: string,
+    @Param('project') projectId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+  ) {
+    const tenant = this.projectOf(tenantId, projectId);
+    const parsed = z
+      .union([
+        z.object({ action: z.literal('save'), text: z.string().trim().min(3).max(1000) }),
+        z.object({ action: z.literal('dismiss') }),
+      ])
+      .safeParse(body);
+    if (!parsed.success) throw new BadRequestException('Use save (com o texto) ou dismiss');
+    const repo = this.db.getRepository(LessonSuggestion);
+    const found = await repo.findOneBy({ id, tenantId: tenant.id, projectKey: projectId });
+    if (!found) throw new NotFoundException('Sugestão desconhecida');
+    if (parsed.data.action === 'dismiss') {
+      await repo.update(id, { status: 'dismissed' });
+      return { status: 'dismissed' };
+    }
+    if (!tenant.packDir) throw new BadRequestException('Lições ficam no pack da empresa');
+    const lesson = addLesson(
+      tenant.packDir,
+      projectId,
+      parsed.data.text,
+      `sugestão, ${found.count}x, ${new Date().toISOString().slice(0, 10)}`,
+    );
+    await repo.update(id, { status: 'saved' });
+    return { status: 'saved', lesson, lessons: projectLessons(tenant.packDir, projectId) };
+  }
+  private projectOf(tenantId: string, projectId: string) {
+    const tenant = this.tenant(tenantId);
+    if (!tenant.projects.some((p) => p.id === projectId))
+      throw new NotFoundException('Projeto desconhecido');
+    return tenant;
   }
   /** For a sub-task of a source that has them: the branches it may start from. */
   @Get('tenants/:tenant/sources/:source/cards/:key/bases')

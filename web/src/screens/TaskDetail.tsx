@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router';
 import { api, ApiError } from '../api';
 import { phaseIndex, PHASES, stageLabel, statusLabel } from '../live';
 import { useLive } from '../LiveProvider';
-import type { RunUsage, RunView, TaskView } from '../types';
+import type { LessonSuggestion, RunUsage, RunView, TaskView } from '../types';
 const ROLES: Record<string, Key> = {
   coder: 'role.coder',
   fixer: 'role.fixer',
@@ -296,9 +296,50 @@ function Evidence({
     </section>
   );
 }
+/** One suggested lesson: worded as it would be saved, editable, saved or dismissed. */
+function Suggestion({
+  suggestion,
+  onRule,
+}: {
+  suggestion: LessonSuggestion;
+  onRule: (rule: { action: 'save'; text: string } | { action: 'dismiss' }) => Promise<void>;
+}) {
+  const [text, setText] = useState(suggestion.text.slice(0, 1000));
+  const [busy, setBusy] = useState(false);
+  const rule = async (r: { action: 'save'; text: string } | { action: 'dismiss' }) => {
+    setBusy(true);
+    try {
+      await onRule(r);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <li>
+      <p>{t('detail.suggestionCount', { n: suggestion.count })}</p>
+      <textarea
+        aria-label={t('detail.suggestionSave')}
+        value={text}
+        maxLength={1000}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <button
+        type="button"
+        disabled={busy || text.trim().length < 3}
+        onClick={() => void rule({ action: 'save', text })}
+      >
+        {t('detail.suggestionSave')}
+      </button>
+      <button type="button" disabled={busy} onClick={() => void rule({ action: 'dismiss' })}>
+        {t('detail.suggestionDismiss')}
+      </button>
+    </li>
+  );
+}
 /** What the project's agents learned before (lessons/ in the pack), and recording a new one. */
 function Lessons({ tenant, task }: { tenant: string; task: TaskView }) {
   const [lessons, setLessons] = useState<string[]>();
+  const [suggestions, setSuggestions] = useState<LessonSuggestion[]>([]);
   const [pack, setPack] = useState(false);
   const [text, setText] = useState(task.error?.split('\n')[0]?.slice(0, 1000) ?? '');
   const [busy, setBusy] = useState(false);
@@ -310,6 +351,7 @@ function Lessons({ tenant, task }: { tenant: string; task: TaskView }) {
       (found) => {
         setLessons(found.lessons);
         setPack(found.pack);
+        setSuggestions(found.suggestions ?? []);
       },
       () => setLessons(undefined),
     );
@@ -343,6 +385,31 @@ function Lessons({ tenant, task }: { tenant: string; task: TaskView }) {
         </ul>
       ) : (
         <p>{t('detail.lessonsNone')}</p>
+      )}
+      {!!suggestions.length && (
+        <>
+          <h4>{t('detail.suggestions')}</h4>
+          <p>{t('detail.suggestionsHint')}</p>
+          <ul>
+            {suggestions.map((s) => (
+              <Suggestion
+                key={s.id}
+                suggestion={s}
+                onRule={async (r) => {
+                  setError('');
+                  try {
+                    const ruled = await api.ruleSuggestion(tenant, task.project!, s.id, r);
+                    if (ruled.lessons) setLessons(ruled.lessons);
+                    setSuggestions((all) => all.filter((x) => x.id !== s.id));
+                    if (r.action === 'save') setNotice(t('detail.lessonSaved'));
+                  } catch (e) {
+                    setError(e instanceof ApiError ? e.message : t('login.noServer'));
+                  }
+                }}
+              />
+            ))}
+          </ul>
+        </>
       )}
       <form onSubmit={(e) => void submit(e)}>
         <textarea

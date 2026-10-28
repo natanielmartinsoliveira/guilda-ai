@@ -163,7 +163,7 @@ test('again restarts the card; a card that cannot be restarted is a 409 with the
 test('lessons: a tenant without a pack lists none and cannot record; an unknown project is a 404', async () => {
   const list = await fetch(`${url}/tenants/acme/projects/demo/lessons`, { headers: auth });
   expect(list.status).toBe(200);
-  expect(await list.json()).toEqual({ lessons: [], pack: false });
+  expect(await list.json()).toEqual({ lessons: [], pack: false, suggestions: [] });
   const add = await fetch(`${url}/tenants/acme/projects/demo/lessons`, {
     method: 'POST',
     headers: auth,
@@ -172,4 +172,35 @@ test('lessons: a tenant without a pack lists none and cannot record; an unknown 
   expect(add.status).toBe(400);
   const unknown = await fetch(`${url}/tenants/acme/projects/nope/lessons`, { headers: auth });
   expect(unknown.status).toBe(404);
+});
+
+test('suggested lessons: listed when due, dismissed for good; saving needs the pack', async () => {
+  const { item } = await import('./db');
+  const { captureLesson } = await import('../src/prompts/lesson-capture');
+  const t = await new OrchestratorService(db, new TenantRegistry()).accept('acme', item);
+  await captureLesson(db, t.id, 'O agente parou: falta o composer\n- detalhe', 'use o wrapper');
+  await captureLesson(db, t.id, 'erro raro que só aconteceu uma vez');
+  const list = await fetch(`${url}/tenants/acme/projects/demo/lessons`, { headers: auth });
+  const body = await list.json();
+  expect(body.suggestions).toEqual([
+    expect.objectContaining({
+      answer: 'use o wrapper',
+      count: 1,
+      text: 'O agente parou: falta o composer → use o wrapper',
+    }),
+  ]);
+  const id = body.suggestions[0].id;
+  const rule = (b: unknown) =>
+    fetch(`${url}/tenants/acme/projects/demo/lessons/suggestions/${id}`, {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify(b),
+    });
+  expect((await rule({ action: 'save', text: 'use o wrapper do composer' })).status).toBe(400);
+  expect((await rule({ action: 'nope' })).status).toBe(400);
+  expect((await rule({ action: 'dismiss' })).status).toBe(200);
+  const after = await (
+    await fetch(`${url}/tenants/acme/projects/demo/lessons`, { headers: auth })
+  ).json();
+  expect(after.suggestions).toEqual([]);
 });
