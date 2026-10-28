@@ -49,16 +49,17 @@ Then log in each AI credential (subscriptions) or put its API key in `.env`, and
 
 ## Documentation
 
-| Topic                                               |                                        |
-| --------------------------------------------------- | -------------------------------------- |
-| Company packs, prompts and formats                  | [docs/packs.md](docs/packs.md)         |
-| Company methods and `method:check`                  | [docs/methods.md](docs/methods.md)     |
-| Card sources (Jira, Businessmap, GitHub, Bitbucket) | [docs/sources.md](docs/sources.md)     |
-| Coder workspaces, GitLab, test evidence             | [docs/coder.md](docs/coder.md)         |
-| Panel and the Guild office                          | [docs/panel.md](docs/panel.md)         |
-| Front-end phase with Figma                          | [docs/figma.md](docs/figma.md)         |
-| Languages (pt-BR, en)                               | [docs/languages.md](docs/languages.md) |
-| Everything else, in Portuguese                      | [docs/pt-BR/](docs/pt-BR/)             |
+| Topic                                               |                                                          |
+| --------------------------------------------------- | -------------------------------------------------------- |
+| A company pack in 15 minutes                        | [docs/pack-in-15-minutes.md](docs/pack-in-15-minutes.md) |
+| Company packs, prompts and formats                  | [docs/packs.md](docs/packs.md)                           |
+| Company methods and `method:check`                  | [docs/methods.md](docs/methods.md)                       |
+| Card sources (Jira, Businessmap, GitHub, Bitbucket) | [docs/sources.md](docs/sources.md)                       |
+| Coder workspaces, GitLab, test evidence             | [docs/coder.md](docs/coder.md)                           |
+| Panel and the Guild office                          | [docs/panel.md](docs/panel.md)                           |
+| Front-end phase with Figma                          | [docs/figma.md](docs/figma.md)                           |
+| Languages (pt-BR, en)                               | [docs/languages.md](docs/languages.md)                   |
+| Everything else, in Portuguese                      | [docs/pt-BR/](docs/pt-BR/)                               |
 
 An example pack lives in [`examples/packs/acme/`](examples/packs/acme/) and an example method in [`test/fixtures/methods/review-gate/`](test/fixtures/methods/review-gate/).
 

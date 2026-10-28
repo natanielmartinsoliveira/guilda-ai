@@ -72,6 +72,10 @@ export const en: Record<MessageKey, string> = {
   'setup.packs': 'Company packs: git URLs or folders, separated by spaces (empty keeps: {current})',
   'setup.none': 'none',
   'setup.cloning': 'Cloning {url} into {dir}',
+  'pack.usage':
+    'Usage: npm run pack:init -- <folder> <first repository URL> [--id <id>] [--name <name>] [--coder <url>]',
+  'pack.created':
+    'Pack created in {dir}. Now: set the project test in company.yaml, publish the folder as a private git repository and run npm run setup (see its README).',
   'project.usage':
     'Usage: npm run project:add -- <pack folder> <repository URL> [--id <id>] [--stack <stack>] [--yes]',
   'project.hostFailed': 'The host did not answer ({error}): going on with what the company has',

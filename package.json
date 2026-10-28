@@ -19,6 +19,7 @@
     "doctor": "ts-node src/doctor.ts",
     "packs:compare": "ts-node src/tenants/compare-cli.ts",
     "project:add": "ts-node src/projects/project-add-cli.ts",
+    "pack:init": "ts-node src/projects/pack-init-cli.ts",
     "method:check": "ts-node src/methods/check-cli.ts",
     "public:check": "ts-node src/public/public-check-cli.ts",
     "setup": "ts-node src/setup/setup-cli.ts",

@@ -71,6 +71,10 @@ export const ptBR = {
     'Pacotes das empresas: URLs git ou pastas, separados por espaço (vazio mantém: {current})',
   'setup.none': 'nenhum',
   'setup.cloning': 'Clonando {url} em {dir}',
+  'pack.usage':
+    'Uso: npm run pack:init -- <pasta> <URL do primeiro repositório> [--id <id>] [--name <nome>] [--coder <url>]',
+  'pack.created':
+    'Pacote criado em {dir}. Agora: defina o test do projeto em company.yaml, publique a pasta num git privado e rode npm run setup (veja o README dela).',
   'project.usage':
     'Uso: npm run project:add -- <pasta do pack> <URL do repositório> [--id <id>] [--stack <stack>] [--yes]',
   'project.hostFailed': 'O host não respondeu ({error}): sigo com o que a empresa já tem',
