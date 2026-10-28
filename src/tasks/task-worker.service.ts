@@ -52,6 +52,8 @@ import {
 import { evidenceDir, kitDir } from '../evidence/evidence-store';
 import { renderPrompt } from '../prompts/prompt-files';
 import { projectLessons } from '../prompts/lessons';
+import { cardSignature, fence, suspiciousPassages } from './injection';
+import { isApproval } from '../methods/approval';
 import { captureLesson } from '../prompts/lesson-capture';
 import { language, t } from '../i18n';
 import { loadMethod } from '../methods/method';
@@ -607,9 +609,14 @@ export class TaskWorkerService implements OnModuleInit {
   }
   /** A prompt of the project, its company pack or the core (the first that has it). */
   private render(ctx: WorkContext, template: string, values: Record<string, string>) {
+    // The card is text from outside: fenced by a marker it cannot guess (see injection.ts).
+    const card =
+      values.ISSUE !== undefined
+        ? { ISSUE: fence(values.ISSUE, (code) => t('prompt.untrusted', { code })) }
+        : {};
     return renderPrompt(
       template,
-      { LESSONS: projectLessons(ctx.tenant.packDir, ctx.cfg.id), ...values },
+      { LESSONS: projectLessons(ctx.tenant.packDir, ctx.cfg.id), ...values, ...card },
       ctx.tenant.packDir,
       ctx.cfg.id,
     );
@@ -1113,6 +1120,7 @@ export class TaskWorkerService implements OnModuleInit {
       : steps.length
         ? stepCommit(steps[0].key, steps[0].title)
         : `feat(ai): implement ${issue.externalKey}`;
+    await this.screenCard(task, stepBody);
     if (cfg.method && !meta.route) await this.chooseRoute(task, ctx);
     // A method route runs the method's phases; a standard-flow route of a method runs the core
     // flow with the method's hooks before it and its text after the prompt.
@@ -1421,6 +1429,42 @@ export class TaskWorkerService implements OnModuleInit {
     }
     await this.stage(task, Task, 'PUSH');
     await this.git.push(task, String(task.result!.commitSha), ctx.remote);
+  }
+  /**
+   * A card that reads like instructions to the AI (rules overridden, secrets asked for, data sent
+   * out) waits for the operator before any agent sees it. Clearing it holds for that text only:
+   * a changed card is screened again. Any other answer asks again.
+   */
+  private async screenCard(task: Task, stepBody: string) {
+    const text =
+      stepBody === task.instructions ? task.instructions : `${task.instructions}\n${stepBody}`;
+    const passages = suspiciousPassages(text);
+    if (!passages.length) return;
+    const signature = cardSignature(text);
+    if (task.result?.cardCleared === signature) return;
+    const go = t('injection.go');
+    const question = {
+      text: t('injection.question', { passages: passages.map((p) => `- ${p}`).join('\n') }),
+      options: [go],
+    };
+    const reply = (
+      (
+        await this.db
+          .getRepository(Decision)
+          .findBy({ taskId: task.id, type: 'question', status: 'answered' })
+      )
+        .filter((d) => d.questions?.[0]?.text === question.text && d.answeredAt)
+        .sort((a, b) => b.answeredAt!.getTime() - a.answeredAt!.getTime())[0]?.answer as
+        { answers?: string[] } | undefined
+    )?.answers?.[0];
+    if (reply !== undefined && (reply.trim() === go || isApproval(reply))) {
+      task.result = { ...(task.result ?? {}), cardCleared: signature };
+      await this.db.getRepository(Task).save(task);
+      log('task.card_cleared', { taskId: task.id, passages: passages.length });
+      return;
+    }
+    log('task.card_suspicious', { taskId: task.id, passages: passages.length });
+    throw new NeedsInput([question], true);
   }
   /**
    * A task of a method that came without a route (a card with no route tag): the operator picks

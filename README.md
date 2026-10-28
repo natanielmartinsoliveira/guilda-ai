@@ -68,6 +68,7 @@ An example pack lives in [`examples/packs/acme/`](examples/packs/acme/) and an e
 - Each task gets its own clone. Bubblewrap mounts the runtime read-only, exposes only that workspace and keeps `.git` read-only for the AI and the tests; the host home, the application's `.env` and other workspaces stay outside. Project tests run without network.
 - Commands run with argument arrays (`shell: false`), a minimal environment, timeouts and output limits. Git hooks and credential helpers are disabled; pushes use a fixed SHA and explicit ref, never force. Changes to secrets, symlinks, CI workflows and agent configuration are refused.
 - Secrets live only in `.env` and are redacted from logs and stored output.
+- A card is text from outside. It reaches the agents between markers with a random code per prompt (the card cannot close them), and a card that reads like instructions to the AI (overriding the rules, asking for secrets, sending data out, forcing a push) waits for the operator before any agent sees it.
 - There is **no egress proxy and no CPU/memory/disk quota**: do not use it as an open executor for untrusted code.
 
 Before publishing anything from your instance, `npm run public:check` scans the files for the names of your companies (taken from your packs, `tenants.yaml`, `.env` and an optional `.public-deny`) without ever printing them whole.
