@@ -110,6 +110,22 @@ projects:
 
 Order: `projectDefaults`, then the stack, then the project's own values (which win: a project may still write its own `test`). Besides `vars`, a stack can use `{{id}}`, `{{repository}}` and `{{reference}}` (the workspace's). A placeholder without a value, or an unknown stack, stops the load naming the project.
 
+### Quality gate
+
+After its tests, a project (or `projectDefaults`, or a stack) may require more, in order, stopping at the first that fails:
+
+```yaml
+quality:
+  lint: [sh, -c, 'docker run --rm --network none -v "$PWD":/app -w /app node:22 npm run lint']
+  typecheck: [sh, -c, '… npx tsc --noEmit']
+  coverage:
+    command: [sh, -c, '… npx vitest run --coverage']
+    pattern: 'Lines\s*:\s*([\d.]+)%' # a regex whose first group is the percentage
+    minimum: 80
+```
+
+Each step runs like `test` (same place, no network). A step that fails goes back to the fixer like a failing test, with its command and output (for coverage, the shortfall: `coverage 72% below the minimum 80%`); if it is still failing, the task fails as `Quality gate failed (<step>)`.
+
 ### Adding a project: `npm run project:add`
 
 ```bash

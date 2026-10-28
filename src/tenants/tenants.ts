@@ -325,6 +325,31 @@ const project = z
     repository: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9_.-]+$/, 'owner/name'),
     defaultBranch: z.string().min(1).max(200).default('main'),
     test: argv.min(1),
+    /**
+     * What else a delivery must pass after the tests, in order, stopping at the first that
+     * fails (which goes back to the fixer like a failing test). Each runs like test: same
+     * place, no network. coverage: the share its output reports (pattern: a regex whose first
+     * group is the percentage), at least minimum.
+     */
+    quality: z
+      .object({
+        lint: argv.min(1).optional(),
+        typecheck: argv.min(1).optional(),
+        coverage: z
+          .object({
+            command: argv.min(1),
+            pattern: z.string().refine((s) => {
+              try {
+                return new RegExp(s).source.includes('(');
+              } catch {
+                return false;
+              }
+            }, 'a regex with a group for the percentage'),
+            minimum: z.number().min(0).max(100),
+          })
+          .optional(),
+      })
+      .optional(),
     prepare: argv.default([]),
     /**
      * Tracked files kept out of the agents' working copy (git sparse-checkout patterns, from the

@@ -849,24 +849,64 @@ export class TaskWorkerService implements OnModuleInit {
     const { task, job, entity, ctx } = spec;
     const state = job.result!;
     const test = ctx.cfg.test;
+    const quality = ctx.cfg.quality;
+    // The tests, then the project's quality gate in order, stopping at the first that fails.
+    const gate: { step: string; command: string[]; minimum?: number; pattern?: string }[] = [
+      { step: 'test', command: test },
+      ...(quality?.lint ? [{ step: 'lint', command: quality.lint }] : []),
+      ...(quality?.typecheck ? [{ step: 'typecheck', command: quality.typecheck }] : []),
+      ...(quality?.coverage ? [{ step: 'coverage', ...quality.coverage }] : []),
+    ];
     const runTests = async () => {
       await this.stage(job, entity, 'TESTS');
-      const before = await this.git.changedPaths(task);
-      const r = await this.command(task, ctx, test, 'tester', false);
-      // Tests may delete fixtures or write files: that is not part of the change.
-      const reverted = await this.git.revertSideEffects(task, before);
-      state.validation = {
-        command: test,
-        exitCode: r.exitCode,
-        // From a company's workspace only a short tail is kept here.
-        stdout: auditable(
+      const passed: string[] = [];
+      for (const g of gate) {
+        const before = await this.git.changedPaths(task);
+        let r = await this.command(task, ctx, g.command, 'tester', false);
+        // Tests may delete fixtures or write files: that is not part of the change.
+        const reverted = await this.git.revertSideEffects(task, before);
+        let detail: string | undefined;
+        if (r.success && g.step === 'coverage') {
+          const share = Number(new RegExp(g.pattern!).exec(`${r.stdout}\n${r.stderr}`)?.[1]);
+          detail = Number.isFinite(share)
+            ? share < g.minimum!
+              ? `coverage ${share}% below the minimum ${g.minimum}%`
+              : undefined
+            : `coverage: the pattern ${g.pattern} found no percentage in the output`;
+          if (detail) r = { ...r, success: false, stderr: `${detail}\n${r.stderr}` };
+        }
+        const tail = auditable(
+          // From a company's workspace only a short tail is kept here.
           ctx.ws.kind === 'coder'
             ? r.stdout.trimEnd().split('\n').slice(-40).join('\n')
             : r.stdout.slice(-8000),
-        ),
-        ...(reverted.length ? { revertedSideEffects: reverted.slice(0, 50) } : {}),
+        );
+        if (g.step === 'test')
+          state.validation = {
+            command: g.command,
+            exitCode: r.exitCode,
+            stdout: tail,
+            ...(reverted.length ? { revertedSideEffects: reverted.slice(0, 50) } : {}),
+          };
+        // The quality gate's steps beside the tests: what passed, and where it stopped.
+        else
+          state.quality = {
+            passed: [...passed],
+            ...(r.success ? {} : { failed: g.step, command: g.command, detail, stdout: tail }),
+          };
+        if (!r.success) return { ...r, step: g.step, command: g.command, detail };
+        passed.push(g.step);
+      }
+      if (gate.length > 1) state.quality = { passed };
+      return {
+        success: true,
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+        step: 'test',
+        command: test,
+        detail: undefined as string | undefined,
       };
-      return r;
     };
     let validation = await runTests();
     // Failing tests go back to the agent, a bounded number of times. Its edits are kept
@@ -880,8 +920,8 @@ export class TaskWorkerService implements OnModuleInit {
         prompt: await this.render(ctx, 'fixer.md', {
           ATTEMPT: String(fix),
           MAX: String(maxFixes),
-          COMMAND: test.join(' '),
-          OUTPUT: redact(output),
+          COMMAND: validation.command.join(' '),
+          OUTPUT: redact(validation.detail ? `${validation.detail}\n${output}` : output),
           TASK_PROMPT: agentInput.prompt,
         }),
       };
@@ -898,7 +938,12 @@ export class TaskWorkerService implements OnModuleInit {
       state.changes = await this.git.validateChanges(task);
       validation = await runTests();
     }
-    if (!validation.success) throw new TaskError(`Tests failed: ${validation.stderr}`);
+    if (!validation.success)
+      throw new TaskError(
+        validation.step === 'test'
+          ? `Tests failed: ${validation.stderr}`
+          : `Quality gate failed (${validation.step}): ${validation.detail ?? validation.stderr}`,
+      );
   }
   /**
    * Local security checks on what the change introduced. New findings go back to the fixer

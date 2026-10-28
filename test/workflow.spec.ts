@@ -27,7 +27,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await db.destroy();
 });
-async function setup() {
+async function setup(projectSettings: Record<string, unknown> = {}) {
   const registry = new TenantRegistry();
   const orchestrator = new OrchestratorService(db, registry);
   const task = await orchestrator.accept('acme', item);
@@ -90,9 +90,10 @@ async function setup() {
     run: jest.fn().mockResolvedValue({ findings: [], tools: {}, errors: [] }),
   };
   const project = registry.project.bind(registry);
-  jest
-    .spyOn(registry, 'project')
-    .mockImplementation((tenant, id) => ({ ...project(tenant, id), host: github }));
+  jest.spyOn(registry, 'project').mockImplementation((tenant, id) => {
+    const ctx = project(tenant, id);
+    return { ...ctx, host: github, project: { ...ctx.project, ...projectSettings } } as any;
+  });
   const worker = new TaskWorkerService(
     db,
     {} as any,
@@ -577,6 +578,54 @@ test('crash after commit resumes tests and push without running agent again', as
   expect(x.sandbox.run).toHaveBeenCalled();
   expect(x.git.push).toHaveBeenCalledWith(expect.anything(), 'b'.repeat(40), expect.anything());
   expect((await db.getRepository(Task).findOneByOrFail({ id: x.task.id })).status).toBe('SUCCESS');
+});
+describe('quality gate (lint, typecheck, coverage after the tests)', () => {
+  const ok = (stdout: string) => ({ success: true, stdout, stderr: '', exitCode: 0 });
+  const quality = {
+    lint: ['npm', 'run', 'lint'],
+    coverage: { command: ['npm', 'run', 'cov'], pattern: 'Lines:\\s+([\\d.]+)%', minimum: 80 },
+  };
+  test('each step runs after the tests, in order, like them; all pass', async () => {
+    const x = await setup({ quality });
+    x.sandbox.run
+      .mockResolvedValueOnce(ok('OK (3 tests)'))
+      .mockResolvedValueOnce(ok('no lint errors'))
+      .mockResolvedValueOnce(ok('Lines: 91.5%'));
+    await x.worker.handle(x.message, x.channel);
+    const task = await db.getRepository(Task).findOneByOrFail({ id: x.task.id });
+    expect(task.status).toBe('SUCCESS');
+    expect(task.result).toMatchObject({
+      validation: { command: ['npm', 'test'], stdout: 'OK (3 tests)' },
+      quality: { passed: ['test', 'lint', 'coverage'] },
+    });
+  });
+  test('coverage below the minimum goes back to the fixer, with the shortfall, like a failing test', async () => {
+    const x = await setup({ quality });
+    x.sandbox.run
+      .mockResolvedValueOnce(ok('OK'))
+      .mockResolvedValueOnce(ok('clean'))
+      .mockResolvedValueOnce(ok('Lines: 72%'))
+      .mockResolvedValueOnce(ok('OK'))
+      .mockResolvedValueOnce(ok('clean'))
+      .mockResolvedValueOnce(ok('Lines: 84%'));
+    await x.worker.handle(x.message, x.channel);
+    const task = await db.getRepository(Task).findOneByOrFail({ id: x.task.id });
+    expect(task.status).toBe('SUCCESS');
+    const fixPrompt: string = x.agents.execute.mock.calls[1][1].prompt;
+    expect(fixPrompt).toContain('coverage 72% below the minimum 80%');
+    expect(fixPrompt).toContain('npm run cov');
+  });
+  test('a pattern that finds no percentage is a failure of the gate, named so', async () => {
+    const x = await setup({ quality: { coverage: { ...quality.coverage, minimum: 50 } } });
+    x.sandbox.run.mockImplementation(async (_bin: string, args: string[]) =>
+      ok(args.includes('cov') ? 'no summary printed' : 'OK'),
+    );
+    await x.worker.handle(x.message, x.channel);
+    const task = await db.getRepository(Task).findOneByOrFail({ id: x.task.id });
+    expect(task.status).toBe('FAILED');
+    expect(task.error).toContain('Quality gate failed (coverage): coverage: the pattern');
+    expect(x.git.commit).not.toHaveBeenCalled();
+  });
 });
 describe('fixing from failing tests', () => {
   const fail = {

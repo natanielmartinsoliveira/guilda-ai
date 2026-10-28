@@ -19,7 +19,7 @@ const KINDS: [Exclude<FailureKind, 'other'>, RegExp][] = [
     'config',
     /invalid configuration|needs the company pack|not found \(stacks\/\)|no value for \{\{|references unknown|has no credentials|No AI credential allowed/i,
   ],
-  ['tests', /^(?:[A-Z_]+: )?Tests failed/m],
+  ['tests', /^(?:[A-Z_]+: )?(Tests failed|Quality gate failed)/m],
   ['checks', /^(?:[A-Z_]+: )?Security checks failed/m],
   [
     'git',

@@ -144,3 +144,26 @@ test('projectDefaults is validated in each project like the project itself', () 
     loadTenants(valid.replace('    projects:', '    projectDefaults: [x]\n    projects:'), env),
   ).toThrow(/projectDefaults must be a mapping/);
 });
+test('quality: lint, typecheck and coverage; a coverage pattern needs a group for the percentage', () => {
+  const withQuality = (q: string) =>
+    valid.replace('test: [npm, test] }]', `test: [npm, test], quality: ${q} }]`);
+  const [t] = loadTenants(
+    withQuality(
+      "{ lint: [npm, run, lint], coverage: { command: [npm, run, cov], pattern: 'Lines: ([0-9.]+)%', minimum: 80 } }",
+    ),
+    env,
+  );
+  expect(t.projects[0].quality).toMatchObject({
+    lint: ['npm', 'run', 'lint'],
+    coverage: { minimum: 80 },
+  });
+  expect(() =>
+    loadTenants(withQuality("{ coverage: { command: [x], pattern: 'Lines', minimum: 80 } }"), env),
+  ).toThrow(/a regex with a group/);
+  expect(() =>
+    loadTenants(
+      withQuality("{ coverage: { command: [x], pattern: '(\\d+)', minimum: 120 } }"),
+      env,
+    ),
+  ).toThrow(/minimum/);
+});
