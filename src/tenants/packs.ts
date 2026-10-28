@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { parse } from 'yaml';
 import { z } from 'zod';
-import { parseTenantsData, Tenant } from './tenants';
+import { parseTenantsData, Tenant, withProjectDefaults } from './tenants';
 // Deliberately independent from config.ts (like tenants.ts): redact() depends on this module.
 /** What each dev provides to use a company pack (requires.yaml). */
 const requirement = z.object({
@@ -76,7 +76,8 @@ export function loadPacks(
     const company = readYaml(join(dir, 'company.yaml'));
     if (!company || typeof company !== 'object' || Array.isArray(company))
       throw new Error(`pacote ${dir}: company.yaml precisa descrever uma empresa`);
-    const c = company as Record<string, any>;
+    // Before the paths below are resolved: a default template is each project's too.
+    const c = withProjectDefaults(company) as Record<string, any>;
     const declared = new Map(requirements.map((r) => [r.name, r]));
     const values: Record<string, string> = {};
     const undeclared = [...variables(c)].filter((name) => !declared.has(name));

@@ -22,7 +22,9 @@ const CODER_ERROR =
 const START_TIMEOUT_MS = 5 * 60 * 1000;
 const UPLOAD_MAX_BYTES = 200 * 1024 * 1024;
 /** One line per repository (depth ≤ 2) under each folder: path HEAD branch status-hash. */
-const SNAPSHOT = `for base in "$@"; do for d in "$base" "$base"/* "$base"/*/*; do
+// $1 is the tasks root: inside a protected folder it is ours, never the operator's clones.
+const SNAPSHOT = `root=$1; shift; for base in "$@"; do for d in "$base" "$base"/* "$base"/*/*; do
+case "$d" in "$root"|"$root"/*) continue;; esac
 [ -d "$d/.git" ] || continue
 printf '%s %s %s %s\\n' "$d" "$(git -C "$d" rev-parse HEAD 2>/dev/null)" "$(git -C "$d" branch --show-current 2>/dev/null)" "$(GIT_OPTIONAL_LOCKS=0 git -C "$d" status --porcelain 2>/dev/null | sha1sum | cut -c1-40)"
 done; done`;
@@ -243,7 +245,7 @@ export class CoderWorkspace implements TaskWorkspace {
   }
   /** Lines "path HEAD branch status-hash" of the repositories the agent must leave alone. */
   async protectSnapshot(taskId?: string) {
-    const r = await this.run(['sh', '-c', SNAPSHOT, 'sh', ...this.cfg.protect], {
+    const r = await this.run(['sh', '-c', SNAPSHOT, 'sh', this.root, ...this.cfg.protect], {
       timeoutMs: 120000,
       at: 'none',
       taskId,

@@ -207,3 +207,23 @@ test('compare ignores where a company pack lives (packDir)', () => {
   b[0].packDir = '/somewhere/pack';
   expect(compareTenants(a, b)).toBeUndefined();
 });
+
+test('projectDefaults in a pack: a default pull request template is resolved for each project', async () => {
+  const c = personal();
+  const [first] = c.projects;
+  const { id: _id, repository: _repo, ...shared } = first;
+  c.projectDefaults = { ...shared, pullRequest: { template: 'formats/pr.md' } };
+  c.projects = [
+    { id: first.id, repository: first.repository },
+    { id: 'outro', repository: 'shop/outro' },
+  ];
+  const dir = await pack('initech', c);
+  await mkdir(join(dir, 'formats'));
+  await writeFile(join(dir, 'formats', 'pr.md'), '## O que mudou');
+  const { tenants } = loadPacks([dir], { INITECH_WS: 'ws', INITECH_TOKEN: 'tok' });
+  expect(tenants[0].projects.map((p) => p.id)).toEqual([first.id, 'outro']);
+  for (const p of tenants[0].projects) {
+    expect(p.workspace).toMatchObject({ type: 'coder', name: 'ws' });
+    expect(p.pullRequest?.template).toBe(join(dir, 'formats', 'pr.md'));
+  }
+});

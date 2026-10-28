@@ -39,7 +39,7 @@ projects:
       url: https://coder.initech.example
       name: ${INITECH_CODER_WORKSPACE} # o workspace de cada dev
       agent: main # opcional
-      root: /root/ai-dev-team # pasta das tarefas no workspace (fora de protect)
+      root: /root/ai-dev-team # pasta das tarefas no workspace (pode ficar dentro de protect)
       reference: /workspaces/orders # opcional: acelera o clone (só leitura)
       protect: [/workspaces] # padrão; os clones do operador que o agente não pode tocar
     delivery: rehearsal # rehearsal (sem push/MR) | draft (MR rascunho) | normal (MR)
@@ -48,7 +48,7 @@ projects:
       reviewers: [${INITECH_GITLAB_USER}] # opcional; usuários do GitLab
 ```
 
-Regras (erro ao carregar a configuração): `coder` só funciona com host `gitlab` (clone e push por ssh com a chave do workspace — um host https levaria o token para lá); não aceita `runner` (os comandos `prepare`/`test` já rodam no workspace — use `docker run` neles para testar a cópia da tarefa); a empresa só pode ter credenciais `claude` sem `apiKey` e sem `harness`; `root` absoluto, sem `..` e fora de `protect`.
+Regras (erro ao carregar a configuração): `coder` só funciona com host `gitlab` (clone e push por ssh com a chave do workspace — um host https levaria o token para lá); não aceita `runner` (os comandos `prepare`/`test` já rodam no workspace — use `docker run` neles para testar a cópia da tarefa); a empresa só pode ter credenciais `claude` sem `apiKey` e sem `harness`; `root` absoluto e sem `..`; ele pode ficar dentro de `protect` (por exemplo `/workspaces/ai-dev-team` com o padrão `/workspaces`: as cópias das tarefas são ignoradas ali), mas nenhuma pasta protegida pode ser o `root` ou ficar dentro dele.
 
 ## O que fica e o que não fica nesta máquina
 

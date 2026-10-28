@@ -61,6 +61,30 @@ Any core prompt (`prompts/*.md`: `coder.md`, `fixer.md`, `code-review.md`, `pr-s
 
 The first one that exists wins (project → pack → core). The `{{PLACEHOLDERS}}` are those of the core prompt; unknown ones stay as they are.
 
+## What the projects share: projectDefaults
+
+A company's projects usually share most of their settings (the workspace, the method, the checks, the pull request). Write them once in `projectDefaults` and keep in each project only what differs:
+
+```yaml
+projectDefaults:
+  host: gitlab-acme
+  branch: '{key}-{slug}'
+  checks: { tools: [gitleaks, semgrep, osv] }
+  workspace:
+    { type: coder, url: https://coder.acme.test, name: '${ACME_WS}', root: /workspaces/ai-dev-team }
+  method: { name: review-gate, options: { pythonPath: /workspaces/.ai-dev-team/pylib } }
+projects:
+  - {
+      id: orders,
+      repository: shop/orders,
+      defaultBranch: homolog,
+      test: [make, test],
+      workspace: { reference: /workspaces/orders },
+    }
+```
+
+Mappings merge key by key (the project's `workspace.reference` joins the default workspace, a project's `method.options` join the default options); lists and plain values are the project's when it has them. Each project is then validated as if it had been written whole.
+
 ## Lessons
 
 What the company learned running a project's tasks lives in the pack, so the team shares it through git: `lessons/<project>.md` for one project and `lessons/_all.md` for every project, one `- ` line per lesson. Every agent prompt of that project receives them (the newest that fit 8 KB). A method's prompts place them with `{{#LESSONS}}…{{LESSONS}}…{{/LESSONS}}`; `method:check` renders without them.

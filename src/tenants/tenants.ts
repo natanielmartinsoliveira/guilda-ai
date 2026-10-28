@@ -411,8 +411,10 @@ const project = z
     const issue = (message: string) => ctx.addIssue({ code: 'custom', message });
     const w = p.workspace;
     if (p.runner) issue('coder workspace runs tests in the workspace; remove runner');
-    if (w.protect.some((dir) => w.root === dir || w.root.startsWith(`${dir}/`)))
-      issue(`coder root ${w.root} is inside a protected folder (protect)`);
+    // The root may sit inside a protected folder (its tasks are skipped there); a protected
+    // folder inside the root would protect only task copies.
+    if (w.protect.some((dir) => dir === w.root || dir.startsWith(`${w.root}/`)))
+      issue(`a protected folder (protect) is the coder root ${w.root} or inside it`);
   });
 /**
  * codex / claude: the vendor CLIs (subscription login or API key).
@@ -646,12 +648,40 @@ function interpolate(value: unknown, env: NodeJS.ProcessEnv, path: string): unkn
     );
   return value;
 }
+const plain = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === 'object' && !Array.isArray(v);
+/** b over a: objects merge key by key, anything else (lists included) is b's when b has it. */
+function over(a: unknown, b: unknown): unknown {
+  if (b === undefined) return a;
+  if (!plain(a) || !plain(b)) return b;
+  return Object.fromEntries(
+    [...new Set([...Object.keys(a), ...Object.keys(b)])].map((k) => [k, over(a[k], b[k])]),
+  );
+}
+/**
+ * A company's `projectDefaults` (what its projects share: workspace, method, checks, pull
+ * request…) under each project, the project's own values winning; the key is then gone, so
+ * applying it twice changes nothing.
+ */
+export function withProjectDefaults<T>(company: T): T {
+  if (!plain(company) || company.projectDefaults === undefined) return company;
+  const { projectDefaults, ...rest } = company;
+  if (!plain(projectDefaults)) throw new Error('tenants: projectDefaults must be a mapping');
+  const projects = Array.isArray(rest.projects)
+    ? rest.projects.map((p) => over(projectDefaults, p))
+    : rest.projects;
+  return { ...rest, projects } as T;
+}
 export function loadTenants(text: string, env: NodeJS.ProcessEnv = process.env): Tenant[] {
   return parseTenantsData(parse(text), env);
 }
 /** `{ tenants: [...] }` already read (tenants.yaml or packs): interpolated and validated. */
 export function parseTenantsData(raw: unknown, env: NodeJS.ProcessEnv = process.env): Tenant[] {
-  const parsed = file.safeParse(interpolate(raw, env, ''));
+  const companies =
+    plain(raw) && Array.isArray(raw.tenants)
+      ? { ...raw, tenants: raw.tenants.map((c) => withProjectDefaults(c)) }
+      : raw;
+  const parsed = file.safeParse(interpolate(companies, env, ''));
   if (!parsed.success)
     throw new Error(
       `tenants: invalid configuration\n${parsed.error.issues

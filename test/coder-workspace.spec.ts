@@ -292,3 +292,43 @@ test('the cleanup line really kills what runs in the task folder, and only there
     await rm(root, { recursive: true, force: true });
   }
 });
+test('the tasks root may sit inside the protected folder: its task copies are never the operator clones', async () => {
+  const { execFile } = await import('node:child_process');
+  const protect = await mkdtemp('/tmp/coder-protect-');
+  const root = `${protect}/ai-dev-team`;
+  const run = jest.fn(
+    (_bin: string, args: string[], opts: { input?: string }) =>
+      new Promise((done) => {
+        const child = execFile('sh', ['-c', args[args.length - 1]], (error, stdout, stderr) =>
+          done({ success: !error, exitCode: error ? 1 : 0, stdout, stderr }),
+        );
+        child.stdin!.end(opts.input ?? '');
+      }),
+  );
+  const exec = (cmd: string) =>
+    new Promise((done) => execFile('sh', ['-c', cmd], () => done(undefined)));
+  try {
+    const repo = (dir: string) =>
+      exec(
+        `mkdir -p ${dir} && cd ${dir} && git init -q && git -c user.name=a -c user.email=a@a commit -q --allow-empty -m x`,
+      );
+    await repo(`${protect}/clone`);
+    await repo(`${root}/${ID}`);
+    const ws = new CoderWorkspace(
+      { run } as any,
+      { ...cfg, root, protect: [protect] },
+      ID,
+      'coder',
+    );
+    const before = await ws.protectSnapshot();
+    expect(before).toContain(`${protect}/clone `);
+    expect(before).not.toContain(root);
+    // the agent's work in its task copy is not a change to the operator's clones
+    await exec(`echo x > ${root}/${ID}/new.txt`);
+    expect(changedRepositories(before, await ws.protectSnapshot())).toEqual([]);
+    await exec(`echo x > ${protect}/clone/new.txt`);
+    expect(changedRepositories(before, await ws.protectSnapshot())).toEqual([`${protect}/clone`]);
+  } finally {
+    await rm(protect, { recursive: true, force: true });
+  }
+});

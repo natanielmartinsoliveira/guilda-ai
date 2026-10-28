@@ -57,6 +57,30 @@ Qualquer prompt do núcleo (`prompts/*.md`: `coder.md`, `fixer.md`, `code-review
 
 Vale o primeiro que existir (projeto → pacote → núcleo). Os `{{PLACEHOLDERS}}` são os mesmos do prompt do núcleo; os desconhecidos ficam como estão.
 
+## O que os projetos compartilham: projectDefaults
+
+Os projetos de uma empresa costumam compartilhar quase tudo (o workspace, o método, os checks, o PR). Escreva isso uma vez em `projectDefaults` e deixe em cada projeto só o que muda:
+
+```yaml
+projectDefaults:
+  host: gitlab-acme
+  branch: '{key}-{slug}'
+  checks: { tools: [gitleaks, semgrep, osv] }
+  workspace:
+    { type: coder, url: https://coder.acme.test, name: '${ACME_WS}', root: /workspaces/ai-dev-team }
+  method: { name: review-gate, options: { pythonPath: /workspaces/.ai-dev-team/pylib } }
+projects:
+  - {
+      id: orders,
+      repository: shop/orders,
+      defaultBranch: homolog,
+      test: [make, test],
+      workspace: { reference: /workspaces/orders },
+    }
+```
+
+Objetos se juntam chave a chave (o `workspace.reference` do projeto entra no workspace padrão, as `method.options` do projeto entram nas padrão); listas e valores simples são os do projeto quando ele tem. Depois cada projeto é validado como se tivesse sido escrito inteiro.
+
 ## Lições
 
 O que a empresa aprendeu rodando as tarefas de um projeto fica no pack, para o time compartilhar pelo git: `lessons/<projeto>.md` para um projeto e `lessons/_all.md` para todos, uma linha `- ` por lição. Todo prompt de agente daquele projeto recebe essas lições (as mais novas que cabem em 8 KB). Os prompts de um método escolhem onde elas entram com `{{#LESSONS}}…{{LESSONS}}…{{/LESSONS}}`; o `method:check` renderiza sem elas.

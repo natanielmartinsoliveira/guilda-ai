@@ -102,3 +102,45 @@ test('empty variables in .env count as unset, as in .env.example', async () => {
   expect(JSON.parse(r.stdout)).toMatchObject({ SOURCE_POLLING: true, MAX_ATTEMPTS: 3 });
   expect(JSON.parse(r.stdout).API_TOKEN).toBeUndefined();
 });
+test('projectDefaults: what the projects share, under each one; the project wins, lists are replaced', () => {
+  const shared = valid.replace(
+    '    projects: [{ id: api, host: gh, repository: initrode/api, test: [npm, test] }]',
+    `    projectDefaults:
+      host: gh
+      test: [npm, test]
+      protectedBranches: [main, homolog]
+      pullRequest: { title: '{key} - {title}', reviewers: [ana] }
+    projects:
+      - { id: api, repository: initrode/api }
+      - id: web
+        repository: initrode/web
+        test: [pnpm, test]
+        pullRequest: { reviewers: [bia] }`,
+  );
+  const [t] = loadTenants(shared, env);
+  expect(t.projects.map((p) => [p.id, p.host, p.test])).toEqual([
+    ['api', 'gh', ['npm', 'test']],
+    ['web', 'gh', ['pnpm', 'test']],
+  ]);
+  expect(t.projects[0].protectedBranches).toEqual(['main', 'homolog']);
+  // objects merge key by key: the title stays, the reviewers list is the project's
+  expect(t.projects[1].pullRequest).toMatchObject({
+    title: '{key} - {title}',
+    reviewers: ['bia'],
+  });
+  expect(t.projects[0].pullRequest).toMatchObject({ reviewers: ['ana'] });
+});
+test('projectDefaults is validated in each project like the project itself', () => {
+  expect(() =>
+    loadTenants(
+      valid.replace(
+        '    projects: [{ id: api, host: gh, repository: initrode/api, test: [npm, test] }]',
+        '    projectDefaults: { host: nope, test: [npm, test] }\n    projects: [{ id: api, repository: initrode/api }]',
+      ),
+      env,
+    ),
+  ).toThrow('project "api" references unknown host "nope"');
+  expect(() =>
+    loadTenants(valid.replace('    projects:', '    projectDefaults: [x]\n    projects:'), env),
+  ).toThrow(/projectDefaults must be a mapping/);
+});

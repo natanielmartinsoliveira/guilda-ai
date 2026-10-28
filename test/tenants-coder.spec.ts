@@ -30,8 +30,8 @@ test.each([
     /runner/,
   ],
   [
-    'root inside protect',
-    CODER_PROJECT.replace('/root/ai-dev-team', '/workspaces/x'),
+    'a protected folder that is the root itself',
+    CODER_PROJECT.replace('/root/ai-dev-team', '/workspaces'),
     '',
     /protect/,
   ],
@@ -40,6 +40,15 @@ test.each([
   ['a harness', CODER_PROJECT, '    harness: { path: /h }', /harness/],
 ])('coder refuses %s', (_name, project, extra, error) => {
   expect(() => loadTenants(yaml(project, extra))).toThrow(error);
+});
+test('the tasks root may sit inside the protected folder (its task copies are skipped there)', () => {
+  const [t] = loadTenants(
+    yaml(CODER_PROJECT.replace('/root/ai-dev-team', '/workspaces/ai-dev-team')),
+  );
+  expect(t.projects[0].workspace).toMatchObject({
+    root: '/workspaces/ai-dev-team',
+    protect: ['/workspaces'],
+  });
 });
 test('coder refuses credentials other than claude without apiKey', () => {
   const codex = yaml()

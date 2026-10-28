@@ -39,7 +39,7 @@ projects:
       url: https://coder.initech.example
       name: ${INITECH_CODER_WORKSPACE} # each developer's workspace
       agent: main # optional
-      root: /root/ai-dev-team # the tasks folder in the workspace (outside protect)
+      root: /root/ai-dev-team # the tasks folder in the workspace (may sit inside protect)
       reference: /workspaces/orders # optional: speeds up the clone (read-only)
       protect: [/workspaces] # default; the operator's clones the agent may not touch
     delivery: rehearsal # rehearsal (no push/MR) | draft (draft MR) | normal (MR)
@@ -48,7 +48,7 @@ projects:
       reviewers: [${INITECH_GITLAB_USER}] # optional; GitLab users
 ```
 
-Rules (an error when the configuration loads): `coder` works only with a `gitlab` host (clone and push over ssh with the workspace's key — an https host would take the token there); no `runner` (the `prepare`/`test` commands already run in the workspace — use `docker run` in them to test the task's copy); the company may only have `claude` credentials without `apiKey` and no `harness`; `root` absolute, without `..` and outside `protect`.
+Rules (an error when the configuration loads): `coder` works only with a `gitlab` host (clone and push over ssh with the workspace's key — an https host would take the token there); no `runner` (the `prepare`/`test` commands already run in the workspace — use `docker run` in them to test the task's copy); the company may only have `claude` credentials without `apiKey` and no `harness`; `root` absolute and without `..`; it may sit inside `protect` (e.g. `/workspaces/ai-dev-team` with the default `/workspaces`: the task copies are skipped there), but no protected folder may be `root` or inside it.
 
 ## What stays on this machine and what does not
 
