@@ -13,6 +13,9 @@ export function FailureForm({
   const [instructions, setInstructions] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  // The recommended step stands out: instructions for a failing test, a plain retry once the
+  // environment is fixed.
+  const withInstructions = decision.failure?.action === 'retry_with_instructions';
   const send = async (body: DecisionAnswer) => {
     if (busy) return;
     setBusy(true);
@@ -30,6 +33,7 @@ export function FailureForm({
   return (
     <div>
       <p className="error">{decision.reason}</p>
+      {decision.failure && <p className="hint">{decision.failure.hint}</p>}
       {decision.details && (
         <details>
           <summary>{t('failure.details')}</summary>
@@ -51,13 +55,18 @@ export function FailureForm({
           <>
             <button
               type="button"
-              className="primary"
+              className={withInstructions ? undefined : 'primary'}
               disabled={busy}
               onClick={() => send({ action: 'retry' })}
             >
               {t('failure.retry')}
             </button>
-            <button type="button" disabled={busy} onClick={() => setMode('instructions')}>
+            <button
+              type="button"
+              className={withInstructions ? 'primary' : undefined}
+              disabled={busy}
+              onClick={() => setMode('instructions')}
+            >
               {t('failure.retryWith')}
             </button>
             <button

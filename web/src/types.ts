@@ -166,6 +166,12 @@ export interface DecisionView {
   questions: DecisionQuestion[] | null;
   reason: string | null;
   details: string | null;
+  /** A failure: its kind, the step that usually solves it and what to tell the operator. */
+  failure?: {
+    kind: string;
+    action: 'retry' | 'retry_with_instructions' | 'fix_then_retry';
+    hint: string;
+  };
   answer: unknown;
   createdAt: string;
   answeredAt: string | null;

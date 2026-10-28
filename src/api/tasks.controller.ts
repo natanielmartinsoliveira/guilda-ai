@@ -67,6 +67,7 @@ function evidenceView(value: unknown) {
 import { OperatorGuard, OperatorRequest } from './api-token.guard';
 import { credentialStatus, roleTargets } from '../agents/agent-router.service';
 import { taskMetrics } from '../tasks/metrics';
+import { failureAdvice } from '../tasks/failure-kind';
 import { addLesson, projectLessons } from '../prompts/lessons';
 import { lessonText, visible } from '../prompts/lesson-capture';
 import { restartRefusal } from '../tasks/orchestrator.service';
@@ -377,6 +378,8 @@ export class TasksController {
         questions: d.questions,
         reason: d.reason,
         details: d.details,
+        // What kind of problem it is and the step that usually solves it.
+        ...(d.type === 'failure' ? { failure: failureAdvice(d.details ?? d.reason) } : {}),
         answer: d.answer,
         createdAt: d.createdAt,
         answeredAt: d.answeredAt,

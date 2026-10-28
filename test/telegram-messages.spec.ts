@@ -67,6 +67,7 @@ test('failure: reason and Retry / Cancel buttons; without a link it says where t
     [
       '❌ Umbrella · #7 falhou',
       'Motivo: TESTS: Tests failed: boom',
+      'Testes: os testes do projeto falharam com a mudança. Repita com instruções dizendo o que corrigir.',
       '',
       'Use os botões, ou responda pelo VS Code (answer_decision).',
     ].join('\n'),

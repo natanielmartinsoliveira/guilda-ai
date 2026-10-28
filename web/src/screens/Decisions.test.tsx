@@ -141,3 +141,28 @@ test('nothing open', () => {
   open('/decisoes', []);
   expect(screen.getByText('Nada esperando você.')).toBeInTheDocument();
 });
+test('failure: the kind of problem says what to do, and its usual step stands out', () => {
+  const env: DecisionView = {
+    ...failure,
+    id: 'd3',
+    failure: {
+      kind: 'environment',
+      action: 'fix_then_retry',
+      hint: 'Ambiente: falta algo onde a tarefa roda.',
+    },
+  };
+  open('/decisoes/d3', [env]);
+  expect(screen.getByText('Ambiente: falta algo onde a tarefa roda.')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Repetir' }).className).toBe('primary');
+  expect(screen.getByRole('button', { name: 'Repetir com instrução' }).className).toBe('');
+});
+test('failure: a failing test makes "retry with instructions" the one that stands out', () => {
+  const tests: DecisionView = {
+    ...failure,
+    id: 'd4',
+    failure: { kind: 'tests', action: 'retry_with_instructions', hint: 'Testes: falharam.' },
+  };
+  open('/decisoes/d4', [tests]);
+  expect(screen.getByRole('button', { name: 'Repetir com instrução' }).className).toBe('primary');
+  expect(screen.getByRole('button', { name: 'Repetir' }).className).toBe('');
+});

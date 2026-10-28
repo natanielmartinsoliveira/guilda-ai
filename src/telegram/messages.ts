@@ -1,5 +1,6 @@
 import { Decision } from '../database/entities';
 import { t } from '../i18n';
+import { failureAdvice } from '../tasks/failure-kind';
 /** Telegram's limit for a message text. */
 export const TELEGRAM_MAX = 4096;
 export type InlineKeyboard = { inline_keyboard: { text: string; callback_data: string }[][] };
@@ -12,7 +13,8 @@ function heading(icon: string, tenantName: string, card: string, title: string) 
 }
 /** Plain text (no parse_mode): nothing in cards or questions needs escaping. */
 export function decisionMessage(input: {
-  decision: Pick<Decision, 'id' | 'type' | 'questions' | 'reason'>;
+  decision: Pick<Decision, 'id' | 'type' | 'questions' | 'reason'> &
+    Partial<Pick<Decision, 'details'>>;
   tenantName: string;
   card: string;
   title: string;
@@ -59,6 +61,7 @@ export function decisionMessage(input: {
       [
         `${heading('❌', tenantName, card, '')} ${t('telegram.failure.failed')}`,
         t('telegram.failure.reason', { reason: decision.reason ?? t('telegram.failure.unknown') }),
+        failureAdvice(decision.details ?? decision.reason).hint,
         '',
         link ? t('telegram.failure.retryLink', { link }) : t('telegram.failure.buttons'),
       ].join('\n'),
