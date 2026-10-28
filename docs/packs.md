@@ -85,6 +85,31 @@ projects:
 
 Mappings merge key by key (the project's `workspace.reference` joins the default workspace, a project's `method.options` join the default options); lists and plain values are the project's when it has them. Each project is then validated as if it had been written whole.
 
+### Stacks
+
+Projects on the same stack run the same `prepare` and `test` with a different image or path. Write them once in the pack as `stacks/<name>.yaml` (any project settings, with `{{placeholders}}` and their default `vars`), and have the project (or `projectDefaults`) name it:
+
+```yaml
+# stacks/php-docker.yaml
+vars: { image: 'composer:2' }
+prepare: [sh, -c, 'docker run --rm -v "$PWD":/app -w /app --entrypoint composer {{image}} install']
+test:
+  [
+    sh,
+    -c,
+    'docker run --rm --network none -v "$PWD":/app -w /app --entrypoint php {{image}} vendor/bin/phpunit',
+  ]
+```
+
+```yaml
+projects:
+  - id: orders
+    repository: shop/orders
+    stack: { name: php-docker, vars: { image: registry.acme.test/orders:8.2 } }
+```
+
+Order: `projectDefaults`, then the stack, then the project's own values (which win: a project may still write its own `test`). Besides `vars`, a stack can use `{{id}}`, `{{repository}}` and `{{reference}}` (the workspace's). A placeholder without a value, or an unknown stack, stops the load naming the project.
+
 ## Lessons
 
 What the company learned running a project's tasks lives in the pack, so the team shares it through git: `lessons/<project>.md` for one project and `lessons/_all.md` for every project, one `- ` line per lesson. Every agent prompt of that project receives them (the newest that fit 8 KB). A method's prompts place them with `{{#LESSONS}}…{{LESSONS}}…{{/LESSONS}}`; `method:check` renders without them.

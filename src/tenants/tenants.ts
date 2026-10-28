@@ -658,17 +658,69 @@ function over(a: unknown, b: unknown): unknown {
     [...new Set([...Object.keys(a), ...Object.keys(b)])].map((k) => [k, over(a[k], b[k])]),
   );
 }
+/** A stack of the company pack: shared project settings with {{placeholders}} (stacks/*.yaml). */
+export type StackSource = (name: string) => unknown;
+const STACK_NAME = /^[a-z0-9][a-z0-9-]{0,62}$/;
+const PLACEHOLDER = /\{\{([a-z][A-Za-z0-9]*)\}\}/g;
+function fill(value: unknown, vars: Record<string, string>, where: string): unknown {
+  if (typeof value === 'string')
+    return value.replace(PLACEHOLDER, (_, name: string) => {
+      if (vars[name] === undefined) throw new Error(`tenants: ${where}: no value for {{${name}}}`);
+      return vars[name];
+    });
+  if (Array.isArray(value)) return value.map((v) => fill(v, vars, where));
+  if (plain(value))
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, fill(v, vars, where)]));
+  return value;
+}
+/** `stack: name` or `stack: { name, vars }`, the project's over the defaults'. */
+function stackRef(defaults: unknown, own: unknown, project: string) {
+  const ref = (v: unknown) => (typeof v === 'string' ? { name: v } : v);
+  const merged = over(ref(defaults), ref(own));
+  if (merged === undefined) return undefined;
+  if (!plain(merged) || typeof merged.name !== 'string' || !STACK_NAME.test(merged.name))
+    throw new Error(`tenants: project "${project}": stack must be a name or { name, vars }`);
+  const vars = merged.vars ?? {};
+  if (!plain(vars) || Object.values(vars).some((v) => typeof v !== 'string'))
+    throw new Error(`tenants: project "${project}": stack vars must be text`);
+  return { name: merged.name, vars: vars as Record<string, string> };
+}
 /**
  * A company's `projectDefaults` (what its projects share: workspace, method, checks, pull
- * request…) under each project, the project's own values winning; the key is then gone, so
- * applying it twice changes nothing.
+ * request…) and the `stack` a project names (its prepare/test… from the pack, placeholders
+ * filled), under each project: defaults, then stack, then the project's own values, which win.
+ * The keys are then gone, so applying it twice changes nothing.
  */
-export function withProjectDefaults<T>(company: T): T {
-  if (!plain(company) || company.projectDefaults === undefined) return company;
-  const { projectDefaults, ...rest } = company;
+export function withProjectDefaults<T>(company: T, stacks?: StackSource): T {
+  if (!plain(company)) return company;
+  const { projectDefaults = {}, ...rest } = company;
   if (!plain(projectDefaults)) throw new Error('tenants: projectDefaults must be a mapping');
+  const { stack: defaultStack, ...defaults } = projectDefaults;
   const projects = Array.isArray(rest.projects)
-    ? rest.projects.map((p) => over(projectDefaults, p))
+    ? rest.projects.map((p) => {
+        if (!plain(p)) return p;
+        const { stack: ownStack, ...own } = p;
+        const id = String(own.id ?? '?');
+        const ref = stackRef(defaultStack, ownStack, id);
+        if (!ref) return over(defaults, own);
+        if (!stacks) throw new Error(`tenants: project "${id}": a stack needs the company pack`);
+        const file = stacks(ref.name);
+        if (!plain(file))
+          throw new Error(`tenants: project "${id}": stack "${ref.name}" not found (stacks/)`);
+        const { vars: stackVars = {}, ...settings } = file;
+        const whole = over(defaults, own) as Record<string, any>;
+        const vars = {
+          ...(plain(stackVars) ? (stackVars as Record<string, string>) : {}),
+          ...ref.vars,
+          id,
+          ...(typeof whole.repository === 'string' ? { repository: whole.repository } : {}),
+          ...(typeof whole.workspace?.reference === 'string'
+            ? { reference: whole.workspace.reference }
+            : {}),
+        };
+        const filled = fill(settings, vars, `project "${id}", stack "${ref.name}"`);
+        return over(over(defaults, filled), own);
+      })
     : rest.projects;
   return { ...rest, projects } as T;
 }

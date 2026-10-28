@@ -77,7 +77,10 @@ export function loadPacks(
     if (!company || typeof company !== 'object' || Array.isArray(company))
       throw new Error(`pacote ${dir}: company.yaml precisa descrever uma empresa`);
     // Before the paths below are resolved: a default template is each project's too.
-    const c = withProjectDefaults(company) as Record<string, any>;
+    const c = withProjectDefaults(company, (name) => {
+      const path = join(dir, 'stacks', `${name}.yaml`);
+      return existsSync(path) ? readYaml(path) : undefined;
+    }) as Record<string, any>;
     const declared = new Map(requirements.map((r) => [r.name, r]));
     const values: Record<string, string> = {};
     const undeclared = [...variables(c)].filter((name) => !declared.has(name));

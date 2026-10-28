@@ -211,7 +211,9 @@ test('compare ignores where a company pack lives (packDir)', () => {
 test('projectDefaults in a pack: a default pull request template is resolved for each project', async () => {
   const c = personal();
   const [first] = c.projects;
-  const { id: _id, repository: _repo, ...shared } = first;
+  const shared = { ...first };
+  delete shared.id;
+  delete shared.repository;
   c.projectDefaults = { ...shared, pullRequest: { template: 'formats/pr.md' } };
   c.projects = [
     { id: first.id, repository: first.repository },
@@ -226,4 +228,70 @@ test('projectDefaults in a pack: a default pull request template is resolved for
     expect(p.workspace).toMatchObject({ type: 'coder', name: 'ws' });
     expect(p.pullRequest?.template).toBe(join(dir, 'formats', 'pr.md'));
   }
+});
+
+test('stacks: a project names one; its settings come from the pack, placeholders filled; the project wins', async () => {
+  const c = personal();
+  const [first] = c.projects;
+  const shared = { ...first };
+  for (const key of ['id', 'repository', 'prepare', 'test']) delete shared[key];
+  c.projectDefaults = { ...shared, stack: 'php' };
+  c.projects = [
+    {
+      id: 'orders',
+      repository: 'shop/orders',
+      workspace: { reference: '/workspaces/orders' },
+      stack: { vars: { image: 'registry/orders:8.2' } },
+    },
+    { id: 'lib', repository: 'shop/lib', test: ['make', 'lint'] },
+  ];
+  const dir = await pack('initech', c);
+  await mkdir(join(dir, 'stacks'));
+  await writeFile(
+    join(dir, 'stacks', 'php.yaml'),
+    stringify({
+      vars: { image: 'composer:2' },
+      prepare: ['sh', '-c', 'docker run {{image}} install # {{id}} {{reference}}'],
+      test: ['sh', '-c', 'docker run --network none {{image}} vendor/bin/phpunit'],
+    }),
+  );
+  const { tenants } = loadPacks([dir], { INITECH_WS: 'ws', INITECH_TOKEN: 'tok' });
+  const [orders, lib] = tenants[0].projects;
+  expect(orders.prepare[2]).toBe(
+    'docker run registry/orders:8.2 install # orders /workspaces/orders',
+  );
+  expect(orders.test[2]).toBe('docker run --network none registry/orders:8.2 vendor/bin/phpunit');
+  // the stack's own default var, and the project's own test over the stack's
+  expect(lib.prepare[2]).toContain('docker run composer:2 install # lib');
+  expect(lib.test).toEqual(['make', 'lint']);
+  expect(orders.workspace).toMatchObject({
+    type: 'coder',
+    name: 'ws',
+    reference: '/workspaces/orders',
+  });
+});
+
+test('stacks: an unknown stack, a placeholder without value or a stack outside a pack stop the load', async () => {
+  const c = personal();
+  c.projects[0].stack = 'nope';
+  const missing = await pack('a', c);
+  expect(() => loadPacks([missing], { INITECH_WS: 'ws', INITECH_TOKEN: 'tok' })).toThrow(
+    /stack "nope" not found/,
+  );
+  const d = personal();
+  d.projects[0].stack = 'php';
+  const unfilled = await pack('b', d);
+  await mkdir(join(unfilled, 'stacks'));
+  await writeFile(join(unfilled, 'stacks', 'php.yaml'), stringify({ test: ['{{image}}'] }));
+  expect(() => loadPacks([unfilled], { INITECH_WS: 'ws', INITECH_TOKEN: 'tok' })).toThrow(
+    /stack "php": no value for \{\{image\}\}/,
+  );
+  expect(() =>
+    loadTenants(
+      coderTenantYaml().replace(
+        '    projects:\n      - ',
+        '    projects:\n      - stack: php\n        ',
+      ),
+    ),
+  ).toThrow(/a stack needs the company pack/);
 });

@@ -81,6 +81,31 @@ projects:
 
 Objetos se juntam chave a chave (o `workspace.reference` do projeto entra no workspace padrão, as `method.options` do projeto entram nas padrão); listas e valores simples são os do projeto quando ele tem. Depois cada projeto é validado como se tivesse sido escrito inteiro.
 
+### Stacks
+
+Projetos da mesma stack rodam o mesmo `prepare` e `test`, mudando a imagem ou um caminho. Escreva isso uma vez no pack, em `stacks/<nome>.yaml` (qualquer configuração de projeto, com `{{placeholders}}` e as `vars` padrão deles), e faça o projeto (ou o `projectDefaults`) apontar para ela:
+
+```yaml
+# stacks/php-docker.yaml
+vars: { image: 'composer:2' }
+prepare: [sh, -c, 'docker run --rm -v "$PWD":/app -w /app --entrypoint composer {{image}} install']
+test:
+  [
+    sh,
+    -c,
+    'docker run --rm --network none -v "$PWD":/app -w /app --entrypoint php {{image}} vendor/bin/phpunit',
+  ]
+```
+
+```yaml
+projects:
+  - id: orders
+    repository: shop/orders
+    stack: { name: php-docker, vars: { image: registry.acme.test/orders:8.2 } }
+```
+
+Ordem: `projectDefaults`, depois a stack, depois os valores do próprio projeto (que ganham: um projeto ainda pode escrever o seu `test`). Além das `vars`, uma stack pode usar `{{id}}`, `{{repository}}` e `{{reference}}` (a do workspace). Um placeholder sem valor, ou uma stack que não existe, interrompe a carga citando o projeto.
+
 ## Lições
 
 O que a empresa aprendeu rodando as tarefas de um projeto fica no pack, para o time compartilhar pelo git: `lessons/<projeto>.md` para um projeto e `lessons/_all.md` para todos, uma linha `- ` por lição. Todo prompt de agente daquele projeto recebe essas lições (as mais novas que cabem em 8 KB). Os prompts de um método escolhem onde elas entram com `{{#LESSONS}}…{{LESSONS}}…{{/LESSONS}}`; o `method:check` renderiza sem elas.
