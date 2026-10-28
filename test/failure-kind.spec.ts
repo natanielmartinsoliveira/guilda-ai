@@ -21,6 +21,8 @@ test.each([
   ['checks', 'CHECKS: Security checks failed: gitleaks'],
   ['tests', 'TESTS: phpunit exited with 2'],
   ['agent', 'AGENT: Agent failed: no output'],
+  ['config', 'PULL_REQUEST: GitLab GET /projects/shop%2Forders/merge_requests returned 401'],
+  ['agent', 'DELIVER: O agente alterou repositórios fora da pasta da tarefa: /workspaces/x'],
   ['other', 'something nobody planned for'],
 ])('%s ← %s', (kind, error) => {
   expect(failureKind(error)).toBe(kind);

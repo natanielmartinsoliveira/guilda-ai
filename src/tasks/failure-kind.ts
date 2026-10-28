@@ -17,7 +17,7 @@ const KINDS: [Exclude<FailureKind, 'other'>, RegExp][] = [
   ],
   [
     'config',
-    /invalid configuration|needs the company pack|not found \(stacks\/\)|no value for \{\{|references unknown|has no credentials|No AI credential allowed/i,
+    /invalid configuration|needs the company pack|not found \(stacks\/\)|no value for \{\{|references unknown|has no credentials|No AI credential allowed|returned 40[13]\b/i,
   ],
   ['tests', /^(?:[A-Z_]+: )?(Tests failed|Quality gate failed)/m],
   ['checks', /^(?:[A-Z_]+: )?Security checks failed/m],
@@ -25,7 +25,10 @@ const KINDS: [Exclude<FailureKind, 'other'>, RegExp][] = [
     'git',
     /\bGit \w+ failed|CONFLICT|merge conflict|non-fast-forward|\[rejected\]|Workspace branch changed|branch base mudou|base branch changed/i,
   ],
-  ['agent', /^(?:[A-Z_]+: )?Agent failed|NO_CHANGES|returned invalid JSON|Method failed/m],
+  [
+    'agent',
+    /^(?:[A-Z_]+: )?Agent failed|NO_CHANGES|returned invalid JSON|Method failed|alterou reposit[óo]rios fora da pasta|changed repositories outside/m,
+  ],
 ];
 /** The worker writes "STAGE: message": a failure no pattern knows still tells where it was. */
 const BY_STAGE: Record<string, FailureKind> = { TESTS: 'tests', CHECKS: 'checks' };
