@@ -57,6 +57,17 @@ routes:
     flow: standard # fluxo padrão do núcleo, com:
     before: [hooks/checa-alvo.py]
     append: prompts/regra-de-superficie.md
+    after: prompts/leitura-final.md # somente leitura, depois do commit: a leitura do método ({{FILES}}), vai para a tarefa e o PR
+triage: # antes da pergunta de rota: uma sugestão, a pessoa continua escolhendo
+  rules:
+    - {
+        when: '\b(testes?|documenta)\b',
+        route: superficie,
+        risk: low,
+        why: 'testes ou documentação, sem mudar comportamento',
+      }
+  fallback:
+    { route: regra, risk: medium, why: 'feature ou regra de negócio: a especificação antes' }
 phases:
   spec:
     steps:

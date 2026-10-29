@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router';
 import { api, ApiError } from '../api';
 import { phaseIndex, PHASES, stageLabel, statusLabel } from '../live';
 import { useLive } from '../LiveProvider';
+import { PlainText } from './PlainText';
 import type { LessonSuggestion, RunUsage, RunView, TaskView } from '../types';
 const ROLES: Record<string, Key> = {
   coder: 'role.coder',
@@ -599,6 +600,12 @@ export function TaskDetail({ tenant, id }: { tenant: string; id: string }) {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+      {task.analysis && (
+        <section>
+          <h3>{t('detail.analysis')}</h3>
+          <PlainText text={task.analysis} />
         </section>
       )}
       {task.restartable && <Restart tenant={tenant} task={task} />}

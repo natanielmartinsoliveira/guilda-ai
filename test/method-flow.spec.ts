@@ -85,6 +85,14 @@ async function setup(route: Route | undefined, script: Script = {}) {
   const deliver = [...(script.deliver ?? ['<resultado>concluido</resultado>'])];
   const agents = {
     execute: jest.fn(async (_p: string, input: { prompt: string }) => {
+      if (input.prompt.startsWith('Read-only reading'))
+        return {
+          success: true,
+          stdout: 'ok',
+          stderr: '',
+          exitCode: 0,
+          message: 'Nothing for the method: no node binds src/x.php',
+        };
       const analysing = input.prompt.startsWith('Write the specification');
       if (analysing) tree = script.analyseWrites ?? [`${SPEC}/rules/desconto.md`];
       else tree = script.deliverLeaves ?? [];
@@ -531,6 +539,11 @@ test('direct with direct edits: the core flow, the surface rule in the prompt, a
   expect(coder).toMatch(/surface only/);
   expect(x.git.commit).not.toHaveBeenCalled();
   expect(x.git.commitPaths.mock.calls[0][1]).toEqual(['src/x.php']);
+  // after the commit, the method reads what the core delivered: read-only, its report kept
+  const after = x.prompts().find((p) => p.prompt.startsWith('Read-only reading'))!;
+  expect(after.prompt).toContain('- src/x.php');
+  expect((after as unknown as { readOnly?: boolean }).readOnly).toBe(true);
+  expect(task.result!.analysis).toBe('Nothing for the method: no node binds src/x.php');
 });
 describe('a plain approval at the gate counts as its option (the option text is what is quoted)', () => {
   test.each(['ok', 'Aprovado!', 'pode seguir', '  SIM. ', '👍', '1', 'approved'])(

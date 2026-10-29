@@ -26,6 +26,34 @@ const route = z.object({
   /** standard flow: hooks run before the agent, and a text appended to its prompt. */
   before: z.array(inside).default([]),
   append: inside.optional(),
+  /**
+   * standard flow: a read-only agent after the review and the commit (the method's own reading
+   * of what the core delivered, {{FILES}} the changed files); its report goes to the task and
+   * the pull request, and never blocks the delivery.
+   */
+  after: inside.optional(),
+});
+const regex = z.string().refine((s) => {
+  try {
+    new RegExp(s, 'i');
+    return true;
+  } catch {
+    return false;
+  }
+}, 'invalid regex');
+/**
+ * Before the operator picks a route: the route the card suggests and its risk, from the first
+ * rule whose regex finds the card's title or text (case-insensitive), else the fallback. Only a
+ * suggestion: the person still declares the route.
+ */
+const triageRule = z.object({
+  route: z.string().min(1),
+  risk: z.enum(['low', 'medium', 'high']),
+  why: label,
+});
+const triage = z.object({
+  rules: z.array(triageRule.extend({ when: regex })).default([]),
+  fallback: triageRule.optional(),
 });
 const next = z.union([z.string().min(1), z.record(z.string(), z.string().min(1))]);
 const step = z.union([
@@ -117,6 +145,7 @@ const methodFile = z
       })
       .default({ addDirs: [], allowedTools: [], sessions: false }),
     messages: z.record(z.string(), z.string()).default({}),
+    triage: triage.optional(),
     /** A promoted rehearsal publishes the delivery without these paths (the method's own). */
     publish: z.object({ exclude: z.array(z.string().min(1)).default([]) }).default({ exclude: [] }),
     routes: z.record(z.string().regex(/^[a-z][a-z0-9-]*$/), route),
@@ -134,9 +163,18 @@ const methodFile = z
     const issue = (message: string) => ctx.addIssue({ code: 'custom', message });
     if (!Object.keys(m.routes).length) issue('a method needs at least one route');
     const phases = new Set([...Object.keys(m.phases), 'done']);
-    for (const [id, r] of Object.entries(m.routes))
+    for (const [id, r] of Object.entries(m.routes)) {
       if (r.flow === 'method' && (!r.start || !phases.has(r.start)))
         issue(`route "${id}": start must be one of its phases`);
+      if (r.after && r.flow !== 'standard')
+        issue(`route "${id}": after is for standard-flow routes (a method route has its phases)`);
+    }
+    for (const rule of [
+      ...(m.triage?.rules ?? []),
+      ...(m.triage?.fallback ? [m.triage.fallback] : []),
+    ])
+      if (!m.routes[rule.route])
+        issue(`triage: route "${rule.route}" is not a route of the method`);
     const targets = (n: z.infer<typeof next> | undefined) =>
       n === undefined ? [] : typeof n === 'string' ? [n] : Object.values(n);
     for (const [id, p] of Object.entries(m.phases)) {

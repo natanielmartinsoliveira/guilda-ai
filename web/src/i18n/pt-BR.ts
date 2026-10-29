@@ -29,6 +29,8 @@ export const ptBR = {
   'stage.TESTS': 'Testes',
   'stage.FIXING': 'Corrigindo testes',
   'stage.CHECKS': 'Checagens de segurança',
+  'stage.ANALYSIS': 'Leitura do método',
+  'detail.analysis': 'Leitura do método (somente leitura, depois da entrega)',
   'stage.FIXING_CHECKS': 'Corrigindo checagens',
   'stage.REVIEW': 'Revisão automática',
   'stage.REVIEW_FIX': 'Aplicando a revisão',

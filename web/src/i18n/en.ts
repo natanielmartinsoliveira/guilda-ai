@@ -30,6 +30,8 @@ export const en: Record<Key, string> = {
   'stage.TESTS': 'Tests',
   'stage.FIXING': 'Fixing tests',
   'stage.CHECKS': 'Security checks',
+  'stage.ANALYSIS': "The method's reading",
+  'detail.analysis': "The method's reading (read-only, after the delivery)",
   'stage.FIXING_CHECKS': 'Fixing checks',
   'stage.REVIEW': 'Automatic review',
   'stage.REVIEW_FIX': 'Applying the review',

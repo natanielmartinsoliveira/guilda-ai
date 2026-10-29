@@ -783,6 +783,8 @@ export class TasksController {
         usage: t.usage ?? undefined,
         // Per agent of the method, as its own telemetry counted it.
         methodTelemetry: t.result?.methodTelemetry,
+        // A standard-flow route's reading by its method (after the commit).
+        analysis: t.result?.analysis,
         prUrl: t.result?.prUrl,
         agentAttempts: t.result?.agentAttempts,
         // Rehearsal (nothing published): where to look in the company's workspace.

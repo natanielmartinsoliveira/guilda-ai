@@ -58,6 +58,17 @@ routes:
     flow: standard # the core flow, with:
     before: [hooks/direct.py]
     append: prompts/direct-rule.md
+    after: prompts/direct-after.md # read-only, after the commit: the method's reading ({{FILES}}), to the task and the PR
+triage: # before the route question: a suggestion, the person still picks
+  rules:
+    - {
+        when: '\b(tests?|docs?)\b',
+        route: direct,
+        risk: low,
+        why: 'tests or docs, no behaviour change',
+      }
+  fallback:
+    { route: feature, risk: medium, why: 'a feature or business rule: the specification first' }
 phases:
   spec:
     steps:

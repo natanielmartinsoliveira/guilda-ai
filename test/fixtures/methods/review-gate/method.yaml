@@ -71,6 +71,8 @@ routes:
     flow: standard
     before: [hooks/direct.py]
     append: prompts/direct-rule.md
+    # the method's own read-only reading of what the core delivered
+    after: prompts/direct-after.md
     evidence: true
 phases:
   spec:

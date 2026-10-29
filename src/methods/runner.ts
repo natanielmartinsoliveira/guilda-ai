@@ -266,6 +266,42 @@ export class MethodRunner {
     if (this.method.hooks.prepare) await this.hook(this.method.hooks.prepare, first);
     for (const hook of this.route.before) await this.hook(hook, first);
   }
+  /**
+   * standard flow: the route's read-only reading of what the core delivered (its after prompt,
+   * {{FILES}} the changed files). Its report is kept on the task; it never blocks the delivery.
+   */
+  async analyse(files: string[]) {
+    if (!this.route.after) return;
+    const { task, ctx, deps } = this;
+    try {
+      const out = await deps.router.run(
+        ctx.tenant,
+        'coder',
+        {
+          taskId: task.id,
+          tenantId: task.tenantId,
+          workspace: task.workspace,
+          ...(ctx.ws.kind === 'coder' ? { remote: ctx.ws as CoderWorkspace } : {}),
+          env: this.env(),
+          addDirs: this.method.agent.addDirs,
+          allowedTools: this.method.agent.allowedTools,
+          keepSessions: this.method.agent.sessions,
+          timeoutMs: this.method.timeoutMinutes * 60000,
+          readOnly: true,
+          prompt: this.render(this.route.after, { FILES: files }),
+        },
+        async () => {},
+      );
+      deps.record(task, out.attempts, out.credential.provider);
+      if (out.result.success && out.result.message)
+        (task.result ??= {}).analysis = auditable(out.result.message.slice(-8000));
+    } catch (error) {
+      log('method.analysis_failed', {
+        taskId: task.id,
+        error: error instanceof Error ? error.message.slice(0, 300) : String(error),
+      });
+    }
+  }
   /** Text appended to the core prompt on a standard-flow route. */
   append() {
     return this.route.append ? this.render(this.route.append) : '';

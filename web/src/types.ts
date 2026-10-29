@@ -89,6 +89,8 @@ export interface TaskView {
   costUsd?: number;
   /** Tokens, turns and agent time of its AI runs so far. */
   usage?: RunUsage;
+  /** A standard-flow route's reading by its method, after the commit. */
+  analysis?: string;
   /** The card was started again: its newer task. */
   supersededBy?: string;
   /** The operator may start the card again (it ended and published nothing). */

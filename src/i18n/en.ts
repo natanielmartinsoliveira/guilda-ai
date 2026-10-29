@@ -3,6 +3,12 @@ import type { MessageKey } from './pt-BR';
 export const en: Record<MessageKey, string> = {
   'telegram.task': 'task',
   'method.whichRoute': 'Which route does this task follow?',
+  'pr.analysis': "The method's reading",
+  'method.suggestion': 'Suggested: {route} — {risk} risk: {why}',
+  'method.recommended': ' (recommended)',
+  'method.risk.low': 'low',
+  'method.risk.medium': 'medium',
+  'method.risk.high': 'high',
   'budget.reached':
     'Task budget reached: US$ {spent} of US$ {limit}. Release US$ {usd} more for it to go on?',
   'budget.release': 'Release US$ {usd} more',

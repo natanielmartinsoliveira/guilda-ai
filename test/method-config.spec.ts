@@ -88,6 +88,18 @@ test('a method declares what its agent may read and run without approval', async
     ['"~/.method-tools"', '"~/../etc"', /addDirs/],
     ['"~/.method-tools"', '"relative/dir"', /addDirs/],
     ['"Bash(git status:*)"', '"Bash(rm -rf /)\\n"', /allowedTools/],
+    // after is a standard-flow route's: a method route has its own phases
+    [
+      '    start: spec\n',
+      '    start: spec\n    after: prompts/direct-after.md\n',
+      /after is for standard-flow/,
+    ],
+    // a triage that suggests a route the method does not have
+    [
+      'messages:',
+      'triage: { rules: [{ when: "x", route: nope, risk: low, why: y }] }\nmessages:',
+      /triage: route "nope"/,
+    ],
   ] as const) {
     const pack = await mkdtemp(join(tmpdir(), 'method-agent-'));
     await cp(join(FIXTURES, 'methods'), join(pack, 'methods'), { recursive: true });

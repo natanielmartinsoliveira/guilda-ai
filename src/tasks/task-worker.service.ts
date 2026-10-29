@@ -57,7 +57,7 @@ import { isApproval } from '../methods/approval';
 import { captureLesson } from '../prompts/lesson-capture';
 import { language, t } from '../i18n';
 import { loadMethod } from '../methods/method';
-import { routeFromAnswer, routeQuestion } from '../methods/route-choice';
+import { routeFromAnswer, routeQuestion, triageCard } from '../methods/route-choice';
 import { formatsFor } from '../formats/formats';
 import { MethodRunner, porcelainPaths, readOutcome, under } from '../methods/runner';
 /** A rehearsal that was published as a draft PR (it is a delivery now). */
@@ -1242,8 +1242,22 @@ export class TaskWorkerService implements OnModuleInit {
         // Sub-tasks already are the plan; a card without them gets one from the planner.
         planFor: story || steps.length ? undefined : task.instructions,
         commitMessage,
-        ...(standardRoute?.route.evidence
-          ? { afterCommit: () => this.collectEvidence(task, ctx, standardRoute.routeId) }
+        // After the commit, before anything leaves: the method's reading of what the core
+        // delivered (its after prompt), then the test evidence.
+        ...(standardRoute && (standardRoute.route.evidence || standardRoute.route.after)
+          ? {
+              afterCommit: async () => {
+                if (standardRoute.route.after) {
+                  await this.stage(task, Task, 'ANALYSIS');
+                  const files =
+                    (task.result!.changes as { files?: string[] } | undefined)?.files ?? [];
+                  await standardRoute.analyse(files);
+                  await this.db.getRepository(Task).save(task);
+                }
+                if (standardRoute.route.evidence)
+                  await this.collectEvidence(task, ctx, standardRoute.routeId);
+              },
+            }
           : {}),
         front: frontPart
           ? {
@@ -1424,11 +1438,14 @@ export class TaskWorkerService implements OnModuleInit {
           prSections,
         )
       : this.defaultPrBody(task, issue, steps);
+    // The method's reading of the change, when its route has one.
+    const analysis = task.result.analysis as string | undefined;
+    const fullBody = analysis ? `${body}\n\n## ${t('pr.analysis')}\n\n${analysis}` : body;
     const pr = await ctx.host.ensurePullRequest(ctx.cfg.repository, {
       branch: task.branch,
       base: target,
       title: this.prTitleFor(ctx),
-      body: body.slice(0, 60000),
+      body: fullBody.slice(0, 60000),
       draft: opts.draft,
       reviewers: opts.reviewers,
     });
@@ -1517,7 +1534,12 @@ export class TaskWorkerService implements OnModuleInit {
    */
   private async chooseRoute(task: Task, ctx: WorkContext) {
     const method = loadMethod(ctx.tenant.packDir!, ctx.cfg.method!.name);
-    const question = routeQuestion(method, language());
+    // The method's triage suggests a route from the card; the person still picks one.
+    const question = routeQuestion(
+      method,
+      language(),
+      triageCard(method, `${ctx.issue.title}\n${task.instructions}`, language()),
+    );
     const last = (
       await this.db
         .getRepository(Decision)

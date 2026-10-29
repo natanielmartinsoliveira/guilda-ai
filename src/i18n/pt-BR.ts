@@ -2,6 +2,12 @@
 export const ptBR = {
   'telegram.task': 'tarefa',
   'method.whichRoute': 'Qual rota esta tarefa segue?',
+  'pr.analysis': 'Leitura do método',
+  'method.suggestion': 'Sugestão: {route} — risco {risk}: {why}',
+  'method.recommended': ' (recomendado)',
+  'method.risk.low': 'baixo',
+  'method.risk.medium': 'médio',
+  'method.risk.high': 'alto',
   'budget.reached':
     'Orçamento da tarefa atingido: US$ {spent} de US$ {limit}. Liberar mais US$ {usd} para ela continuar?',
   'budget.release': 'Liberar mais US$ {usd}',
