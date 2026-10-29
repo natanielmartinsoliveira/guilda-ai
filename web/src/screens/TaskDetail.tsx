@@ -73,6 +73,7 @@ function Metrics({ task }: { task: TaskView }) {
           .map(([phase, p]) => (
             <li key={phase}>
               {t('detail.phase', { phase, runs: p.runs, agent: elapsed(p.agentMs) })}
+              {p.costUsd ? ` · ${t('detail.cost', { usd: p.costUsd.toFixed(2) })}` : ''}
               {p.usage ? (
                 <>
                   {' · '}

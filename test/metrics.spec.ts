@@ -75,3 +75,29 @@ test('phase usage is summed from the runs that carry it', () => {
   );
   expect(m.phases.deliver.usage).toEqual({ input: 20, output: 2, cacheCreation: 0, cacheRead: 10 });
 });
+
+test('without a method phase a run counts under its role, with what each step cost', () => {
+  const usage = (cost: number) => ({
+    input: 10,
+    output: 5,
+    cacheCreation: 0,
+    cacheRead: 0,
+    byModel: {
+      'claude-sonnet-5-5': { input: 10, output: 5, cacheCreation: 0, cacheRead: 0, costUsd: cost },
+    },
+  });
+  const m = taskMetrics(
+    { status: 'SUCCESS', createdAt: at(0), updatedAt: at(30) },
+    [
+      { ...run('coder', 0, 10), usage: usage(0.9) },
+      { ...run('fixer', 10, 14), usage: usage(0.3) },
+      { ...run('fixer', 14, 16), usage: usage(0.2) },
+      { ...run('reviewer', 16, 20), usage: usage(0.25) },
+    ],
+    [],
+  );
+  expect(Object.keys(m.phases)).toEqual(['coder', 'fixer', 'reviewer']);
+  expect(m.phases.fixer).toMatchObject({ runs: 2, agentMs: 6 * 60000 });
+  expect(m.phases.fixer.costUsd).toBeCloseTo(0.5);
+  expect(m.phases.coder.costUsd).toBeCloseTo(0.9);
+});

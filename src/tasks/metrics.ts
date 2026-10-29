@@ -19,6 +19,8 @@ export interface PhaseMetrics {
   runs: number;
   agentMs: number;
   usage?: RunUsage;
+  /** What its runs cost, as the providers reported it per model (USD). */
+  costUsd?: number;
 }
 export interface TaskMetrics {
   totalMs: number;
@@ -29,7 +31,7 @@ export interface TaskMetrics {
   /** Whatever is neither: queue, retry delays, tests, checks, git, the workspace. */
   otherMs: number;
   waits: { questions: number; failures: number };
-  /** Agent runs per method phase ("" when the run had none). */
+  /** Agent runs per step: the method phase, else the agent's role (coder, fixer, reviewer…). */
   phases: Record<string, PhaseMetrics>;
 }
 const AI_AGENTS = new Set<string>(ROLES);
@@ -48,10 +50,14 @@ export function taskMetrics(
   for (const run of runs.filter((r) => AI_AGENTS.has(r.agent))) {
     const ms = span(run.startedAt, run.finishedAt ?? now);
     agentMs += ms;
-    const phase = (phases[run.phase ?? ''] ??= { runs: 0, agentMs: 0 });
+    const phase = (phases[run.phase ?? run.agent] ??= { runs: 0, agentMs: 0 });
     phase.runs++;
     phase.agentMs += ms;
-    if (run.usage) phase.usage = addUsage(phase.usage, run.usage);
+    if (run.usage) {
+      phase.usage = addUsage(phase.usage, run.usage);
+      const cost = Object.values(run.usage.byModel ?? {}).reduce((s, m) => s + (m.costUsd ?? 0), 0);
+      if (cost) phase.costUsd = (phase.costUsd ?? 0) + cost;
+    }
   }
   const waitingMs = decisions.reduce(
     (total, d) =>

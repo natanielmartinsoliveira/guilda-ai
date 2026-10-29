@@ -326,6 +326,11 @@ const project = z
     defaultBranch: z.string().min(1).max(200).default('main'),
     test: argv.min(1),
     /**
+     * Run the tests on the prepared base before the agent: a test that already fails there is
+     * handed to the agent (name and output), which otherwise could not know (core flow only).
+     */
+    baselineTests: z.boolean().default(false),
+    /**
      * What else a delivery must pass after the tests, in order, stopping at the first that
      * fails (which goes back to the fixer like a failing test). Each runs like test: same
      * place, no network. coverage: the share its output reports (pattern: a regex whose first

@@ -4,6 +4,8 @@ export const en: Record<MessageKey, string> = {
   'telegram.task': 'task',
   'method.whichRoute': 'Which route does this task follow?',
   'pr.analysis': "The method's reading",
+  'baseline.failing':
+    "Before your change, the project's tests already fail on the base ({command}). If the card asks for tests or their fix, that is what is left to solve; otherwise, do not make it worse. Output:\n```\n{output}\n```",
   'method.suggestion': 'Suggested: {route} — {risk} risk: {why}',
   'method.recommended': ' (recommended)',
   'method.risk.low': 'low',

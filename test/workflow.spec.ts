@@ -579,6 +579,34 @@ test('crash after commit resumes tests and push without running agent again', as
   expect(x.git.push).toHaveBeenCalledWith(expect.anything(), 'b'.repeat(40), expect.anything());
   expect((await db.getRepository(Task).findOneByOrFail({ id: x.task.id })).status).toBe('SUCCESS');
 });
+describe('baseline tests (before the agent)', () => {
+  const run = (success: boolean, stdout: string) => ({
+    success,
+    stdout,
+    stderr: success ? '' : 'exit 1',
+    exitCode: success ? 0 : 1,
+  });
+  test('a test already failing on the base reaches the coder, with its output', async () => {
+    const x = await setup({ baselineTests: true });
+    x.sandbox.run
+      .mockResolvedValueOnce(run(false, 'FAILURES: RequestFillsTest expected 10 got "10"'))
+      .mockResolvedValueOnce(run(true, 'OK (12 tests)'));
+    await x.worker.handle(x.message, x.channel);
+    const task = await db.getRepository(Task).findOneByOrFail({ id: x.task.id });
+    expect(task.status).toBe('SUCCESS');
+    const coder: string = x.agents.execute.mock.calls[0][1].prompt;
+    expect(coder).toContain('os testes do projeto já falham na base (npm test)');
+    expect(coder).toContain('RequestFillsTest expected 10 got "10"');
+    expect(task.result).toMatchObject({ baseline: { exitCode: 1 }, validation: { exitCode: 0 } });
+  });
+  test('off by default: the tests run only after the agent', async () => {
+    const x = await setup();
+    await x.worker.handle(x.message, x.channel);
+    expect(x.sandbox.run).toHaveBeenCalledTimes(1);
+    const task = await db.getRepository(Task).findOneByOrFail({ id: x.task.id });
+    expect(task.result?.baseline).toBeUndefined();
+  });
+});
 describe('quality gate (lint, typecheck, coverage after the tests)', () => {
   const ok = (stdout: string) => ({ success: true, stdout, stderr: '', exitCode: 0 });
   const quality = {

@@ -58,7 +58,7 @@ export interface TaskMetrics {
   waitingMs: number;
   otherMs: number;
   waits: { questions: number; failures: number };
-  phases: Record<string, { runs: number; agentMs: number; usage?: RunUsage }>;
+  phases: Record<string, { runs: number; agentMs: number; usage?: RunUsage; costUsd?: number }>;
 }
 export interface RevisionView {
   id: string;

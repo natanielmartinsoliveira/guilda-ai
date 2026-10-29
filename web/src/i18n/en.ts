@@ -154,7 +154,7 @@ export const en: Record<Key, string> = {
   'detail.tokens':
     'Tokens: input {input} · output {output} · cache read {cacheRead} · cache written {cacheCreation}',
   'detail.turns': '{n} turns',
-  'detail.phase': 'Phase {phase}: {runs} run(s), {agent}',
+  'detail.phase': 'Step {phase}: {runs} run(s), {agent}',
   'detail.methodAgents': 'Method agents',
   'detail.methodAgent': '{agent}: {runs} run(s), {time}',
   'detail.methodFloor': '(only {measured} measured: a floor)',

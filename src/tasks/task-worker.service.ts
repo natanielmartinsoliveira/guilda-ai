@@ -698,8 +698,12 @@ export class TaskWorkerService implements OnModuleInit {
         await this.stage(job, entity, 'DESIGN');
         design = await front.design(settled);
       }
+      // The tests on the base, before the agent: what already fails is handed to it.
+      const failing = fresh && ctx.cfg.baselineTests ? await this.baseline(spec) : undefined;
       if (fresh) {
-        agentInput = await this.implement(spec, 'coder', await spec.prompt(), notes, !!front);
+        const coder = await spec.prompt();
+        if (failing) coder.prompt += `\n\n${failing}`;
+        agentInput = await this.implement(spec, 'coder', coder, notes, !!front);
         if (front) {
           await this.testAndFix(spec, agentInput);
           state.backSha = (await this.commitIfChanged(spec, front.backCommitMessage)) ?? head;
@@ -944,6 +948,21 @@ export class TaskWorkerService implements OnModuleInit {
           ? `Tests failed: ${validation.stderr}`
           : `Quality gate failed (${validation.step}): ${validation.detail ?? validation.stderr}`,
       );
+  }
+  /**
+   * The project's tests on the prepared base, before any agent. Failing, their output is kept on
+   * the task and returned as a note for the agent's prompt; passing, nothing to add.
+   */
+  private async baseline(spec: ChangeSpec) {
+    const { task, job, entity, ctx } = spec;
+    await this.stage(job, entity, 'BASELINE');
+    const before = await this.git.changedPaths(task);
+    const r = await this.command(task, ctx, ctx.cfg.test, 'tester', false);
+    await this.git.revertSideEffects(task, before);
+    const output = redact(`${r.stdout}\n${r.stderr}`.trim()).slice(-6000);
+    job.result!.baseline = { exitCode: r.exitCode, ...(r.success ? {} : { output }) };
+    if (r.success) return undefined;
+    return t('baseline.failing', { command: ctx.cfg.test.join(' '), output });
   }
   /**
    * Local security checks on what the change introduced. New findings go back to the fixer

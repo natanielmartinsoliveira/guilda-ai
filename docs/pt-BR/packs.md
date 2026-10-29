@@ -122,6 +122,10 @@ quality:
 
 Cada etapa roda como o `test` (mesmo lugar, sem rede). Uma etapa que falha volta ao fixer como um teste que falha, com o comando e a saída (na cobertura, a diferença: `coverage 72% below the minimum 80%`); se continuar falhando, a tarefa falha como `Quality gate failed (<etapa>)`.
 
+### Testes na base
+
+`baselineTests: true` (no projeto, no `projectDefaults` ou numa stack) roda os testes na base preparada antes do agente, no fluxo do motor. Um teste que já falha ali chega ao prompt do agente, com o comando e a saída: um card que pede testes, ou a correção deles, passa a dizer o que está quebrado sem você explicar. O resultado fica na tarefa (`baseline`). Desligado por padrão: custa uma execução a mais da suíte.
+
 ### Acrescentar um projeto: `npm run project:add`
 
 ```bash

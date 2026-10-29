@@ -153,7 +153,7 @@ export const ptBR = {
   'detail.tokens':
     'Tokens: entrada {input} · saída {output} · cache lido {cacheRead} · cache criado {cacheCreation}',
   'detail.turns': '{n} turnos',
-  'detail.phase': 'Fase {phase}: {runs} execução(ões), {agent}',
+  'detail.phase': 'Etapa {phase}: {runs} execução(ões), {agent}',
   'detail.methodAgents': 'Agentes do método',
   'detail.methodAgent': '{agent}: {runs} execução(ões), {time}',
   'detail.methodFloor': '(só {measured} medida(s): é um piso)',

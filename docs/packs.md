@@ -126,6 +126,10 @@ quality:
 
 Each step runs like `test` (same place, no network). A step that fails goes back to the fixer like a failing test, with its command and output (for coverage, the shortfall: `coverage 72% below the minimum 80%`); if it is still failing, the task fails as `Quality gate failed (<step>)`.
 
+### Baseline tests
+
+`baselineTests: true` (in a project, `projectDefaults` or a stack) runs the tests on the prepared base before the agent, in the core flow. A test that already fails there reaches the agent's prompt, command and output: a card that asks for tests, or their fix, then says what is broken without the operator explaining it. The result is kept on the task (`baseline`). Off by default: it costs one more run of the suite.
+
 ### Adding a project: `npm run project:add`
 
 ```bash

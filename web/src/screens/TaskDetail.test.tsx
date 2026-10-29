@@ -210,7 +210,7 @@ test('metrics: where the time went, the tokens per model and per method phase', 
   expect(screen.getByText('2 pergunta(s) e 1 falha(s) esperaram você')).toBeTruthy();
   expect(screen.getByText(/^claude-opus-5-5: Tokens: entrada 1.200/)).toBeTruthy();
   expect(screen.getByText(/US\$ 0\.40/)).toBeTruthy();
-  expect(screen.getByText(/^Fase deliver: 2 execução\(ões\), 1 h 15 min · Tokens/)).toBeTruthy();
+  expect(screen.getByText(/^Etapa deliver: 2 execução\(ões\), 1 h 15 min · Tokens/)).toBeTruthy();
   expect(screen.getByText(/coder \(deliver\) · claude · SUCCESS · 30 min/)).toBeTruthy();
   expect(
     screen.getByText(

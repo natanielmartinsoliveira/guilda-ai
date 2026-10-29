@@ -3,6 +3,8 @@ export const ptBR = {
   'telegram.task': 'tarefa',
   'method.whichRoute': 'Qual rota esta tarefa segue?',
   'pr.analysis': 'Leitura do método',
+  'baseline.failing':
+    'Antes da sua mudança, os testes do projeto já falham na base ({command}). Se o card pede testes ou a correção deles, é isso que falta resolver; se não, não piore. Saída:\n```\n{output}\n```',
   'method.suggestion': 'Sugestão: {route} — risco {risk}: {why}',
   'method.recommended': ' (recomendado)',
   'method.risk.low': 'baixo',
