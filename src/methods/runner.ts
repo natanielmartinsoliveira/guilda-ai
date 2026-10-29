@@ -72,8 +72,12 @@ export function porcelainPaths(output: string) {
   const entries = output.split('\0').filter(Boolean);
   const paths: string[] = [];
   for (let i = 0; i < entries.length; i++) {
-    paths.push(entries[i].slice(3));
-    if (entries[i][0] === 'R' || entries[i][0] === 'C') i++;
+    // "XY path", where the output may have lost the first entry's leading space (a trimmed
+    // " M path" reads "M path"): the status is 1 or 2 characters, then one space.
+    const entry = /^([ MTADRCU?!]{1,2}) (.*)$/s.exec(entries[i]);
+    const status = entry ? entry[1] : entries[i].slice(0, 2);
+    paths.push(entry ? entry[2] : entries[i].slice(3));
+    if (/^[RC]/.test(status.trimStart())) i++;
   }
   return paths;
 }

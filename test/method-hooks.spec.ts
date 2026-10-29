@@ -56,6 +56,13 @@ test('porcelain paths and paths under a folder', () => {
   expect(under('docs/spec/a.md', 'docs/spec')).toBe(true);
   expect(under('docs/specification/a.md', 'docs/spec')).toBe(false);
   expect(under('docs/my spec/x.md', 'docs/my spec/')).toBe(true);
+  // git output is trimmed: the first entry may have lost its leading space (" M x" → "M x")
+  expect(porcelainPaths('M docs/spec/node.log.md\0 M app/X.php\0')).toEqual([
+    'docs/spec/node.log.md',
+    'app/X.php',
+  ]);
+  expect(porcelainPaths('R new.md\0old.md\0?? z.md\0')).toEqual(['new.md', 'z.md']);
+  expect(porcelainPaths('MM both.md\0A  added.md\0')).toEqual(['both.md', 'added.md']);
 });
 
 test('with real git: commitPaths commits only the given folder, even with spaces', async () => {
