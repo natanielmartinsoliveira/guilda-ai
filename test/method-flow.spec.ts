@@ -544,6 +544,8 @@ test('direct with direct edits: the core flow, the surface rule in the prompt, a
   expect(after.prompt).toContain('- src/x.php');
   expect((after as unknown as { readOnly?: boolean }).readOnly).toBe(true);
   expect(task.result!.analysis).toBe('Nothing for the method: no node binds src/x.php');
+  // the reading is a step of its own in the metrics, not more of the coder
+  expect(after.phase).toBe('analysis');
 });
 describe('a plain approval at the gate counts as its option (the option text is what is quoted)', () => {
   test.each(['ok', 'Aprovado!', 'pode seguir', '  SIM. ', '👍', '1', 'approved'])(

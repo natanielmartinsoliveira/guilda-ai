@@ -228,6 +228,17 @@ export class OrchestratorService {
       if (previous) {
         previous.result = { ...(previous.result ?? {}), supersededBy: id };
         await em.save(previous);
+        // Its open decisions are settled by the restart: answering one would revive the old task.
+        await em.update(
+          Decision,
+          { taskId: previous.id, status: 'open' },
+          {
+            status: 'answered',
+            answer: { superseded: id },
+            answeredVia: 'restart',
+            answeredAt: new Date(),
+          },
+        );
         supersede(previous);
       }
       return task;
@@ -384,6 +395,13 @@ export class OrchestratorService {
       if (decision.status !== 'open')
         throw new JobRejected('conflict', 'Decision already answered');
       const task = await em.findOneByOrFail(Task, { id: decision.taskId });
+      // A card started again lives in its new task: the old one only takes a cancel.
+      const newer = task.result?.supersededBy as string | undefined;
+      if (newer && !('action' in answer && answer.action === 'cancel'))
+        throw new JobRejected(
+          'conflict',
+          `Este card foi refeito na tarefa ${newer}: responda nela`,
+        );
       const entity = decision.revisionId ? Revision : Task;
       const job = decision.revisionId
         ? await em.findOneByOrFail(Revision, { id: decision.revisionId })

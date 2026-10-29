@@ -531,6 +531,22 @@ test('failed tests prevent commit, push and PR; delivery rejected', async () => 
   expect(x.channel.ack).not.toHaveBeenCalled();
   expect(x.channel.nack).toHaveBeenCalledWith(x.message, false, false);
 });
+test('a suite that reports on stdout only: the failure keeps the end of that output', async () => {
+  const x = await setup();
+  const lines = Array.from({ length: 50 }, (_, i) => `line ${i}`);
+  x.sandbox.run.mockResolvedValue({
+    success: false,
+    stdout: [...lines, 'FAILURES! Tests: 3, Failures: 1.'].join('\n'),
+    stderr: '',
+    exitCode: 1,
+  });
+  await x.worker.handle(x.message, x.channel);
+  const task = await db.getRepository(Task).findOneByOrFail({ id: x.task.id });
+  expect(task.error).toContain('Tests failed: ');
+  expect(task.error).toContain('FAILURES! Tests: 3, Failures: 1.');
+  expect(task.error).toContain('line 49');
+  expect(task.error).not.toContain('line 5\n');
+});
 test('transient GitHub failure schedules bounded retry and reuses committed work', async () => {
   const x = await setup();
   x.github.ensurePullRequest.mockRejectedValueOnce(new TaskError('GitHub 503', true));

@@ -194,3 +194,34 @@ describe('restarting a card', () => {
     expect(again.id).not.toBe(task.id);
   });
 });
+
+test('restarting settles the open decisions of the old task, which then refuses answers', async () => {
+  const service = new OrchestratorService(db, new TenantRegistry());
+  const first = await service.accept('acme', item);
+  await db.getRepository(Task).update(first.id, { status: 'FAILED' } as never);
+  const failure = await db.getRepository(Decision).save({
+    tenantId: 'acme',
+    taskId: first.id,
+    revisionId: null,
+    type: 'failure',
+    status: 'open',
+    reason: 'TESTS: Tests failed',
+  });
+  const second = await service.accept('acme', item, { again: true });
+  const settled = await db.getRepository(Decision).findOneByOrFail({ id: failure.id });
+  expect(settled).toMatchObject({
+    status: 'answered',
+    answer: { superseded: second.id },
+    answeredVia: 'restart',
+  });
+  // a decision of the old task opened later (or answered elsewhere) cannot revive it
+  const late = (await db
+    .getRepository(Decision)
+    .save({ ...failure, id: undefined, status: 'open' } as never)) as unknown as Decision;
+  await expect(service.answerDecision('acme', late.id, { action: 'retry' }, 'web')).rejects.toThrow(
+    `Este card foi refeito na tarefa ${second.id}`,
+  );
+  // a cancel is still allowed
+  await service.answerDecision('acme', late.id, { action: 'cancel' }, 'web');
+  expect((await db.getRepository(Task).findOneByOrFail({ id: first.id })).status).toBe('CANCELLED');
+});

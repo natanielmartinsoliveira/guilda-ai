@@ -288,6 +288,8 @@ export class MethodRunner {
           keepSessions: this.method.agent.sessions,
           timeoutMs: this.method.timeoutMinutes * 60000,
           readOnly: true,
+          // Its own step in the task's metrics, apart from the coder's runs.
+          phase: 'analysis',
           prompt: this.render(this.route.after, { FILES: files }),
         },
         async () => {},

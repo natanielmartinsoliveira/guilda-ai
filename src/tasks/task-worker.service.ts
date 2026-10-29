@@ -945,7 +945,8 @@ export class TaskWorkerService implements OnModuleInit {
     if (!validation.success)
       throw new TaskError(
         validation.step === 'test'
-          ? `Tests failed: ${validation.stderr}`
+          ? // From a workspace the output often comes on stdout only: its tail says what failed.
+            `Tests failed: ${(validation.stderr.trim() || validation.stdout.trim().split('\n').slice(-30).join('\n')).slice(-3000)}`
           : `Quality gate failed (${validation.step}): ${validation.detail ?? validation.stderr}`,
       );
   }
