@@ -15,6 +15,12 @@ export const en: Record<MessageKey, string> = {
     'Task budget reached: US$ {spent} of US$ {limit}. Release US$ {usd} more for it to go on?',
   'budget.release': 'Release US$ {usd} more',
   'telegram.question.head': 'The AI has {count} question(s) and the task is waiting for you:',
+  'telegram.brief.deciding': 'What you decide:',
+  'telegram.brief.approve': 'I recommend approving:',
+  'telegram.brief.adjust': 'I recommend adjusting:',
+  'telegram.brief.choices':
+    'Choices (→ recommended; to change one, reply with its letter and your choice):',
+  'telegram.brief.or': 'or',
   'telegram.question.answerLink': 'Answer: {link}',
   'telegram.question.answerVsCode': 'Answer from VS Code (answer_decision).',
   'telegram.failure.failed': 'failed',

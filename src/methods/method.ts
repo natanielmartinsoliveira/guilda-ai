@@ -68,6 +68,11 @@ const step = z.union([
       ask: z.object({
         question: inside,
         option: inside,
+        /**
+         * A read-only agent that reads what is asked ({{QUESTION}}, {{FILES}}) and writes the
+         * person a brief of it (a ```json block, DecisionBrief): shown first, the question after.
+         */
+        brief: inside.optional(),
         files: z
           .object({ path: z.string().min(1), routes: z.array(z.string()).optional() })
           .optional(),

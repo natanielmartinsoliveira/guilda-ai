@@ -152,9 +152,18 @@ export interface TaskView {
   createdAt: string;
   updatedAt: string;
 }
+/** What a read-only agent wrote so the operator decides quickly (the question stays the record). */
+export interface DecisionBrief {
+  summary: string;
+  recommendation: { approve: boolean; why: string };
+  choices: { question: string; options: string[]; recommended: number; why?: string }[];
+  risks: { level: 'high' | 'medium' | 'low'; text: string }[];
+  highlights: string[];
+}
 export interface DecisionQuestion {
   text: string;
   options?: string[];
+  brief?: DecisionBrief;
 }
 export interface DecisionView {
   id: string;

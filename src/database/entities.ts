@@ -29,10 +29,25 @@ export interface StoryPlan {
   branch: string;
   steps: StepPlan[];
 }
+/**
+ * A question made quick to decide: what is decided, the recommendation, the risks, and the
+ * choices it carries (each with the one recommended). Written by a read-only agent for the
+ * operator; the question's own text stays the full record.
+ */
+export interface DecisionBrief {
+  summary: string;
+  recommendation: { approve: boolean; why: string };
+  /** Choices the subject already made that deserve a look; recommended: index in options. */
+  choices: { question: string; options: string[]; recommended: number; why?: string }[];
+  risks: { level: 'high' | 'medium' | 'low'; text: string }[];
+  /** Short lines worth seeing at a glance (what follows a reference, what changes for whom). */
+  highlights: string[];
+}
 /** A question the AI asked instead of guessing; options are suggestions, not limits. */
 export interface DecisionQuestion {
   text: string;
   options?: string[];
+  brief?: DecisionBrief;
 }
 /** Operator input that applies to every later prompt of the task (and its revisions). */
 export interface Clarification {

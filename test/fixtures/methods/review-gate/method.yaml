@@ -92,6 +92,8 @@ phases:
       - ask:
           question: prompts/gate-{{route}}.md
           option: prompts/authorization-{{route}}.md
+          # A read-only agent briefs the person before they decide (shown before the question).
+          brief: prompts/brief.md
           files: { path: "{{vars.spec_root}}", routes: [feature] }
           chosen:
             commit:

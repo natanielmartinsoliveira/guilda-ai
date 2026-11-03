@@ -14,6 +14,12 @@ export const ptBR = {
     'Orçamento da tarefa atingido: US$ {spent} de US$ {limit}. Liberar mais US$ {usd} para ela continuar?',
   'budget.release': 'Liberar mais US$ {usd}',
   'telegram.question.head': 'A IA tem {count} dúvida(s) e a tarefa está esperando você:',
+  'telegram.brief.deciding': 'O que você decide:',
+  'telegram.brief.approve': 'Recomendo aprovar:',
+  'telegram.brief.adjust': 'Recomendo ajustar:',
+  'telegram.brief.choices':
+    'Escolhas (→ recomendada; para mudar, responda com a letra e a escolha):',
+  'telegram.brief.or': 'ou',
   'telegram.question.answerLink': 'Responder: {link}',
   'telegram.question.answerVsCode': 'Responda pelo VS Code (answer_decision).',
   'telegram.failure.failed': 'falhou',

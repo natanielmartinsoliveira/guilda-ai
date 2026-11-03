@@ -249,6 +249,19 @@ legend {
   border-radius: 4px;
   background: color-mix(in srgb, currentColor 12%, transparent);
 }
+/* A question's brief: read first, the full question folded below it. */
+.brief {
+  border-left: 3px solid var(--accent);
+  padding: 4px 0 4px 12px;
+  margin-bottom: 12px;
+}
+.brief h3,
+.brief h4 {
+  margin: 8px 0 4px;
+}
+.brief small {
+  color: var(--muted);
+}
 .option {
   display: flex;
   gap: 8px;

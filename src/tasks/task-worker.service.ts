@@ -64,6 +64,7 @@ import { MethodRunner, porcelainPaths, readOutcome, under } from '../methods/run
 const promoted = (rehearsal: unknown) =>
   !!(rehearsal as { promoted?: boolean } | undefined)?.promoted;
 import type { DecisionQuestion } from '../database/entities';
+import { mapBrief } from '../methods/brief';
 import { SandboxService } from '../agents/sandbox.service';
 import { GitRemote, GitService } from '../git/git.service';
 import { MessagingService } from '../messaging/messaging.service';
@@ -340,6 +341,7 @@ export class TaskWorkerService implements OnModuleInit {
               questions: questions.map((q) => ({
                 text: redact(q.text),
                 ...(q.options ? { options: q.options.map(redact) } : {}),
+                ...(q.brief ? { brief: mapBrief(q.brief, redact) } : {}),
               })),
             });
             await notifyDecision(em, decision.id);

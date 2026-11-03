@@ -1,4 +1,4 @@
-import { Decision } from '../database/entities';
+import { Decision, DecisionBrief } from '../database/entities';
 import { t } from '../i18n';
 import { failureAdvice } from '../tasks/failure-kind';
 /** Telegram's limit for a message text. */
@@ -10,6 +10,26 @@ function fit(text: string) {
 }
 function heading(icon: string, tenantName: string, card: string, title: string) {
   return `${icon} ${tenantName} · ${card || t('telegram.task')}${title ? ` — ${title}` : ''}`;
+}
+const RISK = { high: '🔴', medium: '🟡', low: '🟢' } as const;
+/** A brief in a few lines: what is decided, the recommendation, its choices and risks. */
+function briefLines(brief: DecisionBrief) {
+  return [
+    `${t('telegram.brief.deciding')} ${brief.summary}`,
+    `${brief.recommendation.approve ? t('telegram.brief.approve') : t('telegram.brief.adjust')} ${brief.recommendation.why}`,
+    ...brief.highlights.map((h) => `• ${h}`),
+    ...(brief.choices.length ? ['', t('telegram.brief.choices')] : []),
+    ...brief.choices.map(
+      (c, i) =>
+        `${String.fromCharCode(65 + i)}. ${c.question} → ${c.options[c.recommended]}${
+          c.options.length > 1
+            ? ` (${t('telegram.brief.or')} ${c.options.filter((_, j) => j !== c.recommended).join(' / ')})`
+            : ''
+        }`,
+    ),
+    ...(brief.risks.length ? [''] : []),
+    ...brief.risks.map((r) => `${RISK[r.level]} ${r.text}`),
+  ].join('\n');
 }
 /** Plain text (no parse_mode): nothing in cards or questions needs escaping. */
 export function decisionMessage(input: {
@@ -23,8 +43,11 @@ export function decisionMessage(input: {
   const { decision, tenantName, card, title, link } = input;
   if (decision.type === 'question') {
     const questions = decision.questions ?? [];
-    const lines = questions.map(
-      (q, i) => `${i + 1}. ${q.text}${q.options?.length ? ` (${q.options.join(' / ')})` : ''}`,
+    // A briefed question shows its brief: the full question is in the panel.
+    const lines = questions.map((q, i) =>
+      q.brief
+        ? briefLines(q.brief)
+        : `${i + 1}. ${q.text}${q.options?.length ? ` (${q.options.join(' / ')})` : ''}`,
     );
     // Answered right here: a button per option (one question), or "Reply" with the text.
     const options = questions.length === 1 ? (questions[0].options ?? []).slice(0, 10) : [];

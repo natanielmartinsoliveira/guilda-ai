@@ -87,6 +87,7 @@ phases:
       - ask:
           question: prompts/gate-{{route}}.md
           option: prompts/autorizacao-{{route}}.md
+          brief: prompts/resumo.md # opcional: um agente só de leitura resume para a pessoa antes
           files: { path: '{{vars.specification_root}}', routes: [regra] }
           chosen:
             commit:
@@ -113,6 +114,33 @@ phases:
 | `within`  | Arquivos pendentes fora do caminho viram pergunta; a resposta entra em `notes` e a fase roda de novo.                                                                                                                                                                                                                                                               |
 | `ask`     | Pergunta com uma opção. A opção escolhida (texto idêntico, ou uma aprovação simples como "ok", "aprovado", "pode seguir", 👍 — o que vai citado é o texto da opção) vira `{{AUTHORIZATION}}`, faz o `commit` de `chosen` e vai para `next`; outro texto entra em `notes` e vai para `other.next` (por rota, com `default`).                                         |
 | `hook`    | Roda um script do método.                                                                                                                                                                                                                                                                                                                                           |
+
+## Resumos: decidir rápido
+
+Um `ask` pode indicar um prompt de `brief`. Antes de a pergunta sair, um agente só de leitura a recebe com `{{QUESTION}}` (o texto da pergunta) e `{{FILES}}`, e responde com um bloco ```json:
+
+```json
+{
+  "summary": "o que se decide, uma frase",
+  "recommendation": { "approve": true, "why": "…" },
+  "choices": [
+    {
+      "question": "…",
+      "options": ["o que o assunto diz", "a alternativa"],
+      "recommended": 0,
+      "why": "…"
+    }
+  ],
+  "risks": [{ "level": "high | medium | low", "text": "…" }],
+  "highlights": ["…"]
+}
+```
+
+O painel mostra o resumo primeiro, com a opção recomendada de cada escolha já marcada, e a pergunta completa recolhida embaixo. **Aprovar com as recomendações** envia a própria opção da pergunta, que é uma aprovação. Mudar uma escolha envia as alteradas como ajuste, que entra em `notes` como qualquer outra resposta. O Telegram mostra o resumo no lugar da pergunta, com o mesmo botão da opção.
+
+O resumo nunca trava a tarefa. Se o agente falhar ou não escrever um bloco válido (de 2 a 4 opções por escolha, com a recomendada entre elas), a pergunta sai como está. O resumo é uma etapa própria (`brief`) nas métricas da tarefa, e seus textos passam pela mesma remoção de segredos da pergunta.
+
+O que o resumo lê (um glossário dos termos do método, as referências que a empresa segue) é o prompt do pack: o core só o roda e mostra o resultado.
 
 ## Repetir uma tarefa que falhou
 

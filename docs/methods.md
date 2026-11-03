@@ -88,6 +88,7 @@ phases:
       - ask:
           question: prompts/gate-{{route}}.md
           option: prompts/authorization-{{route}}.md
+          brief: prompts/brief.md # optional: a read-only agent briefs the person first
           files: { path: '{{vars.spec_root}}', routes: [feature] }
           chosen:
             commit: { paths: ['{{vars.spec_root}}'], message: 'spec {{slug}}', routes: [feature] }
@@ -109,6 +110,33 @@ phases:
 | `within`  | Pending files outside the path become a question; the answer goes to `notes` and the phase runs again.                                                                                                                                                                                                                                                                             |
 | `ask`     | A question with one option. The chosen option (identical text, or a plain approval such as "ok", "aprovado", "pode seguir", 👍 — the option's text is what is quoted) becomes `{{AUTHORIZATION}}`, makes the `commit` of `chosen` and goes to `next`; any other text goes to `notes` and to `other.next` (per route, with `default`).                                              |
 | `hook`    | Runs a script of the method.                                                                                                                                                                                                                                                                                                                                                       |
+
+## Briefs: deciding quickly
+
+An `ask` may name a `brief` prompt. Before the question goes out, a read-only agent gets it with `{{QUESTION}}` (the question's text) and `{{FILES}}`, and answers with a ```json block:
+
+```json
+{
+  "summary": "what is decided, one sentence",
+  "recommendation": { "approve": true, "why": "…" },
+  "choices": [
+    {
+      "question": "…",
+      "options": ["what the subject says", "the alternative"],
+      "recommended": 0,
+      "why": "…"
+    }
+  ],
+  "risks": [{ "level": "high | medium | low", "text": "…" }],
+  "highlights": ["…"]
+}
+```
+
+The panel shows the brief first, with each choice's recommended option already picked, and the full question folded below it. **Approve with the recommendations** sends the question's own option, which is an approval. Changing a choice sends the changed ones as an adjustment, which goes to `notes` like any other answer. Telegram shows the brief instead of the question, with the same option button.
+
+The brief never holds the task. If its agent fails, or writes no valid block (2 to 4 options per choice, the recommended one among them), the question goes as it is. The brief is its own step (`brief`) in the task's metrics. Its texts are redacted like the question's.
+
+What the brief reads (a glossary of the method's terms, the references the company follows) is the pack's prompt: the core only runs it and shows the result.
 
 ## Retrying a failed task
 

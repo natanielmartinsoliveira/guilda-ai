@@ -55,6 +55,49 @@ test('question: card, title, numbered questions with options, no buttons', () =>
   );
   expect(m.keyboard).toBeUndefined();
 });
+test('a briefed question shows its brief (choices with the recommended one, risks) and keeps its button', () => {
+  const m = decisionMessage({
+    decision: {
+      id,
+      type: 'question',
+      reason: null,
+      questions: [
+        {
+          text: 'Long report of the specification…',
+          options: ['Autorizo a entrega'],
+          brief: {
+            summary: 'Aprovar a regra de desconto.',
+            recommendation: { approve: true, why: 'segue o card.' },
+            choices: [{ question: 'Teto do desconto', options: ['10%', '20%'], recommended: 0 }],
+            risks: [{ level: 'medium', text: 'crédito sem SLA' }],
+            highlights: ['1 regra muda'],
+          },
+        },
+      ],
+    },
+    tenantName: 'Umbrella',
+    card: '#7',
+    title: 'Desconto',
+    link: 'https://panel.example.com/d/1',
+  });
+  expect(m.text).toContain(
+    [
+      'O que você decide: Aprovar a regra de desconto.',
+      'Recomendo aprovar: segue o card.',
+      '• 1 regra muda',
+      '',
+      'Escolhas (→ recomendada; para mudar, responda com a letra e a escolha):',
+      'A. Teto do desconto → 10% (ou 20%)',
+      '',
+      '🟡 crédito sem SLA',
+    ].join('\n'),
+  );
+  // the full question is in the panel
+  expect(m.text).not.toContain('Long report');
+  expect(m.keyboard!.inline_keyboard).toEqual([
+    [{ text: 'Autorizo a entrega', callback_data: `d:${id}:o0` }],
+  ]);
+});
 test('failure: reason and Retry / Cancel buttons; without a link it says where to answer', () => {
   const m = decisionMessage({
     decision: { id, type: 'failure', questions: null, reason: 'TESTS: Tests failed: boom' },

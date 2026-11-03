@@ -53,6 +53,52 @@ test('a question is only sent with every question answered', async () => {
   expect(live.reload).toHaveBeenCalledWith(['acme']);
   expect(await screen.findByRole('status')).toHaveTextContent('Resposta enviada');
 });
+const briefed: DecisionView = {
+  ...question,
+  id: 'd3',
+  questions: [
+    {
+      text: 'Relatório completo da análise…',
+      options: ['Autorizo a entrega'],
+      brief: {
+        summary: 'Aprovar a regra de desconto.',
+        recommendation: { approve: true, why: 'segue o card' },
+        choices: [
+          {
+            question: 'Teto do desconto',
+            options: ['10%', '20%'],
+            recommended: 0,
+            why: 'o card diz 10%',
+          },
+        ],
+        risks: [{ level: 'high', text: 'crédito sem SLA' }],
+        highlights: ['1 regra muda'],
+      },
+    },
+  ],
+};
+test('a briefed question: the brief first, one click approves with the recommendations', async () => {
+  const answer = vi.spyOn(api, 'answer').mockResolvedValue(briefed);
+  open('/decisoes', [briefed]);
+  expect(screen.getByText('Aprovar a regra de desconto.')).toBeInTheDocument();
+  expect(screen.getByText('1 regra muda')).toBeInTheDocument();
+  expect(screen.getByText('crédito sem SLA', { exact: false }).closest('li')).toHaveTextContent('alto: crédito sem SLA');
+  expect(screen.getByRole('radio', { name: '10% (recomendada)' })).toBeChecked();
+  // the full question stays one click away
+  expect(screen.getByText('Relatório completo da análise…')).not.toBeVisible();
+  await userEvent.click(screen.getByRole('button', { name: 'Aprovar com as recomendações' }));
+  // the question's own option: the method reads it as the approval
+  expect(answer).toHaveBeenCalledWith('acme', 'd3', { answers: ['Autorizo a entrega'] });
+});
+test('a briefed question: changing a choice sends the adjustments instead of the approval', async () => {
+  const answer = vi.spyOn(api, 'answer').mockResolvedValue(briefed);
+  open('/decisoes', [briefed]);
+  await userEvent.click(screen.getByRole('radio', { name: '20%' }));
+  await userEvent.click(screen.getByRole('button', { name: 'Enviar os ajustes' }));
+  expect(answer).toHaveBeenCalledWith('acme', 'd3', {
+    answers: ['Ajustes nas escolhas:\n- Teto do desconto: 20% (não: 10%)'],
+  });
+});
 test('the question reads as text: paragraphs, lists and code, never HTML', () => {
   const stop: DecisionView = {
     ...question,

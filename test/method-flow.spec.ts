@@ -38,6 +38,17 @@ type Script = {
   changed?: string[];
   /** The base branch changed the same files since the rehearsal (promotion). */
   baseMoved?: boolean;
+  /** What the brief agent answers before a gate (default: a valid brief). */
+  brief?: { success: boolean; message?: string };
+};
+export const BRIEF = {
+  summary: 'Approve the discount rule',
+  recommendation: { approve: true, why: 'it follows the card' },
+  choices: [
+    { question: 'Discount cap', options: ['10%', '20%'], recommended: 0, why: 'the card says 10%' },
+  ],
+  risks: [{ level: 'low', text: 'no test for the cap yet' }],
+  highlights: ['one rule changes'],
 };
 async function setup(route: Route | undefined, script: Script = {}) {
   const registry = new TenantRegistry();
@@ -85,6 +96,16 @@ async function setup(route: Route | undefined, script: Script = {}) {
   const deliver = [...(script.deliver ?? ['<resultado>concluido</resultado>'])];
   const agents = {
     execute: jest.fn(async (_p: string, input: { prompt: string }) => {
+      if (input.prompt.startsWith('Brief the person'))
+        return {
+          stdout: 'ok',
+          stderr: '',
+          exitCode: 0,
+          ...(script.brief ?? {
+            success: true,
+            message: `Here it is.\n\`\`\`json\n${JSON.stringify(BRIEF)}\n\`\`\``,
+          }),
+        };
       if (input.prompt.startsWith('Read-only reading'))
         return {
           success: true,
@@ -186,7 +207,7 @@ async function setup(route: Route | undefined, script: Script = {}) {
       } as any,
       { ack: jest.fn(), nack: jest.fn() } as any,
     );
-  const prompts = () =>
+  const calls = () =>
     agents.execute.mock.calls.map(
       (c) =>
         c[1] as {
@@ -196,8 +217,12 @@ async function setup(route: Route | undefined, script: Script = {}) {
           env?: Record<string, string>;
           phase?: string;
           keepSessions?: boolean;
+          readOnly?: boolean;
         },
     );
+  /** The method's own agents (the briefs before its gates are apart: briefs()). */
+  const prompts = () => calls().filter((c) => c.phase !== 'brief');
+  const briefs = () => calls().filter((c) => c.phase === 'brief');
   /** The tracker events of the task, in order (their types, phases with their board step). */
   const events = () =>
     reporter.report.mock.calls.map(
@@ -213,6 +238,7 @@ async function setup(route: Route | undefined, script: Script = {}) {
     open,
     reload,
     prompts,
+    briefs,
     host,
     reviseRun,
     events,
@@ -322,6 +348,54 @@ test('feature: the specification step leaves the specification for review; adjus
   // kept the session transcripts that telemetry reads
   expect(task.result!.methodTelemetry).toEqual(METHOD_TELEMETRY);
   expect(x.prompts().every((p) => p.keepSessions)).toBe(true);
+});
+test('a gate brings its brief: a read-only agent reads the question and the files; approval still authorizes', async () => {
+  const x = await setup('feature');
+  await x.run();
+  const gate = await x.open();
+  const [brief] = x.briefs();
+  expect(brief.readOnly).toBe(true);
+  // the brief reads the very question the person gets, and what the analysis changed
+  expect(brief.prompt).toContain(gate.questions![0].text.split('\n')[0]);
+  expect(brief.prompt).toContain(`- ${SPEC}/rules/desconto.md`);
+  expect(gate.questions![0].brief).toEqual(BRIEF);
+  await x.answerOpen(gate.questions![0].options![0]);
+  await x.run();
+  expect((await x.reload()).status).toBe('SUCCESS');
+});
+test.each([
+  ['an agent that fails', { success: false }],
+  ['an answer with no json block', { success: true, message: 'All good, approve it.' }],
+  [
+    'a brief whose recommended choice is no option',
+    {
+      success: true,
+      message: `\`\`\`json\n${JSON.stringify({ ...BRIEF, choices: [{ ...BRIEF.choices[0], recommended: 5 }] })}\n\`\`\``,
+    },
+  ],
+])('a gate whose brief is %s still asks, without a brief', async (_name, brief) => {
+  const x = await setup('feature', { brief });
+  await x.run();
+  expect((await x.reload()).status).toBe('WAITING');
+  const gate = await x.open();
+  expect(gate.questions![0].brief).toBeUndefined();
+  expect(gate.questions![0].options).toHaveLength(1);
+});
+test('the last json block is the brief; the adjustments composed from its choices send the task back', async () => {
+  const other = { ...BRIEF, summary: 'an earlier draft' };
+  const x = await setup('feature', {
+    brief: {
+      success: true,
+      message: `\`\`\`json\n${JSON.stringify(other)}\n\`\`\`\nFinal:\n\`\`\`json\n${JSON.stringify(BRIEF)}\n\`\`\``,
+    },
+  });
+  await x.run();
+  expect((await x.open()).questions![0].brief!.summary).toBe(BRIEF.summary);
+  // the panel's answer when a choice changed: an adjustment (feature goes back to the specification)
+  await x.answerOpen('Adjustments to the choices:\n- Discount cap: 20% (not: 10%)');
+  await x.run();
+  const spec = x.prompts().filter((p) => p.phase === 'spec');
+  expect(spec.at(-1)!.prompt).toContain('Discount cap: 20%');
 });
 test('a specification step that writes outside the specification root is a stop, never a commit', async () => {
   const x = await setup('feature', { analyseWrites: [`${SPEC}/a.md`, 'app/Models/X.php'] });

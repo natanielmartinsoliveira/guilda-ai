@@ -12,6 +12,7 @@ import { projectLessons } from '../prompts/lessons';
 import { captureLesson } from '../prompts/lesson-capture';
 import { parseTag } from '../tasks/pr-description';
 import { NeedsInput } from '../tasks/decisions';
+import { readBrief } from './brief';
 import type { TaskWorkspace } from '../workspaces/task-workspace';
 import type { CoderWorkspace } from '../workspaces/coder-workspace';
 import type { Tenant, TenantProject } from '../tenants/tenants';
@@ -304,6 +305,44 @@ export class MethodRunner {
       });
     }
   }
+  /**
+   * The brief of a question for the person (a read-only agent): undefined when the agent fails
+   * or writes none, and the question goes as it is.
+   */
+  private async brief(prompt: string, values: TemplateValues, state: MethodState) {
+    const { task, ctx, deps } = this;
+    try {
+      const out = await deps.router.run(
+        ctx.tenant,
+        'coder',
+        {
+          taskId: task.id,
+          tenantId: task.tenantId,
+          workspace: task.workspace,
+          ...(ctx.ws.kind === 'coder' ? { remote: ctx.ws as CoderWorkspace } : {}),
+          env: this.env(),
+          addDirs: this.method.agent.addDirs,
+          allowedTools: this.method.agent.allowedTools,
+          keepSessions: this.method.agent.sessions,
+          timeoutMs: this.method.timeoutMinutes * 60000,
+          readOnly: true,
+          phase: 'brief',
+          prompt: this.render(prompt, values, state),
+        },
+        async () => {},
+      );
+      deps.record(task, out.attempts, out.credential.provider);
+      const brief = out.result.success ? readBrief(out.result.message) : undefined;
+      if (!brief) log('method.brief_missing', { taskId: task.id });
+      return brief;
+    } catch (error) {
+      log('method.brief_failed', {
+        taskId: task.id,
+        error: error instanceof Error ? error.message.slice(0, 300) : String(error),
+      });
+      return undefined;
+    }
+  }
   /** Text appended to the core prompt on a standard-flow route. */
   append() {
     return this.route.append ? this.render(this.route.append) : '';
@@ -470,10 +509,11 @@ export class MethodRunner {
             (!step.ask.files.routes || step.ask.files.routes.includes(this.routeId))
               ? await this.pending(this.interp(step.ask.files.path))
               : [];
-          await ask(
-            { text: this.render(step.ask.question, { FILES: files }, ms), options: [option] },
-            'ask',
-          );
+          const text = this.render(step.ask.question, { FILES: files }, ms);
+          const brief =
+            step.ask.brief &&
+            (await this.brief(step.ask.brief, { FILES: files, QUESTION: text }, ms));
+          await ask({ text, options: [option], ...(brief ? { brief } : {}) }, 'ask');
         } else if ('hook' in step) {
           await this.hook(step.hook, false);
         }
