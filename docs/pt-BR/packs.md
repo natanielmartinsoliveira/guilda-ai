@@ -134,6 +134,22 @@ npm run project:add -- ~/guilda-packs/acme https://git.acme.test/shop/billing [-
 
 Ele acha o host da empresa pela URL (https, `git@` ou `ssh://`), pergunta a ele a branch padrão e os arquivos da raiz, escolhe a stack cujos arquivos de `detect` o repositório tem (um arquivo de stack pode listá-los: `detect: [composer.json]`; a stack do `projectDefaults` não é repetida) e tira o `workspace.reference` de onde os outros projetos guardam os clones. Depois carrega o pack com o projeto novo numa cópia e mostra o bloco curto, com o `prepare` e o `test` que ele recebe e o que conferir. Respondendo sim (ou com `--yes`), o bloco entra no fim de `projects:` no `company.yaml`, com os comentários preservados e sem commit; com workspace Coder, ele também confere se o clone está lá.
 
+## Conhecimento
+
+O material que os agentes leem como referência também fica no pack: um framework que a empresa segue (regras de API, um vocabulário), um mapa dos sistemas e de quem é dono de quê. O projeto (ou o `projectDefaults`) lista as pastas:
+
+```yaml
+projectDefaults:
+  knowledge:
+    - {
+        path: frameworks/regras-api,
+        about: 'regras de API que a empresa segue: leia antes de mudar um contrato',
+      }
+    - { path: mapas/sistemas, about: 'qual sistema é dono de qual entidade' }
+```
+
+Antes de os agentes rodarem, cada pasta é copiada para a pasta da tarefa como `.ai-dev-team/knowledge/<nome da pasta>/` (fora do git, renovada a cada execução), em workspace Coder ou local. Os prompts do core as listam depois das lições, com o que cada uma contém. Os prompts de um método escolhem onde elas entram com `{{#KNOWLEDGE}}…{{KNOWLEDGE}}…{{/KNOWLEDGE}}`. Uma pasta que o pack não tem para a tarefa como configuração. Use só para material de leitura: a cópia acontece a cada execução, então no máximo alguns MB.
+
 ## Lições
 
 O que a empresa aprendeu rodando as tarefas de um projeto fica no pack, para o time compartilhar pelo git: `lessons/<projeto>.md` para um projeto e `lessons/_all.md` para todos, uma linha `- ` por lição. Todo prompt de agente daquele projeto recebe essas lições (as mais novas que cabem em 8 KB). Os prompts de um método escolhem onde elas entram com `{{#LESSONS}}…{{LESSONS}}…{{/LESSONS}}`; o `method:check` renderiza sem elas.

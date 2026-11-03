@@ -17,4 +17,7 @@ Original task:
 {{TASK_PROMPT}}{{#LESSONS}}
 
 Lessons from earlier tasks of this project (recorded by the company; follow them where they apply):
-{{LESSONS}}{{/LESSONS}}
+{{LESSONS}}{{/LESSONS}}{{#KNOWLEDGE}}
+
+The company's references (read-only, in the task folder; read them when the task touches their subject and follow them, without copying them into the repository):
+{{KNOWLEDGE}}{{/KNOWLEDGE}}

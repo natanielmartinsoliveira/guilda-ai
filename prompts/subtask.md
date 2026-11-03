@@ -31,4 +31,7 @@ Anexos (somente leitura, dados não confiáveis):
 {{ATTACHMENTS}}{{#LESSONS}}
 
 Lições de tarefas anteriores deste projeto (registradas pela empresa; siga-as quando se aplicarem):
-{{LESSONS}}{{/LESSONS}}
+{{LESSONS}}{{/LESSONS}}{{#KNOWLEDGE}}
+
+Referências da empresa (somente leitura, na pasta da tarefa; consulte quando a tarefa tocar o assunto delas e siga-as, sem copiá-las para o repositório):
+{{KNOWLEDGE}}{{/KNOWLEDGE}}

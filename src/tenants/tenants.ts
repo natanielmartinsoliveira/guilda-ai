@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parse } from 'yaml';
 import { z } from 'zod';
+import { knowledgeName } from '../knowledge/knowledge';
 import { loadPacks, packDirs } from './packs';
 import { formatsConfig } from '../formats/formats';
 import { methodProblems } from '../methods/method';
@@ -86,6 +87,29 @@ const coderWorkspace = z.object({
   root: absolute,
   reference: absolute.optional(),
   protect: z.array(absolute).default(['/workspaces']),
+  /**
+   * Claude plugins the company's agents need there (its method, a framework's skills): before
+   * an agent runs, a missing one is installed from its marketplace, an older one updated.
+   */
+  plugins: z
+    .array(
+      z.object({
+        id: z
+          .string()
+          .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*@[A-Za-z0-9][A-Za-z0-9._-]*$/, 'plugin@marketplace'),
+        marketplace: z
+          .string()
+          .regex(
+            /^(?:[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+|https:\/\/[^\s'"`$;|&<>]+)$/,
+            'owner/repo or an https git URL',
+          ),
+        minVersion: z
+          .string()
+          .regex(/^\d+(\.\d+)*$/)
+          .optional(),
+      }),
+    )
+    .optional(),
 });
 /**
  * How a change is carried. Absent: the core's own planner, coder and reviewer. Otherwise a
@@ -330,6 +354,26 @@ const project = z
      * handed to the agent (name and output), which otherwise could not know (core flow only).
      */
     baselineTests: z.boolean().default(false),
+    /**
+     * Folders of the company pack the agents read as references (a framework the company
+     * follows, a map of its systems): copied into the task folder before the agents run,
+     * listed in their prompts ({{KNOWLEDGE}}), kept out of git. Read-only material, never code.
+     */
+    knowledge: z
+      .array(
+        z.object({
+          path: z
+            .string()
+            .regex(/^[A-Za-z0-9_][A-Za-z0-9._/-]*$/, 'a folder of the company pack')
+            .refine((p) => !p.split('/').includes('..'), 'a folder of the company pack'),
+          about: z.string().min(1).max(300),
+        }),
+      )
+      .default([])
+      .refine(
+        (all) => new Set(all.map((k) => knowledgeName(k.path))).size === all.length,
+        'two knowledge folders with the same name',
+      ),
     /**
      * What else a delivery must pass after the tests, in order, stopping at the first that
      * fails (which goes back to the fixer like a failing test). Each runs like test: same

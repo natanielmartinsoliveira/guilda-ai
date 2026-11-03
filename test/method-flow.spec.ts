@@ -34,6 +34,8 @@ type Script = {
   /** Files the delivery leaves uncommitted (none: the method's agent commits its own work). */
   deliverLeaves?: string[];
   config?: Record<string, unknown>;
+  /** The project's knowledge folders (paths of the fixture pack). */
+  knowledge?: { path: string; about: string }[];
   /** Files the rehearsal changed since its base (promotion). */
   changed?: string[];
   /** The base branch changed the same files since the rehearsal (promotion). */
@@ -161,6 +163,7 @@ async function setup(route: Route | undefined, script: Script = {}) {
         workspace: CODER,
         delivery: 'rehearsal',
         method: EXAMPLE_METHOD,
+        knowledge: script.knowledge ?? [],
       },
     } as any;
   });
@@ -396,6 +399,21 @@ test('the last json block is the brief; the adjustments composed from its choice
   await x.run();
   const spec = x.prompts().filter((p) => p.phase === 'spec');
   expect(spec.at(-1)!.prompt).toContain('Discount cap: 20%');
+});
+test('the knowledge folders reach the task folder before the method runs; its prompts may list them', async () => {
+  const x = await setup('feature', {
+    knowledge: [{ path: 'methods/review-gate/prompts', about: 'the gate texts' }],
+  });
+  await x.run();
+  expect(x.ws.upload).toHaveBeenCalledWith(
+    expect.stringMatching(/methods\/review-gate\/prompts$/),
+    '.ai-dev-team/knowledge/prompts',
+  );
+  // before the first hook: the method's own scripts may read them too
+  const order = x.ws.upload.mock.calls.map((c: string[]) => c[1]);
+  expect(order.indexOf('.ai-dev-team/knowledge/prompts')).toBeLessThan(
+    order.indexOf('.ai-dev-team/method/hooks'),
+  );
 });
 test('a specification step that writes outside the specification root is a stop, never a commit', async () => {
   const x = await setup('feature', { analyseWrites: [`${SPEC}/a.md`, 'app/Models/X.php'] });

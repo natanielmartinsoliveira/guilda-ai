@@ -13,6 +13,7 @@ import { captureLesson } from '../prompts/lesson-capture';
 import { parseTag } from '../tasks/pr-description';
 import { NeedsInput } from '../tasks/decisions';
 import { readBrief } from './brief';
+import { knowledgeList, uploadKnowledge } from '../knowledge/knowledge';
 import type { TaskWorkspace } from '../workspaces/task-workspace';
 import type { CoderWorkspace } from '../workspaces/coder-workspace';
 import type { Tenant, TenantProject } from '../tenants/tenants';
@@ -186,6 +187,8 @@ export class MethodRunner {
       REPORT: typeof this.task.result?.message === 'string' ? this.task.result.message : '',
       // What the company learned on this project's earlier tasks (lessons/ in the pack).
       LESSONS: projectLessons(this.ctx.tenant.packDir, this.ctx.cfg.id),
+      // The company's references in the task folder (knowledge folders of the pack).
+      KNOWLEDGE: knowledgeList(this.ctx.cfg.knowledge),
       ...this.route.vars,
       ...values,
     });
@@ -371,6 +374,7 @@ export class MethodRunner {
       newBranch: true,
       hidden: ctx.cfg.hiddenFiles,
     });
+    await uploadKnowledge(ctx.ws, ctx.tenant.packDir, ctx.cfg.knowledge);
     await this.prepare(first);
     if (first) {
       state.baseSha = await deps.git.git(task, ['rev-parse', 'HEAD']);

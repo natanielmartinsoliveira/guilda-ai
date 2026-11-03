@@ -1,3 +1,5 @@
+import { lstat, readdir } from 'node:fs/promises';
+import { join } from 'node:path';
 import { TaskError } from '../config';
 import type { AgentResult } from '../agents/agent.types';
 export interface WorkspaceRunOptions {
@@ -53,4 +55,13 @@ export function safeEntry(name: string) {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name))
     throw new TaskError(`Unsafe workspace entry: ${JSON.stringify(name)}`);
   return name;
+}
+/** An upload never carries a symbolic link (it could point anywhere on this machine). */
+export async function assertNoLinks(dir: string): Promise<void> {
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if ((await lstat(full)).isSymbolicLink())
+      throw new TaskError(`Upload refused: symbolic link ${full}`);
+    if (entry.isDirectory()) await assertNoLinks(full);
+  }
 }

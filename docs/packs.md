@@ -138,6 +138,22 @@ npm run project:add -- ~/guilda-packs/acme https://git.acme.test/shop/billing [-
 
 It finds the company's host for the URL (https, `git@` or `ssh://`), asks it for the default branch and the root files, picks the stack whose `detect` files the repository has (a stack file may list them: `detect: [composer.json]`; the defaults' stack is not repeated), and takes `workspace.reference` from where the other projects keep their clones. The pack is then loaded with the new project in a copy, and the short block is shown with the `prepare` and `test` it ends up with, and what to check. Answer yes (or pass `--yes`) and it is appended to `projects:` in `company.yaml`, comments kept, uncommitted; with a Coder workspace it also checks that the clone is there.
 
+## Knowledge
+
+Material the agents read as a reference lives in the pack too: a framework the company follows (API rules, a vocabulary), a map of its systems and who owns what. A project (or `projectDefaults`) lists the folders:
+
+```yaml
+projectDefaults:
+  knowledge:
+    - {
+        path: frameworks/api-rules,
+        about: 'API rules the company follows: read before changing a contract',
+      }
+    - { path: maps/systems, about: 'which system owns which entity' }
+```
+
+Before the agents run, each folder is copied into the task folder as `.ai-dev-team/knowledge/<folder name>/` (out of git, fresh every run), in a Coder workspace or a local one. The core prompts list them, with what they hold, after the lessons. A method's prompts place them with `{{#KNOWLEDGE}}…{{KNOWLEDGE}}…{{/KNOWLEDGE}}`. A folder the pack lacks stops the task as configuration. Keep it to reading material: it is copied on every run, so a few MB at most.
+
 ## Lessons
 
 What the company learned running a project's tasks lives in the pack, so the team shares it through git: `lessons/<project>.md` for one project and `lessons/_all.md` for every project, one `- ` line per lesson. Every agent prompt of that project receives them (the newest that fit 8 KB). A method's prompts place them with `{{#LESSONS}}…{{LESSONS}}…{{/LESSONS}}`; `method:check` renders without them.

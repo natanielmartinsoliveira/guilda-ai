@@ -17,7 +17,7 @@ const KINDS: [Exclude<FailureKind, 'other'>, RegExp][] = [
   ],
   [
     'config',
-    /invalid configuration|needs the company pack|not found \(stacks\/\)|no value for \{\{|references unknown|has no credentials|No AI credential allowed|returned 40[13]\b/i,
+    /invalid configuration|needs the company pack|^knowledge: |Plugins do Claude no workspace|não lista os plugins|not found \(stacks\/\)|no value for \{\{|references unknown|has no credentials|No AI credential allowed|returned 40[13]\b/i,
   ],
   ['tests', /^(?:[A-Z_]+: )?(Tests failed|Quality gate failed)/m],
   ['checks', /^(?:[A-Z_]+: )?Security checks failed/m],

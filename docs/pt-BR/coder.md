@@ -42,6 +42,8 @@ projects:
       root: /root/ai-dev-team # pasta das tarefas no workspace (pode ficar dentro de protect)
       reference: /workspaces/orders # opcional: acelera o clone (só leitura)
       protect: [/workspaces] # padrão; os clones do operador que o agente não pode tocar
+      plugins: # opcional: plugins do Claude de que os agentes precisam ali
+        - { id: metodo@acme-market, marketplace: acme/metodo, minVersion: 2.0.0 }
     delivery: rehearsal # rehearsal (sem push/MR) | draft (MR rascunho) | normal (MR)
     pullRequest:
       title: '{key} - {title}' # opcional; padrão "AI: <card> <título>"
@@ -49,6 +51,8 @@ projects:
 ```
 
 Regras (erro ao carregar a configuração): `coder` só funciona com host `gitlab` (clone e push por ssh com a chave do workspace — um host https levaria o token para lá); não aceita `runner` (os comandos `prepare`/`test` já rodam no workspace — use `docker run` neles para testar a cópia da tarefa); a empresa só pode ter credenciais `claude` sem `apiKey` e sem `harness`; `root` absoluto e sem `..`; ele pode ficar dentro de `protect` (por exemplo `/workspaces/ai-dev-team` com o padrão `/workspaces`: as cópias das tarefas são ignoradas ali), mas nenhuma pasta protegida pode ser o `root` ou ficar dentro dele.
+
+**Plugins.** Antes de um agente rodar no workspace, o core confere o `claude plugin list` contra `plugins`: um plugin que falta é instalado a partir do `marketplace` (`dono/repo` ou uma URL git https), um mais antigo que `minVersion` é atualizado e um desligado é ligado. A conferência se repete no máximo a cada meia hora. Um plugin que o workspace continue sem ter para a tarefa como configuração, com os comandos para rodar lá.
 
 ## O que fica e o que não fica nesta máquina
 

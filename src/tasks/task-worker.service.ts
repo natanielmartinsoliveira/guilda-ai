@@ -65,6 +65,7 @@ const promoted = (rehearsal: unknown) =>
   !!(rehearsal as { promoted?: boolean } | undefined)?.promoted;
 import type { DecisionQuestion } from '../database/entities';
 import { mapBrief } from '../methods/brief';
+import { knowledgeList, uploadKnowledge } from '../knowledge/knowledge';
 import { SandboxService } from '../agents/sandbox.service';
 import { GitRemote, GitService } from '../git/git.service';
 import { MessagingService } from '../messaging/messaging.service';
@@ -618,7 +619,12 @@ export class TaskWorkerService implements OnModuleInit {
         : {};
     return renderPrompt(
       template,
-      { LESSONS: projectLessons(ctx.tenant.packDir, ctx.cfg.id), ...values, ...card },
+      {
+        LESSONS: projectLessons(ctx.tenant.packDir, ctx.cfg.id),
+        KNOWLEDGE: knowledgeList(ctx.cfg.knowledge),
+        ...values,
+        ...card,
+      },
       ctx.tenant.packDir,
       ctx.cfg.id,
     );
@@ -1223,6 +1229,7 @@ export class TaskWorkerService implements OnModuleInit {
             newBranch: true,
             hidden: cfg.hiddenFiles,
           });
+          await uploadKnowledge(ctx.ws, ctx.tenant.packDir, cfg.knowledge);
           if (standardRoute) await standardRoute.prepare(first);
           if (first) {
             task.result!.baseSha = await this.git.git(task, ['rev-parse', 'HEAD']);
@@ -1780,6 +1787,7 @@ export class TaskWorkerService implements OnModuleInit {
         await this.git.prepare(task, project.defaultBranch, ctx.remote, {
           hidden: ctx.cfg.hiddenFiles,
         });
+        await uploadKnowledge(ctx.ws, ctx.tenant.packDir, ctx.cfg.knowledge);
         if (!revision.result!.baseSha) {
           // Rehearsal: on top of the local commit; otherwise on top of the PR branch as it is.
           const head = rehearsal

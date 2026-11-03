@@ -15,6 +15,7 @@ import { SandboxService } from './sandbox.service';
 import { config, TaskError } from '../config';
 import { changedRepositories, CoderWorkspace } from '../workspaces/coder-workspace';
 import { shellQuote } from '../workspaces/shell';
+import { ensurePlugins } from './claude-plugins';
 const REQUIRED = ['--print', '--output-format', '--permission-mode'];
 @Injectable()
 export class ClaudeProvider implements AgentProvider {
@@ -158,6 +159,7 @@ export class ClaudeProvider implements AgentProvider {
         `Claude sem login no workspace ${ws.cfg.name}: abra o terminal do workspace, rode claude e /login com a conta da empresa`,
         false,
       );
+    await ensurePlugins(ws, ws.cfg.plugins ?? [], input.taskId);
     if (input.attachments) await ws.upload(input.attachments.dir, '.ai-dev-team/attachments');
     const own = async () =>
       (

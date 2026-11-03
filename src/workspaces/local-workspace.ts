@@ -1,9 +1,9 @@
-import { lstat, mkdir, readFile, realpath, rename, rm } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { appendFile, cp, lstat, mkdir, readFile, realpath, rename, rm } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import type { ProcessRunnerService } from '../agents/process-runner.service';
 import { ATTACHMENTS_MOUNT } from '../agents/agent.types';
-import { TaskError } from '../config';
 import {
+  assertNoLinks,
   safeEntry,
   safeRel,
   TaskWorkspace,
@@ -76,9 +76,17 @@ export class LocalWorkspace implements TaskWorkspace {
     const bytes = await readFile(resolve(this.path, safeRel(rel))).catch(() => undefined);
     return bytes?.subarray(0, maxBytes);
   }
-  upload(): Promise<void> {
-    // Local runs mount the attachments folder read-only instead.
-    return Promise.reject(new TaskError('Local workspaces mount attachments; nothing to upload'));
+  /** A copy of a folder of this machine into the task folder, kept out of git like the Coder's. */
+  async upload(localDir: string, rel: string) {
+    await assertNoLinks(localDir);
+    const dest = resolve(this.path, safeRel(rel));
+    await mkdir(dest, { recursive: true });
+    await cp(localDir, dest, { recursive: true });
+    const exclude = join(this.path, '.git', 'info', 'exclude');
+    const listed = await readFile(exclude, 'utf8').catch(() => undefined);
+    if (listed === undefined) await mkdir(dirname(exclude), { recursive: true });
+    if (!listed?.split('\n').includes('/.ai-dev-team/'))
+      await appendFile(exclude, `${listed && !listed.endsWith('\n') ? '\n' : ''}/.ai-dev-team/\n`);
   }
   async destroy() {
     await rm(this.path, { recursive: true, force: true });

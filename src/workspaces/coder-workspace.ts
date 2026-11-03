@@ -1,12 +1,11 @@
 import { execFile } from 'node:child_process';
-import { lstat, readdir } from 'node:fs/promises';
-import { join } from 'node:path';
 import type { ProcessRunnerService } from '../agents/process-runner.service';
 import type { AgentResult } from '../agents/agent.types';
 import { config, TaskError } from '../config';
 import type { CoderWorkspaceConfig } from '../tenants/tenants';
 import { shellLine, shellQuote } from './shell';
 import {
+  assertNoLinks,
   safeEntry,
   safeRel,
   TaskWorkspace,
@@ -63,14 +62,6 @@ export function changedRepositories(before: string, after: string) {
   const a = index(before),
     b = index(after);
   return [...new Set([...a.keys(), ...b.keys()])].filter((k) => a.get(k) !== b.get(k)).sort();
-}
-async function assertNoLinks(dir: string): Promise<void> {
-  for (const entry of await readdir(dir, { withFileTypes: true })) {
-    const full = join(dir, entry.name);
-    if ((await lstat(full)).isSymbolicLink())
-      throw new TaskError(`Upload refused: symbolic link ${full}`);
-    if (entry.isDirectory()) await assertNoLinks(full);
-  }
 }
 /**
  * The task folder inside a Coder workspace of the company, reached with `coder ssh`: clone,

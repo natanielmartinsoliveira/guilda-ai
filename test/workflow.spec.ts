@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { DEFAULT_FORMATS } from '../src/formats/formats';
 import { DataSource } from 'typeorm';
 import { database, item } from './db';
@@ -27,7 +28,10 @@ beforeEach(async () => {
 afterEach(async () => {
   await db.destroy();
 });
-async function setup(projectSettings: Record<string, unknown> = {}) {
+async function setup(
+  projectSettings: Record<string, unknown> = {},
+  tenantSettings: Record<string, unknown> = {},
+) {
   const registry = new TenantRegistry();
   const orchestrator = new OrchestratorService(db, registry);
   const task = await orchestrator.accept('acme', item);
@@ -92,7 +96,12 @@ async function setup(projectSettings: Record<string, unknown> = {}) {
   const project = registry.project.bind(registry);
   jest.spyOn(registry, 'project').mockImplementation((tenant, id) => {
     const ctx = project(tenant, id);
-    return { ...ctx, host: github, project: { ...ctx.project, ...projectSettings } } as any;
+    return {
+      ...ctx,
+      host: github,
+      tenant: { ...ctx.tenant, ...tenantSettings },
+      project: { ...ctx.project, ...projectSettings },
+    } as any;
   });
   const worker = new TaskWorkerService(
     db,
@@ -513,6 +522,16 @@ test('reports the PR, and a final failure, back to the source tracker', async ()
   expect(bad.reporter.report.mock.calls[0][2]).toMatchObject({ type: 'failed' });
   // A broken tracker never changes the task outcome.
   expect((await db.getRepository(Task).findOneByOrFail({ id: bad.task.id })).status).toBe('FAILED');
+});
+test("the project's knowledge folders are in the task folder and listed in the agent's prompt", async () => {
+  const x = await setup(
+    { knowledge: [{ path: 'methods/review-gate/prompts', about: 'the gate texts' }] },
+    { packDir: resolve(__dirname, 'fixtures') },
+  );
+  await x.worker.handle(x.message, x.channel);
+  expect((await db.getRepository(Task).findOneByOrFail({ id: x.task.id })).status).toBe('SUCCESS');
+  const prompt = x.agents.execute.mock.calls[0][1].prompt as string;
+  expect(prompt).toContain('- .ai-dev-team/knowledge/prompts/: the gate texts');
 });
 test('failed tests prevent commit, push and PR; delivery rejected', async () => {
   const x = await setup();
