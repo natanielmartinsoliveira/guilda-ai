@@ -6,8 +6,8 @@ export const ptBR = {
   'review.mr.approved': '✅ Revisão da Guilda: aprovado',
   'review.mr.changes': '⚠️ Revisão da Guilda: ajustes',
   'review.mr.problems': 'Problemas:',
-  'review.mr.testsPassed': 'Testes do projeto neste commit: passaram (`{command}`).',
-  'review.mr.testsFailed': 'Testes do projeto neste commit: falharam (`{command}`, saída {code}).',
+  'review.mr.testsPassed': 'Testes do projeto neste commit: passaram.',
+  'review.mr.testsFailed': 'Testes do projeto neste commit: falharam (saída {code}).',
   'review.mr.testsNotRun':
     'Testes do projeto: não rodaram, porque a preparação das dependências falhou.',
   'review.mr.footer':
@@ -18,7 +18,7 @@ export const ptBR = {
   'review.mr.promptNotRun':
     'não rodaram, porque a preparação das dependências falhou. O final da saída:\\n{reason}\\n',
   'review.mr.testsPreexisting':
-    'Testes do projeto neste commit: falharam (`{command}`), mas a mesma suíte já falha na base do MR: são falhas anteriores a ele.',
+    'Testes do projeto neste commit: falharam, mas a mesma suíte já falha na base do MR: são falhas anteriores a ele.',
   'review.mr.promptBaseline':
     'A MESMA suíte também falha na base do MR ({base}, antes da mudança): o que falha nos dois não é deste MR. Só conte o que falha aqui e não falhava na base. O final da saída na base:\\n{output}\\n',
   'baseline.failing':

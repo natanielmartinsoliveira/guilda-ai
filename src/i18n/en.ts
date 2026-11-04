@@ -7,8 +7,8 @@ export const en: Record<MessageKey, string> = {
   'review.mr.approved': '✅ Guilda review: approved',
   'review.mr.changes': '⚠️ Guilda review: changes requested',
   'review.mr.problems': 'Problems:',
-  'review.mr.testsPassed': 'Project tests on this commit: passed (`{command}`).',
-  'review.mr.testsFailed': 'Project tests on this commit: failed (`{command}`, exit {code}).',
+  'review.mr.testsPassed': 'Project tests on this commit: passed.',
+  'review.mr.testsFailed': 'Project tests on this commit: failed (exit {code}).',
   'review.mr.testsNotRun': 'Project tests: did not run, because preparing the dependencies failed.',
   'review.mr.footer': "Commit {sha} · Guilda AI's automatic review, with the company's references.",
   'review.mr.promptPassed': 'passed (`{command}`).',
@@ -17,7 +17,7 @@ export const en: Record<MessageKey, string> = {
   'review.mr.promptNotRun':
     'did not run, because preparing the dependencies failed. The end of the output:\\n{reason}\\n',
   'review.mr.testsPreexisting':
-    'Project tests on this commit: failed (`{command}`), but the same suite already fails at the MR base: the failures came before it.',
+    'Project tests on this commit: failed, but the same suite already fails at the MR base: the failures came before it.',
   'review.mr.promptBaseline':
     "The SAME suite also fails at the MR base ({base}, before the change): what fails in both is not this MR's. Count only what fails here and did not fail at the base. The end of the output at the base:\n{output}\n",
   'baseline.failing':

@@ -59,7 +59,7 @@ test('the comment: the verdict, the problems when there are, the tests, the comm
       '',
       'Cobre as regras.',
       '',
-      'Testes do projeto neste commit: passaram (`make test`).',
+      'Testes do projeto neste commit: passaram.',
       '',
       '<sub>Commit abcdef12 · revisão automática da Guilda AI, com as referências da empresa.</sub>',
     ].join('\n'),
@@ -69,7 +69,7 @@ test('the comment: the verdict, the problems when there are, the tests, the comm
     { ran: true, passed: false, command: 'make test', exitCode: 2, output: '1 failed' },
   );
   expect(failing).toContain('**⚠️ Revisão da Guilda: ajustes**');
-  expect(failing).toContain('falharam (`make test`, saída 2).\n```\n1 failed\n```');
+  expect(failing).toContain('falharam (saída 2).\n```\n1 failed\n```');
   expect(failing).toContain('Commit 11111111');
   const changes = mergeRequestComment(
     { ...mr, verdict: 'ajustes', approved: false, issues: '1. a.ts:3 — x — y' },

@@ -32,10 +32,10 @@ export function mergeRequestComment(mr: MergeRequestReview, tests: MergeRequestT
   const tested = !tests.ran
     ? t('review.mr.testsNotRun')
     : tests.passed
-      ? t('review.mr.testsPassed', { command: tests.command })
+      ? t('review.mr.testsPassed')
       : preexisting(tests)
-        ? t('review.mr.testsPreexisting', { command: tests.command })
-        : t('review.mr.testsFailed', { command: tests.command, code: String(tests.exitCode) });
+        ? t('review.mr.testsPreexisting')
+        : t('review.mr.testsFailed', { code: String(tests.exitCode) });
   return [
     `**${mr.approved ? t('review.mr.approved') : t('review.mr.changes')}**`,
     '',
