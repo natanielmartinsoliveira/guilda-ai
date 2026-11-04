@@ -11,7 +11,7 @@ Cada empresa declara de onde vêm os cards em `sources:` do `company.yaml` (ou d
 
 ## Businessmap
 
-Origem `businessmap`: a Guilda AI lê o quadro pela API v2. A única escrita no quadro é mover o card para as colunas de `moves` e `review.approved` (nenhuma por padrão); nunca comenta, põe tag ou anexa nada ali.
+Origem `businessmap`: a Guilda AI lê o quadro pela API v2. A única escrita no quadro é mover o card para as colunas de `moves` e `review.approved`, e passar um card em revisão para `review.assignTo` e de volta (nada por padrão); nunca comenta, põe tag ou anexa nada ali.
 
 ```yaml
 sources:
@@ -27,7 +27,7 @@ sources:
     repositoryField: 13 # campo (tipo link) com o repositório do card
     routeTags: { regra: feature, tela: screen } # tag do quadro → rota do método
     moves: { gate: 3169, building: 3170, built: 3171, review: 3172 } # opcional: coluna por etapa
-    review: { columns: [3172], approved: 3173 } # opcional: code review do merge request do card
+    review: { columns: [3172], approved: 3173, assignTo: 291 } # opcional: code review do merge request do card
 ```
 
 - **Gatilho:** card aberto do quadro na coluna do gatilho **ou** com a tag. Cards encerrados/arquivados ficam de fora. Card já aceito continua na coluna sem gerar outra tarefa.
@@ -50,6 +50,7 @@ Com `review`, um card que entra numa das `columns` tem o merge request do GitLab
   - um comentário vai para o merge request, com veredito, problemas (`arquivo:linha`), testes e commit;
   - a revisão aparece na tela da tarefa e é uma etapa própria nas métricas;
   - **aprovado** (o revisor aprova _e_ os testes passam) move o card para `approved`; com ajustes, o card fica.
+- **De quem é a revisão** (`assignTo`, opcional): os cards desse usuário não são revisados. Um card que a revisão pega passa a ser dele, então o histórico do quadro mostra quem revisou e quando. Com ajustes, o card volta ao dono anterior; aprovado, fica com ele.
 - **De novo:** um commit novo no MR é revisado de novo enquanto o card está na coluna; o mesmo commit, nunca duas vezes. Nada é commitado nem enviado, e a pasta da tarefa é descartada depois do comentário.
 - **Separado:** as revisões ficam numa issue própria (`<card>:review`), então a tarefa de construção do card, o "Refazer card" e as etapas do board não as enxergam.
 

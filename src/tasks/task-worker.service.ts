@@ -495,10 +495,15 @@ export class TaskWorkerService implements OnModuleInit {
       await this.report(task, { type: 'pr-opened', prUrl, remaining: steps.length - 1 });
     await this.advance(task, prUrl);
   }
-  /** An approved review moves the card on (the source's review.approved column). */
+  /** Approved, the card moves on; with changes, it goes back to whoever owned it before. */
   private async reviewDone(task: Task) {
     const review = task.result?.mrReview as MergeRequestReview | undefined;
-    if (review?.approved) await this.report(task, { type: 'reviewed', approved: true });
+    if (!review) return;
+    await this.report(task, {
+      type: 'reviewed',
+      approved: !!review.approved,
+      ...(review.previousOwner ? { previousOwner: review.previousOwner } : {}),
+    });
   }
   /**
    * The code review of the merge request a card points to (a REVIEW task): its branch checked

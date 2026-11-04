@@ -130,3 +130,15 @@ test('move: PATCH of the card with the column; an HTTP error says which, never t
   expect(String(error)).toMatch('Businessmap PATCH /cards/5: HTTP 403');
   expect(String(error)).not.toContain('secret-key');
 });
+
+test('assign: PATCH of the card with its new owner', async () => {
+  const http = jest.fn(async () => new Response('{}', { status: 200 }));
+  await new BusinessmapClient(source, http as unknown as typeof fetch).assign(5, 291);
+  expect(http).toHaveBeenCalledWith(
+    'https://bm.test/api/v2/cards/5',
+    expect.objectContaining({
+      method: 'PATCH',
+      body: JSON.stringify({ owner_user_id: 291 }),
+    }),
+  );
+});

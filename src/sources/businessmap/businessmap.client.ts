@@ -16,8 +16,8 @@ export interface BmCard {
 /** Sections from here on are closed (done, archive). */
 const CLOSED = 4;
 /**
- * Businessmap API v2. Reads the board; the only write is moving a card to a column, and only
- * when the source configures `moves`.
+ * Businessmap API v2. Reads the board; it writes only a card's column (`moves`, a review's
+ * `approved`) and owner (a review's `assignTo`), and only when the source configures them.
  */
 export class BusinessmapClient {
   constructor(
@@ -78,6 +78,13 @@ export class BusinessmapClient {
   }
   /** Moves a card to a column of its board. */
   async move(cardId: number, columnId: number) {
+    await this.patch(cardId, { column_id: columnId });
+  }
+  /** Makes a user the card's owner (the board's history records who it was before). */
+  async assign(cardId: number, userId: number) {
+    await this.patch(cardId, { owner_user_id: userId });
+  }
+  private async patch(cardId: number, body: Record<string, number>) {
     const res = await this.http(`${this.source.baseUrl}/api/v2/cards/${cardId}`, {
       method: 'PATCH',
       headers: {
@@ -85,7 +92,7 @@ export class BusinessmapClient {
         Accept: 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ column_id: columnId }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`Businessmap PATCH /cards/${cardId}: HTTP ${res.status}`);
   }

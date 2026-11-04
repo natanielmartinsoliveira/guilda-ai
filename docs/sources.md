@@ -11,7 +11,7 @@ Each company declares where its cards come from in `sources:` of `company.yaml` 
 
 ## Businessmap
 
-Source `businessmap`: Guilda AI reads the board through the API v2. Its only write on the board is moving the card to the columns named in `moves` and `review.approved` (none by default); it never comments on, tags or attaches anything there.
+Source `businessmap`: Guilda AI reads the board through the API v2. Its only write on the board is moving the card to the columns named in `moves` and `review.approved`, and giving a card under review to `review.assignTo` and back (none by default); it never comments on, tags or attaches anything there.
 
 ```yaml
 sources:
@@ -27,7 +27,7 @@ sources:
     repositoryField: 13 # custom field (link) holding the card's repository
     routeTags: { rule: feature, screen: screen } # board tag → route of the method
     moves: { gate: 3169, building: 3170, built: 3171, review: 3172 } # optional: column per step
-    review: { columns: [3172], approved: 3173 } # optional: code review of the card's merge request
+    review: { columns: [3172], approved: 3173, assignTo: 291 } # optional: code review of the card's merge request
 ```
 
 - **Trigger:** an open card of the board in the trigger column **or** with the tag. Closed/archived cards stay out. A card already taken stays in the column without creating another task.
@@ -50,6 +50,7 @@ With `review`, a card that enters one of its `columns` has its GitLab merge requ
   - one comment goes to the merge request: verdict, problems (`file:line`), tests, commit;
   - the review shows on the task screen and is its own step in the metrics;
   - **approved** (the reviewer approves _and_ the tests pass) moves the card to `approved`; with changes the card stays.
+- **Whose review** (`assignTo`, optional): that user's own cards are not reviewed. A card the review takes becomes theirs, so the board's history shows who reviewed it and when. With changes it goes back to its previous owner; approved, it stays with them.
 - **Again:** a new commit on the MR is reviewed again while the card is in the column; the same commit never twice. Nothing is committed or pushed, and the task folder is discarded after the comment.
 - **Kept apart:** reviews live under their own issue (`<card>:review`), so the card's build task, its restart and its board steps never see them.
 

@@ -78,11 +78,12 @@ test('the comment: the verdict, the problems when there are, the tests, the comm
   expect(changes).toContain('**Problemas:**\n1. a.ts:3 — x — y');
   expect(changes).toContain('não rodaram, porque a preparação das dependências falhou');
 });
-test('only an approved review moves the card, to the approved column', async () => {
+test('approved, the card moves on; with changes, it goes back to its previous owner', async () => {
   const move = jest.fn(async () => {});
+  const assign = jest.fn(async () => {});
   class TestReporter extends SourceReporter {
     protected businessmap() {
-      return { move } as unknown as BusinessmapClient;
+      return { move, assign } as unknown as BusinessmapClient;
     }
   }
   const tenant = {
@@ -92,14 +93,26 @@ test('only an approved review moves the card, to the approved column', async () 
         id: 'board',
         type: 'businessmap',
         moves: {},
-        review: { columns: [10], owners: [], approved: 11 },
+        review: { columns: [10], owners: [], approved: 11, assignTo: 291 },
       },
     ],
   } as unknown as Tenant;
   const item = { source: 'board', externalKey: '49560' };
-  await new TestReporter().report(tenant, item, { type: 'reviewed', approved: false });
-  await new TestReporter().report(tenant, item, { type: 'reviewed', approved: true });
+  await new TestReporter().report(tenant, item, {
+    type: 'reviewed',
+    approved: false,
+    previousOwner: 294,
+  });
+  await new TestReporter().report(tenant, item, {
+    type: 'reviewed',
+    approved: true,
+    previousOwner: 294,
+  });
   expect(move.mock.calls).toEqual([[49560, 11]]);
+  expect(assign.mock.calls).toEqual([[49560, 294]]);
+  // a card nobody owned before stays with the reviewer
+  await new TestReporter().report(tenant, item, { type: 'reviewed', approved: false });
+  expect(assign).toHaveBeenCalledTimes(1);
 });
 
 describe('review columns of a Businessmap source', () => {
@@ -126,6 +139,7 @@ describe('review columns of a Businessmap source', () => {
   function setup(cards: BmCard[], info: Partial<MergeRequestInfo> = {}) {
     const client = {
       candidates: jest.fn(async (): Promise<BmCard[]> => []),
+      assign: jest.fn(async () => {}),
       inColumns: jest.fn(async () =>
         cards.map((c) => ({ card_id: c.card_id, owner_user_id: c.owner_user_id })),
       ),
@@ -176,6 +190,7 @@ describe('review columns of a Businessmap source', () => {
         sourceBranch: 'feat/http-tests',
         targetBranch: 'homolog',
         sha: 'aaaaaaaa11111111',
+        previousOwner: 292,
       },
     });
     const issue = await db.getRepository(Issue).findOneByOrFail({ id: task.issueId });
@@ -211,6 +226,16 @@ describe('review columns of a Businessmap source', () => {
     const none = setup([card(102, { custom_fields: [], description: 'sem link' })]);
     await none.poller.poll(tenant, source);
     expect(await reviews()).toEqual([]);
+  });
+  test("with assignTo: the reviewer's own cards are skipped; a new review takes the card once", async () => {
+    load('{ columns: [3172], approved: 3173, assignTo: 291 }');
+    const x = setup([card(101, { owner_user_id: 294 }), card(102, { owner_user_id: 291 })]);
+    await x.poller.poll(tenant, source);
+    await x.poller.poll(tenant, source);
+    const [task, ...more] = await reviews();
+    expect(more).toEqual([]);
+    expect(task.result).toMatchObject({ mrReview: { previousOwner: 294 } });
+    expect(x.client.assign.mock.calls).toEqual([[101, 291]]);
   });
   test('any owner by default; owners narrows it', async () => {
     load('{ columns: [3172], owners: [291] }');

@@ -546,7 +546,7 @@ describe('code review of a merge request (REVIEW task)', () => {
   const verdict = (v: string, issues = '') =>
     `Li o diff.\n<revisao>\n<veredito>${v}</veredito>\n<problemas>${issues}</problemas>\n<resumo>Cobre as regras.</resumo>\n</revisao>`;
   async function review(x: Awaited<ReturnType<typeof setup>>) {
-    const task = await x.orchestrator.acceptReview(
+    const { task } = await x.orchestrator.acceptReview(
       'acme',
       { ...item, externalId: `${item.externalId}:review` },
       MR,
@@ -625,7 +625,7 @@ describe('code review of a merge request (REVIEW task)', () => {
     const body = x.github.commentOnPullRequest.mock.calls[0][2] as string;
     expect(body).toContain('⚠️ Revisão da Guilda: ajustes');
     expect(body).toContain('falharam');
-    expect(x.reporter.report.mock.calls.some((c: any[]) => c[2]?.type === 'reviewed')).toBe(false);
+    expect(x.reporter.report.mock.calls.at(-1)![2]).toEqual({ type: 'reviewed', approved: false });
   });
   test('an answer without a verdict is retried, and a retry never comments twice', async () => {
     const x = await setup();

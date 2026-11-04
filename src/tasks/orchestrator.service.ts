@@ -145,7 +145,11 @@ export class OrchestratorService {
    * card's own, so its build flow never sees it) and one REVIEW task per commit of the MR. A
    * review in progress, or of the same commit, is returned as it is.
    */
-  async acceptReview(tenantId: string, item: WorkItem, mr: ReviewTarget): Promise<Task> {
+  async acceptReview(
+    tenantId: string,
+    item: WorkItem,
+    mr: ReviewTarget,
+  ): Promise<{ task: Task; created: boolean }> {
     const { tenant, project: cfg } = this.tenants.project(tenantId, item.project);
     return this.db.transaction(async (em) => {
       await em.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`${tenant.id}/${cfg.id}`]);
@@ -160,7 +164,7 @@ export class OrchestratorService {
         previous &&
         (['PENDING', 'RUNNING', 'WAITING'].includes(previous.status) || reviewed === mr.sha)
       )
-        return previous;
+        return { task: previous, created: false };
       const [owner, repository] = cfg.repository.split('/');
       const project = await em.save(Project, {
         ...(await em.findOneBy(Project, { tenantId: tenant.id, key: cfg.id })),
@@ -206,7 +210,7 @@ export class OrchestratorService {
         stage: 'QUEUED',
       });
       await em.save(Outbox, { taskId: id });
-      return task;
+      return { task, created: true };
     });
   }
   private async acceptIn(
@@ -672,4 +676,6 @@ export interface ReviewTarget {
   sourceBranch: string;
   targetBranch: string;
   sha: string;
+  /** Who owned the card before the review took it (it goes back to them with changes). */
+  previousOwner?: number;
 }

@@ -22,8 +22,11 @@ export type SourceEvent =
   | { type: 'phase'; board: 'gate' | 'building' }
   /** The delivery is done (a rehearsal included), before any PR. */
   | { type: 'built' }
-  /** A code review of the card's merge request finished (approved: the card moves on). */
-  | { type: 'reviewed'; approved: boolean };
+  /**
+   * A code review of the card's merge request finished: approved, the card moves on; with
+   * changes, it goes back to its previous owner (when the review took it).
+   */
+  | { type: 'reviewed'; approved: boolean; previousOwner?: number };
 /**
  * Tells the tracker what happened to its item (comment + card transition). Best effort:
  * a tracker outage must never fail or block the code task itself.
@@ -144,6 +147,24 @@ export class SourceReporter {
     key: string,
     event: SourceEvent,
   ): Promise<void> {
+    if (
+      event.type === 'reviewed' &&
+      !event.approved &&
+      event.previousOwner &&
+      source.review?.assignTo
+    ) {
+      try {
+        await this.businessmap(source).assign(Number(key), event.previousOwner);
+      } catch (error) {
+        log('source.assign_unavailable', {
+          tenant: tenant.id,
+          source: source.id,
+          key,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+      return;
+    }
     const column =
       event.type === 'phase'
         ? source.moves[event.board]
