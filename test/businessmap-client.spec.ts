@@ -12,6 +12,7 @@ const source: BusinessmapSource = {
   trigger: { columns: [3170], tag: 'AI-Dev-Team', owners: [] },
   moves: {},
   repositoryField: 13,
+  projectRules: [],
   routeTags: {},
 };
 function api(routes: Record<string, (q: URLSearchParams) => unknown>) {

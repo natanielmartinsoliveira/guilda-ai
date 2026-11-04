@@ -12,6 +12,7 @@ const source = (moves: BusinessmapSource['moves']): BusinessmapSource => ({
   trigger: { columns: [10], owners: [] },
   moves,
   repositoryField: 13,
+  projectRules: [],
   routeTags: {},
 });
 function reporter(moves: BusinessmapSource['moves'], move = jest.fn(async () => {})) {
