@@ -84,6 +84,29 @@ describe('BusinessmapPoller', () => {
     return { client, accept, poller: new TestPoller(db, orchestrator) };
   }
 
+  test('a card without a repository link: the first project rule its title or text matches names the project', async () => {
+    load(
+      WITH_METHOD,
+      `${SOURCE}\n        projectRules:\n          - { when: '\\[frontend\\]', project: svc }\n          - { when: 'cvu|cobran', project: nowhere }`,
+    );
+    const front = card(101, { title: '[Frontend] Ajustar botão', custom_fields: [] });
+    const unknown = card(102, { title: '[Backend] CVU errado', custom_fields: [] });
+    const neither = card(103, { title: 'Sem pista', description: '', custom_fields: [] });
+    const x = setup({ 101: front, 102: unknown, 103: neither });
+    await x.poller.poll(tenant, source);
+    expect(x.accept).toHaveBeenCalledTimes(1);
+    expect(x.accept.mock.calls[0][1]).toMatchObject({ externalId: '101', project: 'svc' });
+    expect(
+      await x.poller.ingest(tenant, source, x.client as never, { card_id: 102 }, new Map()),
+    ).toEqual({
+      skipped: 'A regra de projeto aponta o projeto nowhere, que não existe',
+    });
+    expect(
+      await x.poller.ingest(tenant, source, x.client as never, { card_id: 103 }, new Map()),
+    ).toEqual({
+      skipped: 'O card não tem o campo de repositório preenchido nem casa com uma regra de projeto',
+    });
+  });
   test('a card with a route tag and a repository link becomes a task of the method, once', async () => {
     const x = setup({ 101: card(101) });
     await x.poller.poll(tenant, source);

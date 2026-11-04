@@ -31,7 +31,7 @@ sources:
 ```
 
 - **Trigger:** an open card of the board in the trigger column **or** with the tag. Closed/archived cards stay out. A card already taken stays in the column without creating another task.
-- **Repository required:** the link in `repositoryField` picks the project (compared with each GitLab project's `repository`). Without a link, or with a repository no project has, the card is skipped (reason logged once) and comes in by itself once fixed.
+- **Repository required:** the link in `repositoryField` picks the project (compared with each GitLab project's `repository`). Without a link, `projectRules` may name it: the first rule whose regex finds the card's title or description (`- { when: '^\\s*\\[\\s*front', project: web }`). Without either, or with a repository no project has, the card is skipped (reason logged once) and comes in by itself once fixed.
 - **Route by tag** (projects with a method): exactly one route tag. Without `routeTags`, a tag named as a route of the method is that route. Case and accents do not matter. With two route tags the card does not come in; with none it comes in and the task asks the operator which route (the method's routes as options, also as Telegram buttons): the route is never guessed.
 - **Card follows the task** (`moves`, optional): `gate` when a method phase marked `board: gate` starts (e.g. waiting for the operator's approval), `building` for `board: building`, `built` when the delivery is done (a rehearsal included), `review` when the PR opens. A refused move is logged; the task goes on.
 - **Task:** key = card id, body = description (HTML → text) + titles of the parent/related cards. Card attachments are not read yet.

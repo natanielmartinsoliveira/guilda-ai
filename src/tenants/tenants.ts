@@ -256,6 +256,25 @@ const businessmapSource = z
     /** Custom field (type link) holding the card's GitLab repository. */
     repositoryField: z.number().int().positive(),
     /**
+     * A card without a repository link: the first rule whose regex finds its title or description
+     * (case-insensitive) names the project. None: the card is skipped, as without a link.
+     */
+    projectRules: z
+      .array(
+        z.object({
+          when: z.string().refine((r) => {
+            try {
+              new RegExp(r, 'i');
+              return true;
+            } catch {
+              return false;
+            }
+          }, 'invalid regex'),
+          project: slug,
+        }),
+      )
+      .default([]),
+    /**
      * Tag label (case and accents ignored) → route of the project's method. Without one, a tag
      * named as a route of the method is that route.
      */

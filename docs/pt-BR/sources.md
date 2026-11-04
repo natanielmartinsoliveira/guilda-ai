@@ -31,7 +31,7 @@ sources:
 ```
 
 - **Gatilho:** card aberto do quadro na coluna do gatilho **ou** com a tag. Cards encerrados/arquivados ficam de fora. Card já aceito continua na coluna sem gerar outra tarefa.
-- **Repositório obrigatório:** o link do campo `repositoryField` escolhe o projeto (comparado com o `repository` de cada projeto GitLab). Sem link, ou com repositório não configurado, o card é ignorado (motivo no log, uma vez) e entra sozinho quando for corrigido.
+- **Repositório obrigatório:** o link do campo `repositoryField` escolhe o projeto (comparado com o `repository` de cada projeto GitLab). Sem link, `projectRules` pode apontá-lo: a primeira regra cujo regex aparece no título ou na descrição do card (`- { when: '^\\s*\\[\\s*front', project: web }`). Sem nenhum dos dois, ou com repositório não configurado, o card é ignorado (motivo no log, uma vez) e entra sozinho quando for corrigido.
 - **Rota pela tag** (projetos com método): exatamente uma tag de rota. Sem `routeTags`, uma tag com o nome de uma rota do método é aquela rota. Maiúsculas e acentos não importam. Com duas tags de rota o card não entra; sem nenhuma ele entra e a tarefa pergunta ao operador qual rota (as rotas do método como opções, também como botões no Telegram): a rota nunca é deduzida.
 - **O card acompanha a tarefa** (`moves`, opcional): `gate` quando começa uma fase do método marcada `board: gate` (por exemplo, esperando a aprovação do operador), `building` para `board: building`, `built` quando a entrega termina (ensaio incluído), `review` quando o PR abre. Um move recusado vai para o log; a tarefa segue.
 - **Tarefa:** chave = id do card, corpo = descrição (HTML → texto) + títulos dos cards pai/relacionados. Anexos do card ainda não são lidos.

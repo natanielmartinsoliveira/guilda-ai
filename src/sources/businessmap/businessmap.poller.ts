@@ -113,25 +113,36 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
       return { skipped: 'Esse card já tem tarefa', taskId: task?.id };
     }
     const card = await client.card(ref.card_id);
-    const link = card.custom_fields?.find((f) => f.field_id === source.repositoryField)?.value;
-    if (typeof link !== 'string' || !link.trim())
+    const field = card.custom_fields?.find((f) => f.field_id === source.repositoryField)?.value;
+    const link = typeof field === 'string' && field.trim() ? field.trim() : undefined;
+    const byLink = link
+      ? tenant.projects.find((p) => {
+          const host = tenant.hosts.find((h) => h.id === p.host);
+          if (host?.type !== 'gitlab') return false;
+          return repositoryFromLink(link, new URL(host.baseUrl).hostname) === p.repository;
+        })
+      : undefined;
+    if (link && !byLink)
       return this.skip(
         tenant,
         source,
         externalId,
-        'O card não tem o campo de repositório preenchido',
+        `Repositório do card não configurado em nenhum projeto: ${link}`,
       );
-    const project = tenant.projects.find((p) => {
-      const host = tenant.hosts.find((h) => h.id === p.host);
-      if (host?.type !== 'gitlab') return false;
-      return repositoryFromLink(link, new URL(host.baseUrl).hostname) === p.repository;
-    });
+    // No repository link: the source's rules may name the project from the card's own words.
+    const text = `${card.title ?? ''}\n${htmlToText(card.description)}`;
+    const ruled = byLink
+      ? undefined
+      : source.projectRules.find((r) => new RegExp(r.when, 'i').test(text))?.project;
+    const project = byLink ?? tenant.projects.find((p) => p.id === ruled);
     if (!project)
       return this.skip(
         tenant,
         source,
         externalId,
-        `Repositório do card não configurado em nenhum projeto: ${link.trim()}`,
+        ruled
+          ? `A regra de projeto aponta o projeto ${ruled}, que não existe`
+          : 'O card não tem o campo de repositório preenchido nem casa com uma regra de projeto',
       );
     let route: string | undefined;
     if (project.method) {
