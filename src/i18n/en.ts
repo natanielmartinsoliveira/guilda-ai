@@ -4,6 +4,18 @@ export const en: Record<MessageKey, string> = {
   'telegram.task': 'task',
   'method.whichRoute': 'Which route does this task follow?',
   'pr.analysis': "The method's reading",
+  'review.mr.approved': '✅ Guilda review: approved',
+  'review.mr.changes': '⚠️ Guilda review: changes requested',
+  'review.mr.problems': 'Problems:',
+  'review.mr.testsPassed': 'Project tests on this commit: passed (`{command}`).',
+  'review.mr.testsFailed': 'Project tests on this commit: failed (`{command}`, exit {code}).',
+  'review.mr.testsNotRun': 'Project tests: did not run, because preparing the dependencies failed.',
+  'review.mr.footer': "Commit {sha} · Guilda AI's automatic review, with the company's references.",
+  'review.mr.promptPassed': 'passed (`{command}`).',
+  'review.mr.promptFailed':
+    'FAILED (`{command}`, exit {code}); weigh the failure in the review. The end of the output:\\n{output}\\n',
+  'review.mr.promptNotRun':
+    'did not run, because preparing the dependencies failed. The end of the output:\\n{reason}\\n',
   'baseline.failing':
     "Before your change, the project's tests already fail on the base ({command}). If the card asks for tests or their fix, that is what is left to solve; otherwise, do not make it worse. Output:\n```\n{output}\n```",
   'method.suggestion': 'Suggested: {route} — {risk} risk: {why}',

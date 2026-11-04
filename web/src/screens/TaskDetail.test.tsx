@@ -337,3 +337,30 @@ test('automatic suggestions: saved as worded (edited) or dismissed, and they lea
   expect(rule).toHaveBeenLastCalledWith('initech', 'svc', 's2', { action: 'dismiss' });
   await vi.waitFor(() => expect(screen.queryByText('Sugestões automáticas')).toBeNull());
 });
+test('a review of the merge request: its link, verdict, tests and what to fix', async () => {
+  vi.spyOn(api, 'task').mockResolvedValue({
+    ...rehearsed(),
+    rehearsal: undefined,
+    stage: 'DONE',
+    mrReview: {
+      number: 405,
+      url: 'https://git.example.com/shop/orders/-/merge_requests/405',
+      title: 'Testes do cliente HTTP',
+      commit: 'head1111',
+      verdict: 'ajustes',
+      approved: false,
+      summary: 'Faltam casos de erro.',
+      issues: '1. a.ts:3 — sem teste do 500 — acrescente',
+      commented: true,
+      tests: { ran: true, passed: true, command: 'make test' },
+    },
+  });
+  show();
+  const link = await screen.findByRole('link', { name: 'Testes do cliente HTTP' });
+  expect(link).toHaveAttribute('href', 'https://git.example.com/shop/orders/-/merge_requests/405');
+  expect(screen.getByText('Revisão do MR !405:', { exact: false })).toBeTruthy();
+  expect(screen.getByText('⚠️ Ajustes')).toBeTruthy();
+  expect(screen.getByText(/commit head1111 · comentário publicado no MR/)).toBeTruthy();
+  expect(screen.getByText('Testes do projeto passaram (make test).')).toBeTruthy();
+  expect(screen.getByText(/a\.ts:3 — sem teste do 500 — acrescente/)).toBeTruthy();
+});

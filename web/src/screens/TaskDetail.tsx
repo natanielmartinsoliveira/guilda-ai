@@ -603,6 +603,7 @@ export function TaskDetail({ tenant, id }: { tenant: string; id: string }) {
           </ul>
         </section>
       )}
+      {task.mrReview && <MergeRequestReview review={task.mrReview} />}
       {task.analysis && (
         <section>
           <h3>{t('detail.analysis')}</h3>
@@ -686,5 +687,37 @@ export function TaskDetail({ tenant, id }: { tenant: string; id: string }) {
         <ReviseForm tenant={tenant} id={id} onDone={() => void load()} />
       )}
     </article>
+  );
+}
+/** The review of the card's merge request: its verdict, the tests and what to fix. */
+function MergeRequestReview({ review }: { review: NonNullable<TaskView['mrReview']> }) {
+  const verdict = !review.verdict
+    ? t('detail.mrReview.pending')
+    : review.approved
+      ? t('detail.mrReview.approved')
+      : t('detail.mrReview.changes');
+  const tests = !review.tests
+    ? undefined
+    : !review.tests.ran
+      ? t('detail.mrReview.testsNotRun')
+      : review.tests.passed
+        ? t('detail.mrReview.testsPassed', { command: review.tests.command })
+        : t('detail.mrReview.testsFailed', { command: review.tests.command });
+  return (
+    <section>
+      <h3>
+        {t('detail.mrReview.title', { number: review.number })}{' '}
+        <a href={review.url} target="_blank" rel="noreferrer">
+          {review.title}
+        </a>
+      </h3>
+      <p>
+        <strong>{verdict}</strong> · {t('detail.mrReview.commit', { commit: review.commit })}
+        {review.commented ? ` · ${t('detail.mrReview.commented')}` : ''}
+      </p>
+      {review.summary && <p>{review.summary}</p>}
+      {tests && <p>{tests}</p>}
+      {review.issues && review.verdict === 'ajustes' && <PlainText text={review.issues} />}
+    </section>
   );
 }

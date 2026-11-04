@@ -11,7 +11,7 @@ Cada empresa declara de onde vêm os cards em `sources:` do `company.yaml` (ou d
 
 ## Businessmap
 
-Origem `businessmap`: a Guilda AI lê o quadro pela API v2. A única escrita é mover o card para as colunas de `moves` (nenhuma por padrão); nunca comenta, põe tag ou anexa nada.
+Origem `businessmap`: a Guilda AI lê o quadro pela API v2. A única escrita no quadro é mover o card para as colunas de `moves` e `review.approved` (nenhuma por padrão); nunca comenta, põe tag ou anexa nada ali.
 
 ```yaml
 sources:
@@ -27,6 +27,7 @@ sources:
     repositoryField: 13 # campo (tipo link) com o repositório do card
     routeTags: { regra: feature, tela: screen } # tag do quadro → rota do método
     moves: { gate: 3169, building: 3170, built: 3171, review: 3172 } # opcional: coluna por etapa
+    review: { columns: [3172], approved: 3173 } # opcional: code review do merge request do card
 ```
 
 - **Gatilho:** card aberto do quadro na coluna do gatilho **ou** com a tag. Cards encerrados/arquivados ficam de fora. Card já aceito continua na coluna sem gerar outra tarefa.
@@ -34,6 +35,23 @@ sources:
 - **Rota pela tag** (projetos com método): exatamente uma tag de rota. Sem `routeTags`, uma tag com o nome de uma rota do método é aquela rota. Maiúsculas e acentos não importam. Com duas tags de rota o card não entra; sem nenhuma ele entra e a tarefa pergunta ao operador qual rota (as rotas do método como opções, também como botões no Telegram): a rota nunca é deduzida.
 - **O card acompanha a tarefa** (`moves`, opcional): `gate` quando começa uma fase do método marcada `board: gate` (por exemplo, esperando a aprovação do operador), `building` para `board: building`, `built` quando a entrega termina (ensaio incluído), `review` quando o PR abre. Um move recusado vai para o log; a tarefa segue.
 - **Tarefa:** chave = id do card, corpo = descrição (HTML → texto) + títulos dos cards pai/relacionados. Anexos do card ainda não são lidos.
+
+### Code review do merge request do card
+
+Com `review`, um card que entra numa das `columns` tem o merge request do GitLab revisado, seja quem for o dono do card (`owners` restringe). Nenhum método participa.
+
+- **Qual MR:** o primeiro link de merge request do GitLab da empresa no `repositoryField` ou, se não houver, na descrição. Um card sem link, ou com o MR fechado, é ignorado (motivo no log, uma vez).
+- **A revisão:**
+  - a branch do MR é clonada no commit atual, e a branch de destino é buscada para o diff;
+  - as pastas de conhecimento do projeto são copiadas;
+  - o `prepare` e o `test` do projeto rodam, sem corretor;
+  - o revisor (o papel `reviewer` da empresa ou, sem ele, o `coder`) lê a mudança só em leitura, com o card, as lições e o conhecimento. O texto do card e do MR vai cercado como não confiável.
+- **O resultado:**
+  - um comentário vai para o merge request, com veredito, problemas (`arquivo:linha`), testes e commit;
+  - a revisão aparece na tela da tarefa e é uma etapa própria nas métricas;
+  - **aprovado** (o revisor aprova _e_ os testes passam) move o card para `approved`; com ajustes, o card fica.
+- **De novo:** um commit novo no MR é revisado de novo enquanto o card está na coluna; o mesmo commit, nunca duas vezes. Nada é commitado nem enviado, e a pasta da tarefa é descartada depois do comentário.
+- **Separado:** as revisões ficam numa issue própria (`<card>:review`), então a tarefa de construção do card, o "Refazer card" e as etapas do board não as enxergam.
 
 ## Iniciar um card pelo código
 

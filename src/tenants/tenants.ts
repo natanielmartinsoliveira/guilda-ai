@@ -236,6 +236,20 @@ const businessmapSource = z
       })
       .strict()
       .default({}),
+    /**
+     * Code review of a card's merge request (no method): a card that enters one of these
+     * columns (any owner, unless owners says otherwise) has the GitLab MR it links to checked
+     * out, tested and read by the reviewer; the review goes to the MR as a comment. Approved,
+     * the card moves to `approved`; with adjustments it stays, and a new commit on the MR is
+     * reviewed again.
+     */
+    review: z
+      .object({
+        columns: z.array(z.number().int().positive()).min(1),
+        owners: z.array(z.number().int().positive()).default([]),
+        approved: z.number().int().positive().optional(),
+      })
+      .optional(),
     /** Custom field (type link) holding the card's GitLab repository. */
     repositoryField: z.number().int().positive(),
     /**

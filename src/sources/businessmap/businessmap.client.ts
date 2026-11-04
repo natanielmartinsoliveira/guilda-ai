@@ -72,6 +72,10 @@ export class BusinessmapClient {
       return true;
     });
   }
+  /** The open cards in these columns of the board (a review trigger, say). */
+  inColumns(columns: number[]) {
+    return this.list({ column_ids: columns.join(',') });
+  }
   /** Moves a card to a column of its board. */
   async move(cardId: number, columnId: number) {
     const res = await this.http(`${this.source.baseUrl}/api/v2/cards/${cardId}`, {

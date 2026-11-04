@@ -3,6 +3,20 @@ export const ptBR = {
   'telegram.task': 'tarefa',
   'method.whichRoute': 'Qual rota esta tarefa segue?',
   'pr.analysis': 'Leitura do método',
+  'review.mr.approved': '✅ Revisão da Guilda: aprovado',
+  'review.mr.changes': '⚠️ Revisão da Guilda: ajustes',
+  'review.mr.problems': 'Problemas:',
+  'review.mr.testsPassed': 'Testes do projeto neste commit: passaram (`{command}`).',
+  'review.mr.testsFailed': 'Testes do projeto neste commit: falharam (`{command}`, saída {code}).',
+  'review.mr.testsNotRun':
+    'Testes do projeto: não rodaram, porque a preparação das dependências falhou.',
+  'review.mr.footer':
+    'Commit {sha} · revisão automática da Guilda AI, com as referências da empresa.',
+  'review.mr.promptPassed': 'passaram (`{command}`).',
+  'review.mr.promptFailed':
+    'FALHARAM (`{command}`, saída {code}); considere a falha na revisão. O final da saída:\\n{output}\\n',
+  'review.mr.promptNotRun':
+    'não rodaram, porque a preparação das dependências falhou. O final da saída:\\n{reason}\\n',
   'baseline.failing':
     'Antes da sua mudança, os testes do projeto já falham na base ({command}). Se o card pede testes ou a correção deles, é isso que falta resolver; se não, não piore. Saída:\n```\n{output}\n```',
   'method.suggestion': 'Sugestão: {route} — risco {risk}: {why}',

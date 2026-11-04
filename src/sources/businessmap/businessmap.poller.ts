@@ -4,7 +4,9 @@ import { DataSource } from 'typeorm';
 import { config, log } from '../../config';
 import { Issue, IssueMeta } from '../../database/entities';
 import { latestTask, OrchestratorService } from '../../tasks/orchestrator.service';
-import { BusinessmapSource, Tenant, tenants } from '../../tenants/tenants';
+import { BusinessmapSource, Tenant, TenantHost, tenants } from '../../tenants/tenants';
+import { GitlabHost } from '../../hosts/gitlab.host';
+import { mergeRequestOfCard } from '../../reviews/review-card';
 import type { IngestResult } from '../jira/jira.poller';
 import { BmCard, BusinessmapClient } from './businessmap.client';
 import { htmlToText, normalizeLabel, repositoryFromLink } from './text';
@@ -26,6 +28,10 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
   /** Overridable in tests. */
   protected client(source: BusinessmapSource) {
     return new BusinessmapClient(source);
+  }
+  /** Overridable in tests. */
+  protected gitlab(host: Extract<TenantHost, { type: 'gitlab' }>) {
+    return new GitlabHost(host.id, host);
   }
   onModuleInit() {
     if (!config().SOURCE_POLLING) return;
@@ -58,19 +64,21 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
         const found = (await client.candidates()).filter(
           (c) => !owners.length || owners.includes(c.owner_user_id ?? -1),
         );
-        if (!found.length) return;
-        const tags = await client.tags();
-        await this.exclusive(`${tenant.id}/${source.id}`, async () => {
-          for (const ref of found)
-            await this.ingest(tenant, source, client, ref, tags).catch((error: unknown) =>
-              log('businessmap.ingest_failed', {
-                tenant: tenant.id,
-                source: source.id,
-                card: ref.card_id,
-                error: error instanceof Error ? error.message : String(error),
-              }),
-            );
-        });
+        if (found.length) {
+          const tags = await client.tags();
+          await this.exclusive(`${tenant.id}/${source.id}`, async () => {
+            for (const ref of found)
+              await this.ingest(tenant, source, client, ref, tags).catch((error: unknown) =>
+                log('businessmap.ingest_failed', {
+                  tenant: tenant.id,
+                  source: source.id,
+                  card: ref.card_id,
+                  error: error instanceof Error ? error.message : String(error),
+                }),
+              );
+          });
+        }
+        if (source.review) await this.pollReviews(tenant, source, client);
       } finally {
         await lock.query('SELECT pg_advisory_unlock(hashtext($1))', [key]);
       }
@@ -230,6 +238,80 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
     return this.exclusive(`${tenant.id}/${source.id}`, () =>
       this.ingest(tenant, source, client, card, tags, route, again),
     );
+  }
+  /** Cards in the review columns: their merge request is reviewed, once per commit. */
+  private async pollReviews(tenant: Tenant, source: BusinessmapSource, client: BusinessmapClient) {
+    const { columns, owners } = source.review!;
+    const cards = (await client.inColumns(columns)).filter(
+      (c) => !owners.length || owners.includes(c.owner_user_id ?? -1),
+    );
+    await this.exclusive(`${tenant.id}/${source.id}/review`, async () => {
+      for (const ref of cards)
+        await this.ingestReview(tenant, source, client, ref).catch((error: unknown) =>
+          log('businessmap.review_failed', {
+            tenant: tenant.id,
+            source: source.id,
+            card: ref.card_id,
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        );
+    });
+  }
+  async ingestReview(
+    tenant: Tenant,
+    source: BusinessmapSource,
+    client: BusinessmapClient,
+    ref: BmCard,
+  ): Promise<IngestResult> {
+    const externalId = String(ref.card_id);
+    const card = await client.card(ref.card_id);
+    for (const host of tenant.hosts) {
+      if (host.type !== 'gitlab') continue;
+      const mr = mergeRequestOfCard(card, source.repositoryField, new URL(host.baseUrl).hostname);
+      if (!mr) continue;
+      const project = tenant.projects.find(
+        (p) => p.host === host.id && p.repository === mr.repository,
+      );
+      if (!project)
+        return this.skip(
+          tenant,
+          source,
+          externalId,
+          `Revisão: repositório do MR não configurado em nenhum projeto: ${mr.repository}`,
+        );
+      const info = await this.gitlab(host).mergeRequest(mr.repository, mr.number);
+      if (info.state !== 'opened')
+        return this.skip(
+          tenant,
+          source,
+          externalId,
+          `Revisão: o MR !${mr.number} está ${info.state}`,
+        );
+      const task = await this.orchestrator.acceptReview(
+        tenant.id,
+        {
+          source: source.id,
+          // Beside the card's own issue: the card's build flow never sees its reviews.
+          externalId: `${externalId}:review`,
+          key: externalId,
+          title: (card.title || externalId).slice(0, 256),
+          body: htmlToText(card.description),
+          url: `${source.baseUrl}/ctrl_board/${source.boardId}/cards/${externalId}/details/`,
+          project: project.id,
+        },
+        {
+          number: info.number,
+          url: info.url || mr.url,
+          title: info.title.slice(0, 256),
+          description: info.description.slice(0, 4000),
+          sourceBranch: info.sourceBranch,
+          targetBranch: info.targetBranch,
+          sha: info.sha,
+        },
+      );
+      return { taskId: task.id };
+    }
+    return this.skip(tenant, source, externalId, 'Revisão: o card não aponta um MR do GitLab');
   }
   private skip(tenant: Tenant, source: BusinessmapSource, card: string, reason: string) {
     const key = `${tenant.id}/${source.id}/${card}/${reason}`;

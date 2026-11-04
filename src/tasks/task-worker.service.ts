@@ -66,6 +66,7 @@ const promoted = (rehearsal: unknown) =>
 import type { DecisionQuestion } from '../database/entities';
 import { mapBrief } from '../methods/brief';
 import { knowledgeList, uploadKnowledge } from '../knowledge/knowledge';
+import { mergeRequestComment, MergeRequestReview, MergeRequestTests } from '../reviews/mr-review';
 import { SandboxService } from '../agents/sandbox.service';
 import { GitRemote, GitService } from '../git/git.service';
 import { MessagingService } from '../messaging/messaging.service';
@@ -94,7 +95,7 @@ const messageSchema = z
   .object({
     taskId: z.uuid(),
     issueId: z.uuid(),
-    type: z.enum(['CODE', 'REVISE']),
+    type: z.enum(['CODE', 'REVISE', 'REVIEW']),
     // Informational: the provider actually used is chosen per run by the credential fallback.
     provider: z.enum(['codex', 'claude', 'openrouter', 'gemini']).nullish(),
     revisionId: z.uuid().nullish(),
@@ -214,6 +215,27 @@ export class TaskWorkerService implements OnModuleInit {
       const task = await this.db.getRepository(Task).findOneBy({ id: body.taskId });
       if (!task || task.issueId !== body.issueId) {
         settle(() => channel.nack(message, false, false));
+        return;
+      }
+      if (body.type === 'REVIEW') {
+        if (task.type !== 'REVIEW') {
+          settle(() => channel.nack(message, false, false));
+          return;
+        }
+        await this.runJob(
+          {
+            kind: 'task',
+            entity: Task,
+            job: task,
+            tenantId: task.tenantId,
+            outbox: { taskId: task.id },
+            execute: () => this.reviewMergeRequest(task),
+            succeeded: () => this.reviewDone(task),
+            failed: (error) => this.taskFailed(task, error),
+          },
+          message,
+          channel,
+        );
         return;
       }
       if (body.type === 'CODE') {
@@ -472,6 +494,115 @@ export class TaskWorkerService implements OnModuleInit {
     if (steps.length > 1)
       await this.report(task, { type: 'pr-opened', prUrl, remaining: steps.length - 1 });
     await this.advance(task, prUrl);
+  }
+  /** An approved review moves the card on (the source's review.approved column). */
+  private async reviewDone(task: Task) {
+    const review = task.result?.mrReview as MergeRequestReview | undefined;
+    if (review?.approved) await this.report(task, { type: 'reviewed', approved: true });
+  }
+  /**
+   * The code review of the merge request a card points to (a REVIEW task): its branch checked
+   * out at the commit under review, the project's tests, then the reviewer, read-only and with
+   * the company's references. The review goes to the merge request as one comment; nothing is
+   * committed or pushed.
+   */
+  async reviewMergeRequest(task: Task) {
+    const ctx = await this.context(task);
+    const state = (task.result ??= {});
+    const mr = state.mrReview as MergeRequestReview;
+    // Commented already (a retry after the comment went out): the review is done.
+    if (mr.commented) return;
+    await this.stage(task, Task, 'WORKSPACE');
+    await this.git.prepare(task, mr.sourceBranch, ctx.remote, {
+      resetToBase: true,
+      hidden: ctx.cfg.hiddenFiles,
+    });
+    // The target branch, for the diff: the clone holds only the merge request's.
+    await this.git.git(
+      task,
+      ['fetch', '--no-tags', ctx.remote.url, `refs/heads/${mr.targetBranch}`],
+      { remote: ctx.remote },
+    );
+    mr.base = (await this.git.git(task, ['merge-base', 'FETCH_HEAD', 'HEAD'])).trim();
+    mr.head = (await this.git.git(task, ['rev-parse', 'HEAD'])).trim();
+    await uploadKnowledge(ctx.ws, ctx.tenant.packDir, ctx.cfg.knowledge);
+    const tests = await this.mergeRequestTests(task, ctx);
+    state.mrTests = tests;
+    await this.stage(task, Task, 'REVIEW');
+    // A company without a reviewer of its own reviews with its coder's credentials.
+    const run = await this.router.run(
+      ctx.tenant,
+      roleTargets(ctx.tenant, 'reviewer').length ? 'reviewer' : 'coder',
+      {
+        taskId: task.id,
+        tenantId: task.tenantId,
+        workspace: task.workspace,
+        ...(ctx.ws.kind === 'coder' ? { remote: ctx.ws as CoderWorkspace } : {}),
+        readOnly: true,
+        phase: 'review',
+        prompt: await this.render(ctx, 'mr-review.md', {
+          NUMBER: String(mr.number),
+          SOURCE: mr.sourceBranch,
+          TARGET: mr.targetBranch,
+          BASE: mr.base,
+          TESTS: tests.ran
+            ? tests.passed
+              ? t('review.mr.promptPassed', { command: tests.command })
+              : t('review.mr.promptFailed', {
+                  command: tests.command,
+                  code: String(tests.exitCode),
+                  output: tests.output ?? '',
+                })
+            : t('review.mr.promptNotRun', { reason: tests.output ?? '' }),
+          ISSUE: `${task.instructions}\n\nMerge request !${mr.number}: ${mr.title}\n${mr.description}`,
+        }),
+      },
+      async () => {},
+    );
+    this.record(task, run.attempts, run.credential.provider);
+    if (!run.result.success)
+      throw new TaskError(`Reviewer failed: ${run.result.errorText ?? run.result.stderr}`, true);
+    const review = parseReview(run.result.message);
+    if (!review) throw new TaskError('Reviewer answered without a valid <revisao> block', true);
+    // Failing tests never pass a review, whatever the reader thought of the code.
+    mr.verdict = review.verdict;
+    mr.issues = review.issues;
+    mr.summary = review.summary;
+    mr.approved = review.verdict === 'aprovado' && tests.passed;
+    await this.stage(task, Task, 'COMMENT');
+    await ctx.host.commentOnPullRequest(
+      ctx.cfg.repository,
+      mr.number,
+      redact(mergeRequestComment(mr, tests)),
+    );
+    mr.commented = true;
+    await this.db.getRepository(Task).save(task);
+    // The checkout served the reading only: its folder (dependencies included) goes now.
+    await ctx.ws
+      .destroy()
+      .then(() => (state.discarded = true))
+      .catch((error: unknown) =>
+        log('review.discard_failed', {
+          taskId: task.id,
+          error: error instanceof Error ? error.message.slice(0, 300) : String(error),
+        }),
+      );
+  }
+  /** The project's prepare and tests on the merge request's code (no fixer: nothing is changed). */
+  private async mergeRequestTests(task: Task, ctx: WorkContext): Promise<MergeRequestTests> {
+    const command = ctx.cfg.test.join(' ');
+    const tail = (r: { stdout: string; stderr: string }) =>
+      auditable(redact(`${r.stdout}\n${r.stderr}`.trim()).split('\n').slice(-40).join('\n'));
+    if (ctx.cfg.prepare.length) {
+      await this.stage(task, Task, 'DEPENDENCIES');
+      const r = await this.command(task, ctx, ctx.cfg.prepare, 'dependencies', true);
+      if (!r.success) return { ran: false, passed: false, command, output: tail(r) };
+    }
+    await this.stage(task, Task, 'TESTS');
+    const before = await this.git.changedPaths(task);
+    const r = await this.command(task, ctx, ctx.cfg.test, 'tester', false);
+    await this.git.revertSideEffects(task, before);
+    return { ran: true, passed: r.success, command, exitCode: r.exitCode, output: tail(r) };
   }
   /** Telegram: the rehearsal is ready to be checked in the workspace. Best effort. */
   private async announceRehearsal(task: Task, rehearsal: unknown, revision?: number) {

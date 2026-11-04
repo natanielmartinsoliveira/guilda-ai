@@ -199,11 +199,44 @@ export class GitlabHost implements CodeHost {
     );
     return mr?.state ?? 'unknown';
   }
+  /** The merge request a review reads: its branches and the commit it stands at. */
+  async mergeRequest(repository: string, number: number): Promise<MergeRequestInfo> {
+    const mr = await this.request<{
+      iid: number;
+      title?: string;
+      description?: string | null;
+      state?: string;
+      source_branch: string;
+      target_branch: string;
+      sha?: string;
+      web_url?: string;
+    }>(`${this.project(repository)}/merge_requests/${number}`);
+    return {
+      number: mr.iid,
+      title: mr.title ?? '',
+      description: mr.description ?? '',
+      state: mr.state ?? 'unknown',
+      sourceBranch: mr.source_branch,
+      targetBranch: mr.target_branch,
+      sha: mr.sha ?? '',
+      url: mr.web_url ?? '',
+    };
+  }
   async commentOnPullRequest(repository: string, number: number, body: string) {
     await this.request(`${this.project(repository)}/merge_requests/${number}/notes`, 'POST', {
       body,
     });
   }
+}
+export interface MergeRequestInfo {
+  number: number;
+  title: string;
+  description: string;
+  state: string;
+  sourceBranch: string;
+  targetBranch: string;
+  sha: string;
+  url: string;
 }
 function map(mr: GitlabMR): ChangeRequest {
   return {

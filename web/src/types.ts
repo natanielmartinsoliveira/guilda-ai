@@ -91,6 +91,19 @@ export interface TaskView {
   usage?: RunUsage;
   /** A standard-flow route's reading by its method, after the commit. */
   analysis?: string;
+  /** A code review of the card's merge request (a REVIEW task). */
+  mrReview?: {
+    number: number;
+    url: string;
+    title: string;
+    commit: string;
+    verdict?: 'aprovado' | 'ajustes';
+    approved?: boolean;
+    summary?: string;
+    issues?: string;
+    commented?: boolean;
+    tests?: { ran: boolean; passed: boolean; command: string };
+  };
   /** The card was started again: its newer task. */
   supersededBy?: string;
   /** The operator may start the card again (it ended and published nothing). */

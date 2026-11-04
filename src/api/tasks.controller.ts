@@ -1,3 +1,4 @@
+import type { MergeRequestReview, MergeRequestTests } from '../reviews/mr-review';
 import { CardStarters, normalizeCardKey } from '../sources/card-starters';
 import { loadMethod, methodRoutes } from '../methods/method';
 import { language } from '../i18n';
@@ -776,6 +777,8 @@ export class TasksController {
         supersededBy: t.result?.supersededBy,
         // The operator may start the card again (its source starts cards, nothing published).
         restartable:
+          // A review is asked again by the card's merge request (a new commit), not by hand.
+          t.type !== 'REVIEW' &&
           !!issue &&
           this.startsCards(t.tenantId, issue.source) &&
           !t.result?.supersededBy &&
@@ -785,6 +788,8 @@ export class TasksController {
         methodTelemetry: t.result?.methodTelemetry,
         // A standard-flow route's reading by its method (after the commit).
         analysis: t.result?.analysis,
+        // A code review of the card's merge request: what it found and the tests it ran.
+        mrReview: mergeRequestReviewView(t.result),
         prUrl: t.result?.prUrl,
         agentAttempts: t.result?.agentAttempts,
         // Rehearsal (nothing published): where to look in the company's workspace.
@@ -824,4 +829,21 @@ export class TasksController {
       };
     });
   }
+}
+function mergeRequestReviewView(result: Record<string, unknown> | null) {
+  const mr = result?.mrReview as MergeRequestReview | undefined;
+  if (!mr) return undefined;
+  const tests = result?.mrTests as MergeRequestTests | undefined;
+  return {
+    number: mr.number,
+    url: mr.url,
+    title: mr.title,
+    commit: (mr.head ?? mr.sha).slice(0, 8),
+    verdict: mr.verdict,
+    approved: mr.approved,
+    summary: mr.summary,
+    issues: mr.issues,
+    commented: mr.commented,
+    tests: tests && { ran: tests.ran, passed: tests.passed, command: tests.command },
+  };
 }

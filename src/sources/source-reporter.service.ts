@@ -21,7 +21,9 @@ export type SourceEvent =
   /** A method phase that stands for a step of the card (its `board`). */
   | { type: 'phase'; board: 'gate' | 'building' }
   /** The delivery is done (a rehearsal included), before any PR. */
-  | { type: 'built' };
+  | { type: 'built' }
+  /** A code review of the card's merge request finished (approved: the card moves on). */
+  | { type: 'reviewed'; approved: boolean };
 /**
  * Tells the tracker what happened to its item (comment + card transition). Best effort:
  * a tracker outage must never fail or block the code task itself.
@@ -149,7 +151,9 @@ export class SourceReporter {
           ? source.moves.built
           : event.type === 'pr'
             ? source.moves.review
-            : undefined;
+            : event.type === 'reviewed' && event.approved
+              ? source.review?.approved
+              : undefined;
     if (!column) return;
     try {
       await this.businessmap(source).move(Number(key), column);

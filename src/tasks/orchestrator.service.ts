@@ -140,6 +140,75 @@ export class OrchestratorService {
       );
     return task;
   }
+  /**
+   * A code review of the merge request a card points to: one review issue per card (beside the
+   * card's own, so its build flow never sees it) and one REVIEW task per commit of the MR. A
+   * review in progress, or of the same commit, is returned as it is.
+   */
+  async acceptReview(tenantId: string, item: WorkItem, mr: ReviewTarget): Promise<Task> {
+    const { tenant, project: cfg } = this.tenants.project(tenantId, item.project);
+    return this.db.transaction(async (em) => {
+      await em.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`${tenant.id}/${cfg.id}`]);
+      const existingIssue = await em.findOneBy(Issue, {
+        tenantId: tenant.id,
+        source: item.source,
+        externalId: item.externalId,
+      });
+      const previous = existingIssue ? await latestTask(em, existingIssue.id) : null;
+      const reviewed = (previous?.result?.mrReview as ReviewTarget | undefined)?.sha;
+      if (
+        previous &&
+        (['PENDING', 'RUNNING', 'WAITING'].includes(previous.status) || reviewed === mr.sha)
+      )
+        return previous;
+      const [owner, repository] = cfg.repository.split('/');
+      const project = await em.save(Project, {
+        ...(await em.findOneBy(Project, { tenantId: tenant.id, key: cfg.id })),
+        tenantId: tenant.id,
+        key: cfg.id,
+        host: cfg.host,
+        name: cfg.repository,
+        owner,
+        repository,
+        defaultBranch: cfg.defaultBranch,
+        localPath: resolve(config().WORKSPACE_ROOT, tenant.id),
+      });
+      const issue = await em.save(Issue, {
+        ...existingIssue,
+        tenantId: tenant.id,
+        source: item.source,
+        externalId: item.externalId,
+        externalKey: item.key,
+        closingRef: null,
+        attachments: null,
+        meta: existingIssue?.meta ?? null,
+        title: item.title,
+        body: item.body,
+        state: 'open',
+        repository: cfg.repository,
+        url: item.url,
+        projectId: project.id,
+      });
+      const id = randomUUID();
+      const task = await em.save(Task, {
+        id,
+        tenantId: tenant.id,
+        issueId: issue.id,
+        type: 'REVIEW',
+        provider: tenant.ai.credentials[0].provider,
+        status: 'PENDING',
+        // The local branch of the checkout; nothing is ever pushed from a review.
+        branch: `review-${mr.number}-${mr.sha.slice(0, 8) || 'head'}`,
+        workspace: workspace(tenant.id, id),
+        instructions: `${issue.title}\n\n${issue.body}`,
+        result: { mrReview: mr },
+        attempts: 0,
+        stage: 'QUEUED',
+      });
+      await em.save(Outbox, { taskId: id });
+      return task;
+    });
+  }
   private async acceptIn(
     tenantId: string,
     item: WorkItem,
@@ -593,4 +662,14 @@ export class OrchestratorService {
       return revision;
     });
   }
+}
+/** What a review reads: the merge request, at the commit it stood at when the card asked. */
+export interface ReviewTarget {
+  number: number;
+  url: string;
+  title: string;
+  description: string;
+  sourceBranch: string;
+  targetBranch: string;
+  sha: string;
 }
