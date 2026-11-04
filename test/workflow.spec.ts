@@ -553,7 +553,13 @@ describe('code review of a merge request (REVIEW task)', () => {
       MR,
     );
     x.git.git.mockImplementation(async (_t: unknown, args: string[]) =>
-      args[0] === 'merge-base' ? 'base0000\n' : args[0] === 'rev-parse' ? 'head1111\n' : '',
+      args[0] === 'merge-base'
+        ? 'base0000\n'
+        : args[0] === 'rev-parse'
+          ? 'head1111\n'
+          : args[0] === 'diff'
+            ? 'tests/NewTest.php\n'
+            : '',
     );
     const message = {
       content: Buffer.from(
@@ -642,11 +648,16 @@ describe('code review of a merge request (REVIEW task)', () => {
       message: verdict('aprovado'),
     });
     const { task } = await review(x);
-    const checkouts = x.git.git.mock.calls
+    // the branch never moves: the base's files, without what the MR added, then HEAD again
+    const moves = x.git.git.mock.calls
       .map((c) => c[1])
-      .filter((a) => a[0] === 'checkout')
+      .filter((a) => ['checkout', 'rm', 'reset'].includes(a[0]))
       .map((a) => a.join(' '));
-    expect(checkouts).toEqual(['checkout --detach base0000', 'checkout --detach head1111']);
+    expect(moves).toEqual([
+      'checkout base0000 -- .',
+      'rm -q --ignore-unmatch -- tests/NewTest.php',
+      'reset -q --hard HEAD',
+    ]);
     const prompt = (x.agents.execute.mock.calls[0][1] as { prompt: string }).prompt;
     expect(prompt).toContain('A MESMA suíte também falha na base do MR (base0000');
     expect(task.result!.mrReview).toMatchObject({ approved: true });

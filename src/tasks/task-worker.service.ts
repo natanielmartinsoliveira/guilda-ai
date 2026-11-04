@@ -635,15 +635,22 @@ export class TaskWorkerService implements OnModuleInit {
     if (r.success) return tests;
     // Failing: the same suite where the merge request leaves its target. What already failed
     // there is not the merge request's doing.
+    // The branch never moves (the workspace's guard): the files take the base's content, the
+    // ones the merge request added go away, and HEAD is restored afterwards.
     await this.stage(task, Task, 'BASELINE');
-    const head = (await this.git.git(task, ['rev-parse', 'HEAD'])).trim();
     const mr = task.result!.mrReview as MergeRequestReview;
-    await this.git.git(task, ['checkout', '--detach', mr.base!]);
+    const added = (
+      await this.git.git(task, ['diff', '--name-only', '--diff-filter=A', mr.base!, 'HEAD'])
+    )
+      .split('\n')
+      .filter(Boolean);
+    await this.git.git(task, ['checkout', mr.base!, '--', '.']);
     try {
+      if (added.length) await this.git.git(task, ['rm', '-q', '--ignore-unmatch', '--', ...added]);
       const b = await run();
       tests.baseline = { passed: b.success, exitCode: b.exitCode, output: tail(b) };
     } finally {
-      await this.git.git(task, ['checkout', '--detach', head]);
+      await this.git.git(task, ['reset', '-q', '--hard', 'HEAD']);
     }
     return tests;
   }
