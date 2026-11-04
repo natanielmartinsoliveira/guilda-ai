@@ -220,6 +220,20 @@ describe('review columns of a Businessmap source', () => {
     const all = await reviews();
     expect(all.map((t) => t.branch)).toEqual(['review-405-aaaaaaaa', 'review-405-bbbbbbbb']);
   });
+  test('a review whose tests never ran does not count: the same commit is reviewed again', async () => {
+    const x = setup([card(101)]);
+    await x.poller.poll(tenant, source);
+    const [first] = await reviews();
+    await db.getRepository(Task).update(first.id, {
+      status: 'SUCCESS',
+      result: { ...first.result, mrTests: { ran: false, passed: false, command: 'make test' } },
+    });
+    await x.poller.poll(tenant, source);
+    expect((await reviews()).map((t) => t.branch)).toEqual([
+      'review-405-aaaaaaaa',
+      'review-405-aaaaaaaa',
+    ]);
+  });
   test('a closed merge request, or a card without one, is not reviewed', async () => {
     const closed = setup([card(101)], { state: 'merged' });
     await closed.poller.poll(tenant, source);

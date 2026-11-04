@@ -21,14 +21,21 @@ export interface MergeRequestTests {
   command: string;
   exitCode?: number;
   output?: string;
+  /** Failing on the merge request: the same suite where it leaves its target branch. */
+  baseline?: { passed: boolean; exitCode?: number; output?: string };
 }
+/** The suite fails on the target too: the failures came before the merge request. */
+export const preexisting = (tests: MergeRequestTests) =>
+  tests.ran && !tests.passed && tests.baseline?.passed === false;
 /** The one comment a review leaves on the merge request. */
 export function mergeRequestComment(mr: MergeRequestReview, tests: MergeRequestTests) {
   const tested = !tests.ran
     ? t('review.mr.testsNotRun')
     : tests.passed
       ? t('review.mr.testsPassed', { command: tests.command })
-      : t('review.mr.testsFailed', { command: tests.command, code: String(tests.exitCode) });
+      : preexisting(tests)
+        ? t('review.mr.testsPreexisting', { command: tests.command })
+        : t('review.mr.testsFailed', { command: tests.command, code: String(tests.exitCode) });
   return [
     `**${mr.approved ? t('review.mr.approved') : t('review.mr.changes')}**`,
     '',

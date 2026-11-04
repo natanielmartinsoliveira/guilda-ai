@@ -17,6 +17,10 @@ export const ptBR = {
     'FALHARAM (`{command}`, saída {code}); considere a falha na revisão. O final da saída:\\n{output}\\n',
   'review.mr.promptNotRun':
     'não rodaram, porque a preparação das dependências falhou. O final da saída:\\n{reason}\\n',
+  'review.mr.testsPreexisting':
+    'Testes do projeto neste commit: falharam (`{command}`), mas a mesma suíte já falha na base do MR: são falhas anteriores a ele.',
+  'review.mr.promptBaseline':
+    'A MESMA suíte também falha na base do MR ({base}, antes da mudança): o que falha nos dois não é deste MR. Só conte o que falha aqui e não falhava na base. O final da saída na base:\\n{output}\\n',
   'baseline.failing':
     'Antes da sua mudança, os testes do projeto já falham na base ({command}). Se o card pede testes ou a correção deles, é isso que falta resolver; se não, não piore. Saída:\n```\n{output}\n```',
   'method.suggestion': 'Sugestão: {route} — risco {risk}: {why}',

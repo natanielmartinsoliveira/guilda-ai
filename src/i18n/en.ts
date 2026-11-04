@@ -16,6 +16,10 @@ export const en: Record<MessageKey, string> = {
     'FAILED (`{command}`, exit {code}); weigh the failure in the review. The end of the output:\\n{output}\\n',
   'review.mr.promptNotRun':
     'did not run, because preparing the dependencies failed. The end of the output:\\n{reason}\\n',
+  'review.mr.testsPreexisting':
+    'Project tests on this commit: failed (`{command}`), but the same suite already fails at the MR base: the failures came before it.',
+  'review.mr.promptBaseline':
+    "The SAME suite also fails at the MR base ({base}, before the change): what fails in both is not this MR's. Count only what fails here and did not fail at the base. The end of the output at the base:\n{output}\n",
   'baseline.failing':
     "Before your change, the project's tests already fail on the base ({command}). If the card asks for tests or their fix, that is what is left to solve; otherwise, do not make it worse. Output:\n```\n{output}\n```",
   'method.suggestion': 'Suggested: {route} — {risk} risk: {why}',

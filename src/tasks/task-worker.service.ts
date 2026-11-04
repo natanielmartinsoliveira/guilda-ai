@@ -66,7 +66,12 @@ const promoted = (rehearsal: unknown) =>
 import type { DecisionQuestion } from '../database/entities';
 import { mapBrief } from '../methods/brief';
 import { knowledgeList, uploadKnowledge } from '../knowledge/knowledge';
-import { mergeRequestComment, MergeRequestReview, MergeRequestTests } from '../reviews/mr-review';
+import {
+  mergeRequestComment,
+  MergeRequestReview,
+  MergeRequestTests,
+  preexisting,
+} from '../reviews/mr-review';
 import { SandboxService } from '../agents/sandbox.service';
 import { GitRemote, GitService } from '../git/git.service';
 import { MessagingService } from '../messaging/messaging.service';
@@ -554,15 +559,20 @@ export class TaskWorkerService implements OnModuleInit {
           SOURCE: mr.sourceBranch,
           TARGET: mr.targetBranch,
           BASE: mr.base,
-          TESTS: tests.ran
-            ? tests.passed
-              ? t('review.mr.promptPassed', { command: tests.command })
-              : t('review.mr.promptFailed', {
-                  command: tests.command,
-                  code: String(tests.exitCode),
-                  output: tests.output ?? '',
-                })
-            : t('review.mr.promptNotRun', { reason: tests.output ?? '' }),
+          TESTS: tests.passed
+            ? t('review.mr.promptPassed', { command: tests.command })
+            : `${t('review.mr.promptFailed', {
+                command: tests.command,
+                code: String(tests.exitCode),
+                output: tests.output ?? '',
+              })}${
+                tests.baseline && !tests.baseline.passed
+                  ? t('review.mr.promptBaseline', {
+                      base: mr.base!.slice(0, 8),
+                      output: tests.baseline.output ?? '',
+                    })
+                  : ''
+              }`,
           ISSUE: `${task.instructions}\n\nMerge request !${mr.number}: ${mr.title}\n${mr.description}`,
         }),
       },
@@ -577,7 +587,7 @@ export class TaskWorkerService implements OnModuleInit {
     mr.verdict = review.verdict;
     mr.issues = review.issues;
     mr.summary = review.summary;
-    mr.approved = review.verdict === 'aprovado' && tests.passed;
+    mr.approved = review.verdict === 'aprovado' && (tests.passed || preexisting(tests));
     await this.stage(task, Task, 'COMMENT');
     await ctx.host.commentOnPullRequest(
       ctx.cfg.repository,
@@ -607,11 +617,35 @@ export class TaskWorkerService implements OnModuleInit {
       const r = await this.command(task, ctx, ctx.cfg.prepare, 'dependencies', true);
       if (!r.success) return { ran: false, passed: false, command, output: tail(r) };
     }
+    const run = async () => {
+      const before = await this.git.changedPaths(task);
+      const r = await this.command(task, ctx, ctx.cfg.test, 'tester', false);
+      await this.git.revertSideEffects(task, before);
+      return r;
+    };
     await this.stage(task, Task, 'TESTS');
-    const before = await this.git.changedPaths(task);
-    const r = await this.command(task, ctx, ctx.cfg.test, 'tester', false);
-    await this.git.revertSideEffects(task, before);
-    return { ran: true, passed: r.success, command, exitCode: r.exitCode, output: tail(r) };
+    const r = await run();
+    const tests: MergeRequestTests = {
+      ran: true,
+      passed: r.success,
+      command,
+      exitCode: r.exitCode,
+      output: tail(r),
+    };
+    if (r.success) return tests;
+    // Failing: the same suite where the merge request leaves its target. What already failed
+    // there is not the merge request's doing.
+    await this.stage(task, Task, 'BASELINE');
+    const head = (await this.git.git(task, ['rev-parse', 'HEAD'])).trim();
+    const mr = task.result!.mrReview as MergeRequestReview;
+    await this.git.git(task, ['checkout', '--detach', mr.base!]);
+    try {
+      const b = await run();
+      tests.baseline = { passed: b.success, exitCode: b.exitCode, output: tail(b) };
+    } finally {
+      await this.git.git(task, ['checkout', '--detach', head]);
+    }
+    return tests;
   }
   /** Telegram: the rehearsal is ready to be checked in the workspace. Best effort. */
   private async announceRehearsal(task: Task, rehearsal: unknown, revision?: number) {

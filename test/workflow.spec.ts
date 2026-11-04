@@ -605,12 +605,10 @@ describe('code review of a merge request (REVIEW task)', () => {
   });
   test('failing tests never pass a review: the comment asks for changes, the card stays', async () => {
     const x = await setup();
-    x.sandbox.run.mockResolvedValue({
-      success: false,
-      stdout: '2 failed',
-      stderr: '',
-      exitCode: 1,
-    });
+    // failing on the merge request, passing at its base: the merge request broke them
+    x.sandbox.run
+      .mockResolvedValueOnce({ success: false, stdout: '2 failed', stderr: '', exitCode: 1 })
+      .mockResolvedValueOnce({ success: true, stdout: 'OK', stderr: '', exitCode: 0 });
     x.agents.execute.mockResolvedValue({
       success: true,
       stdout: '',
@@ -627,6 +625,35 @@ describe('code review of a merge request (REVIEW task)', () => {
     expect(body).toContain('⚠️ Revisão da Guilda: ajustes');
     expect(body).toContain('falharam');
     expect(x.reporter.report.mock.calls.at(-1)![2]).toEqual({ type: 'reviewed', approved: false });
+  });
+  test('failures that already happen at the MR base do not count against it; the checkout comes back to the MR', async () => {
+    const x = await setup();
+    x.sandbox.run.mockResolvedValue({
+      success: false,
+      stdout: '1 error: OrderStepsTest',
+      stderr: '',
+      exitCode: 2,
+    });
+    x.agents.execute.mockResolvedValue({
+      success: true,
+      stdout: '',
+      stderr: '',
+      exitCode: 0,
+      message: verdict('aprovado'),
+    });
+    const { task } = await review(x);
+    const checkouts = x.git.git.mock.calls
+      .map((c) => c[1])
+      .filter((a) => a[0] === 'checkout')
+      .map((a) => a.join(' '));
+    expect(checkouts).toEqual(['checkout --detach base0000', 'checkout --detach head1111']);
+    const prompt = (x.agents.execute.mock.calls[0][1] as { prompt: string }).prompt;
+    expect(prompt).toContain('A MESMA suíte também falha na base do MR (base0000');
+    expect(task.result!.mrReview).toMatchObject({ approved: true });
+    const body = x.github.commentOnPullRequest.mock.calls[0][2] as string;
+    expect(body).toContain('✅ Revisão da Guilda: aprovado');
+    expect(body).toContain('a mesma suíte já falha na base do MR');
+    expect(x.reporter.report.mock.calls.at(-1)![2]).toEqual({ type: 'reviewed', approved: true });
   });
   test('dependencies that do not install stop the review as an environment problem: no comment, no verdict', async () => {
     const x = await setup({ prepare: ['composer', 'install'] });

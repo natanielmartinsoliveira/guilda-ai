@@ -159,7 +159,9 @@ export class OrchestratorService {
         externalId: item.externalId,
       });
       const previous = existingIssue ? await latestTask(em, existingIssue.id) : null;
-      const reviewed = (previous?.result?.mrReview as ReviewTarget | undefined)?.sha;
+      // A review whose tests never ran (its environment failed) does not count as one.
+      const ran = (previous?.result?.mrTests as { ran?: boolean } | undefined)?.ran !== false;
+      const reviewed = ran ? (previous?.result?.mrReview as ReviewTarget | undefined)?.sha : '';
       if (
         previous &&
         (['PENDING', 'RUNNING', 'WAITING'].includes(previous.status) || reviewed === mr.sha)
