@@ -1,3 +1,4 @@
+import { failureKind } from '../src/tasks/failure-kind';
 import { resolve } from 'node:path';
 import { DEFAULT_FORMATS } from '../src/formats/formats';
 import { DataSource } from 'typeorm';
@@ -626,6 +627,24 @@ describe('code review of a merge request (REVIEW task)', () => {
     expect(body).toContain('⚠️ Revisão da Guilda: ajustes');
     expect(body).toContain('falharam');
     expect(x.reporter.report.mock.calls.at(-1)![2]).toEqual({ type: 'reviewed', approved: false });
+  });
+  test('dependencies that do not install stop the review as an environment problem: no comment, no verdict', async () => {
+    const x = await setup({ prepare: ['composer', 'install'] });
+    x.sandbox.run.mockResolvedValueOnce({
+      success: false,
+      stdout: 'vendor does not exist and could not be created',
+      stderr: '',
+      exitCode: 1,
+    });
+    const { task } = await review(x);
+    expect(task.status).toBe('FAILED');
+    expect(task.error).toMatch(
+      /^DEPENDENCIES: Dependency preparation failed: vendor does not exist/,
+    );
+    expect(failureKind(task.error)).toBe('environment');
+    expect(x.agents.execute).not.toHaveBeenCalled();
+    expect(x.github.commentOnPullRequest).not.toHaveBeenCalled();
+    expect(x.reporter.report.mock.calls.some((c: any[]) => c[2]?.type === 'reviewed')).toBe(false);
   });
   test('an answer without a verdict is retried, and a retry never comments twice', async () => {
     const x = await setup();

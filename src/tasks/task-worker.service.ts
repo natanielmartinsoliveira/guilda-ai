@@ -533,6 +533,10 @@ export class TaskWorkerService implements OnModuleInit {
     await uploadKnowledge(ctx.ws, ctx.tenant.packDir, ctx.cfg.knowledge);
     const tests = await this.mergeRequestTests(task, ctx);
     state.mrTests = tests;
+    // Dependencies that would not install say nothing about the merge request: the review
+    // stops here, before any comment, until the environment is fixed and it is retried.
+    if (!tests.ran)
+      throw new TaskError(`Dependency preparation failed: ${tests.output ?? ''}`.slice(0, 3000));
     await this.stage(task, Task, 'REVIEW');
     // A company without a reviewer of its own reviews with its coder's credentials.
     const run = await this.router.run(
