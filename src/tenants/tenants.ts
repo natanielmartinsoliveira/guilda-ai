@@ -241,16 +241,16 @@ const businessmapSource = z
      * columns (any owner, unless owners says otherwise) has the GitLab MR it links to checked
      * out, tested and read by the reviewer; the review goes to the MR as a comment. Approved,
      * the card moves to `approved`; with adjustments it stays, and a new commit on the MR is
-     * reviewed again. With assignTo, the review is that user's: their own cards are not
-     * reviewed, a card under review becomes theirs (the board's history records it), and one
-     * with changes goes back to its previous owner.
+     * reviewed again. With reviewer, a card is reviewed only once that user took it (the card's
+     * owner; the board's history records it), never one that was always theirs, and with
+     * changes it goes back to the owner it had before.
      */
     review: z
       .object({
         columns: z.array(z.number().int().positive()).min(1),
         owners: z.array(z.number().int().positive()).default([]),
         approved: z.number().int().positive().optional(),
-        assignTo: z.number().int().positive().optional(),
+        reviewer: z.number().int().positive().optional(),
       })
       .optional(),
     /** Custom field (type link) holding the card's GitLab repository. */

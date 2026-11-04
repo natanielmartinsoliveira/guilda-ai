@@ -241,12 +241,12 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
   }
   /** Cards in the review columns: their merge request is reviewed, once per commit. */
   private async pollReviews(tenant: Tenant, source: BusinessmapSource, client: BusinessmapClient) {
-    const { columns, owners, assignTo } = source.review!;
+    const { columns, owners, reviewer } = source.review!;
     const cards = (await client.inColumns(columns)).filter(
       (c) =>
         (!owners.length || owners.includes(c.owner_user_id ?? -1)) &&
-        // The reviewer's own cards are not theirs to review (nor one already under review).
-        (!assignTo || c.owner_user_id !== assignTo),
+        // With a reviewer, only the cards they took: a colleague's card is never taken for them.
+        (!reviewer || c.owner_user_id === reviewer),
     );
     await this.exclusive(`${tenant.id}/${source.id}/review`, async () => {
       for (const ref of cards)
@@ -282,6 +282,18 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
           externalId,
           `Revisão: repositório do MR não configurado em nenhum projeto: ${mr.repository}`,
         );
+      const { reviewer } = source.review!;
+      // Who to give it back to with changes: the owner before the reviewer took it.
+      const previousOwner = reviewer
+        ? await client.previousOwner(ref.card_id, reviewer)
+        : card.owner_user_id;
+      if (reviewer && !previousOwner)
+        return this.skip(
+          tenant,
+          source,
+          externalId,
+          'Revisão: o card sempre foi do revisor (não é de um colega)',
+        );
       const info = await this.gitlab(host).mergeRequest(mr.repository, mr.number);
       if (info.state !== 'opened')
         return this.skip(
@@ -290,7 +302,7 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
           externalId,
           `Revisão: o MR !${mr.number} está ${info.state}`,
         );
-      const { task, created } = await this.orchestrator.acceptReview(
+      const { task } = await this.orchestrator.acceptReview(
         tenant.id,
         {
           source: source.id,
@@ -310,21 +322,9 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
           sourceBranch: info.sourceBranch,
           targetBranch: info.targetBranch,
           sha: info.sha,
-          ...(card.owner_user_id ? { previousOwner: card.owner_user_id } : {}),
+          ...(previousOwner ? { previousOwner } : {}),
         },
       );
-      // The review is the reviewer's: the card becomes theirs while it lasts. Best effort: a
-      // refused change of owner never stops the review.
-      const { assignTo } = source.review!;
-      if (created && assignTo)
-        await client.assign(ref.card_id, assignTo).catch((error: unknown) =>
-          log('businessmap.assign_failed', {
-            tenant: tenant.id,
-            source: source.id,
-            card: externalId,
-            error: error instanceof Error ? error.message : String(error),
-          }),
-        );
       return { taskId: task.id };
     }
     return this.skip(tenant, source, externalId, 'Revisão: o card não aponta um MR do GitLab');

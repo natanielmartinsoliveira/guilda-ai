@@ -17,7 +17,7 @@ export interface BmCard {
 const CLOSED = 4;
 /**
  * Businessmap API v2. Reads the board; it writes only a card's column (`moves`, a review's
- * `approved`) and owner (a review's `assignTo`), and only when the source configures them.
+ * `approved`) and owner (back to its owner after a review), and only when the source configures them.
  */
 export class BusinessmapClient {
   constructor(
@@ -79,6 +79,19 @@ export class BusinessmapClient {
   /** Moves a card to a column of its board. */
   async move(cardId: number, columnId: number) {
     await this.patch(cardId, { column_id: columnId });
+  }
+  /**
+   * Who owned the card before `user` (the newest earlier version with another owner), from the
+   * card's versions; undefined when it was always theirs (or nobody's).
+   */
+  async previousOwner(cardId: number, user: number) {
+    const versions = await this.get<{ revision: number }[]>(`/cards/${cardId}/revisions`);
+    const newest = [...(versions ?? [])].sort((a, b) => b.revision - a.revision).slice(0, 20);
+    for (const v of newest) {
+      const card = await this.get<BmCard>(`/cards/${cardId}/revisions/${v.revision}`);
+      if (card?.owner_user_id && card.owner_user_id !== user) return card.owner_user_id;
+    }
+    return undefined;
   }
   /** Makes a user the card's owner (the board's history records who it was before). */
   async assign(cardId: number, userId: number) {

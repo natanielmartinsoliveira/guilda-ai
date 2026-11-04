@@ -93,7 +93,7 @@ test('approved, the card moves on; with changes, it goes back to its previous ow
         id: 'board',
         type: 'businessmap',
         moves: {},
-        review: { columns: [10], owners: [], approved: 11, assignTo: 291 },
+        review: { columns: [10], owners: [], approved: 11, reviewer: 291 },
       },
     ],
   } as unknown as Tenant;
@@ -140,6 +140,9 @@ describe('review columns of a Businessmap source', () => {
     const client = {
       candidates: jest.fn(async (): Promise<BmCard[]> => []),
       assign: jest.fn(async () => {}),
+      previousOwner: jest.fn(
+        async (_id: number, _user: number): Promise<number | undefined> => undefined,
+      ),
       inColumns: jest.fn(async () =>
         cards.map((c) => ({ card_id: c.card_id, owner_user_id: c.owner_user_id })),
       ),
@@ -241,15 +244,32 @@ describe('review columns of a Businessmap source', () => {
     await none.poller.poll(tenant, source);
     expect(await reviews()).toEqual([]);
   });
-  test("with assignTo: the reviewer's own cards are skipped; a new review takes the card once", async () => {
-    load('{ columns: [3172], approved: 3173, assignTo: 291 }');
-    const x = setup([card(101, { owner_user_id: 294 }), card(102, { owner_user_id: 291 })]);
+  test('with a reviewer: only the cards they took; the owner before them gets it back; never one always theirs', async () => {
+    load('{ columns: [3172], approved: 3173, reviewer: 291 }');
+    const x = setup([
+      card(101, { owner_user_id: 294 }),
+      card(102, { owner_user_id: 291 }),
+      card(103, { owner_user_id: 291 }),
+    ]);
+    x.client.previousOwner.mockImplementation(async (id: number) => (id === 102 ? 294 : undefined));
     await x.poller.poll(tenant, source);
     await x.poller.poll(tenant, source);
     const [task, ...more] = await reviews();
     expect(more).toEqual([]);
+    const issue = await db.getRepository(Issue).findOneByOrFail({ id: task.issueId });
+    expect(issue.externalId).toBe('102:review');
     expect(task.result).toMatchObject({ mrReview: { previousOwner: 294 } });
-    expect(x.client.assign.mock.calls).toEqual([[101, 291]]);
+    expect(x.client.previousOwner).toHaveBeenCalledWith(102, 291);
+    // the card was taken by the person: the Guilda never changes its owner
+    expect(x.client.assign).not.toHaveBeenCalled();
+  });
+  test('a failed review of the same commit waits for Retry instead of starting again on each poll', async () => {
+    const x = setup([card(101)]);
+    await x.poller.poll(tenant, source);
+    const [first] = await reviews();
+    await db.getRepository(Task).update(first.id, { status: 'FAILED' });
+    await x.poller.poll(tenant, source);
+    expect(await reviews()).toHaveLength(1);
   });
   test('any owner by default; owners narrows it', async () => {
     load('{ columns: [3172], owners: [291] }');

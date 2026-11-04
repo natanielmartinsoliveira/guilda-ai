@@ -159,12 +159,16 @@ export class OrchestratorService {
         externalId: item.externalId,
       });
       const previous = existingIssue ? await latestTask(em, existingIssue.id) : null;
-      // A review whose tests never ran (its environment failed) does not count as one.
-      const ran = (previous?.result?.mrTests as { ran?: boolean } | undefined)?.ran !== false;
-      const reviewed = ran ? (previous?.result?.mrReview as ReviewTarget | undefined)?.sha : '';
+      // The same commit is reviewed once: a failed or cancelled review waits for the operator
+      // (Retry), not for the next poll. Only a finished review whose tests never ran (its
+      // environment failed, before reviews stopped there) does not count.
+      const same = (previous?.result?.mrReview as ReviewTarget | undefined)?.sha === mr.sha;
+      const untested =
+        previous?.status === 'SUCCESS' &&
+        (previous.result?.mrTests as { ran?: boolean } | undefined)?.ran === false;
       if (
         previous &&
-        (['PENDING', 'RUNNING', 'WAITING'].includes(previous.status) || reviewed === mr.sha)
+        (['PENDING', 'RUNNING', 'WAITING'].includes(previous.status) || (same && !untested))
       )
         return { task: previous, created: false };
       const [owner, repository] = cfg.repository.split('/');

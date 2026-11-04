@@ -151,7 +151,7 @@ export class SourceReporter {
       event.type === 'reviewed' &&
       !event.approved &&
       event.previousOwner &&
-      source.review?.assignTo
+      source.review?.reviewer
     ) {
       try {
         await this.businessmap(source).assign(Number(key), event.previousOwner);

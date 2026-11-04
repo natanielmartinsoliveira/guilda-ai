@@ -142,3 +142,26 @@ test('assign: PATCH of the card with its new owner', async () => {
     }),
   );
 });
+
+test('previousOwner: the newest earlier version of the card with another owner', async () => {
+  const pages: Record<string, unknown> = {
+    '/api/v2/cards/7/revisions': [{ revision: 1 }, { revision: 2 }, { revision: 3 }],
+    '/api/v2/cards/7/revisions/3': { owner_user_id: 291 },
+    '/api/v2/cards/7/revisions/2': { owner_user_id: 294 },
+    '/api/v2/cards/7/revisions/1': { owner_user_id: 292 },
+  };
+  const http = jest.fn(
+    async (url: string | URL) =>
+      new Response(JSON.stringify({ data: pages[new URL(String(url)).pathname] })),
+  );
+  const client = new BusinessmapClient(source, http as unknown as typeof fetch);
+  expect(await client.previousOwner(7, 291)).toBe(294);
+  // only GETs: finding the previous owner writes nothing
+  expect(
+    http.mock.calls.every(
+      (c) => !(c as unknown[])[1] || ((c as unknown[])[1] as RequestInit).method === 'GET',
+    ),
+  ).toBe(true);
+  pages['/api/v2/cards/7/revisions'] = [{ revision: 3 }];
+  expect(await client.previousOwner(7, 291)).toBeUndefined();
+});
