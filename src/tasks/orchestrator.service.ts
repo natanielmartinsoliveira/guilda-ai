@@ -425,12 +425,14 @@ export class OrchestratorService {
     keep = false,
   ) {
     assertTransition(job.status, 'PENDING');
+    // A review keeps what it reviews (its merge request); what it found is redone.
+    const review = (job as Task).type === 'REVIEW' ? job.result?.mrReview : undefined;
     Object.assign(job, {
       status: 'PENDING',
       stage: 'QUEUED',
       attempts: 0,
       error: null,
-      result: keep ? job.result : null,
+      result: keep ? job.result : review ? { mrReview: target(review as ReviewTarget) } : null,
     });
     await em.save(entity as EntityTarget<Task | Revision>, job);
     await em.save(Outbox, { taskId, revisionId: entity === Revision ? job.id : null });
@@ -680,4 +682,18 @@ export interface ReviewTarget {
   sha: string;
   /** Who owned the card before the review took it (it goes back to them with changes). */
   previousOwner?: number;
+}
+/** A review's merge request without what an earlier run found in it. */
+function target(mr: ReviewTarget): ReviewTarget {
+  const { number, url, title, description, sourceBranch, targetBranch, sha, previousOwner } = mr;
+  return {
+    number,
+    url,
+    title,
+    description,
+    sourceBranch,
+    targetBranch,
+    sha,
+    ...(previousOwner ? { previousOwner } : {}),
+  };
 }

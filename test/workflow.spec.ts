@@ -684,6 +684,34 @@ describe('code review of a merge request (REVIEW task)', () => {
     expect(x.github.commentOnPullRequest).not.toHaveBeenCalled();
     expect(x.reporter.report.mock.calls.some((c: any[]) => c[2]?.type === 'reviewed')).toBe(false);
   });
+  test('Retry of a failed review keeps its merge request and redoes the rest', async () => {
+    const x = await setup({ prepare: ['composer', 'install'] });
+    x.sandbox.run.mockResolvedValueOnce({
+      success: false,
+      stdout: 'no network',
+      stderr: '',
+      exitCode: 1,
+    });
+    const { task, message } = await review(x);
+    expect(task.status).toBe('FAILED');
+    const decision = await db
+      .getRepository(Decision)
+      .findOneByOrFail({ taskId: task.id, status: 'open' });
+    await x.orchestrator.answerDecision('acme', decision.id, { action: 'retry' }, 'web');
+    const queued = await db.getRepository(Task).findOneByOrFail({ id: task.id });
+    expect(queued.result).toEqual({ mrReview: MR });
+    x.agents.execute.mockResolvedValue({
+      success: true,
+      stdout: '',
+      stderr: '',
+      exitCode: 0,
+      message: verdict('aprovado'),
+    });
+    await x.worker.handle(message, x.channel);
+    const done = await db.getRepository(Task).findOneByOrFail({ id: task.id });
+    expect(done.status).toBe('SUCCESS');
+    expect(done.result!.mrReview).toMatchObject({ approved: true, commented: true });
+  });
   test('an answer without a verdict is retried, and a retry never comments twice', async () => {
     const x = await setup();
     x.agents.execute.mockResolvedValueOnce({
