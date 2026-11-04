@@ -50,6 +50,8 @@ With `review`, a card that enters one of its `columns` has its GitLab merge requ
   - one comment goes to the merge request: verdict, problems (`file:line`), tests, commit;
   - the review shows on the task screen and is its own step in the metrics;
   - **approved** (the reviewer approves _and_ the tests pass) moves the card to `approved`; with changes the card stays.
+  - **Failures that came before the MR:** when the tests fail, the same suite runs where the MR leaves its target branch. Failing there too, they do not count against the MR, and the reviewer gets both outputs to check the MR added none.
+  - **Our environment, not the MR:** dependencies that do not install stop the review as an environment problem, before any comment, with a retry in the panel. A review whose tests never ran does not count: the same commit is reviewed again.
 - **Whose review** (`assignTo`, optional): that user's own cards are not reviewed. A card the review takes becomes theirs, so the board's history shows who reviewed it and when. With changes it goes back to its previous owner; approved, it stays with them.
 - **Again:** a new commit on the MR is reviewed again while the card is in the column; the same commit never twice. Nothing is committed or pushed, and the task folder is discarded after the comment.
 - **Kept apart:** reviews live under their own issue (`<card>:review`), so the card's build task, its restart and its board steps never see them.

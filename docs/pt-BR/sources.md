@@ -50,6 +50,8 @@ Com `review`, um card que entra numa das `columns` tem o merge request do GitLab
   - um comentário vai para o merge request, com veredito, problemas (`arquivo:linha`), testes e commit;
   - a revisão aparece na tela da tarefa e é uma etapa própria nas métricas;
   - **aprovado** (o revisor aprova _e_ os testes passam) move o card para `approved`; com ajustes, o card fica.
+  - **Falhas anteriores ao MR:** quando os testes falham, a mesma suíte roda no ponto em que o MR sai da branch de destino. Se falha lá também, não conta contra o MR, e o revisor recebe as duas saídas para conferir que o MR não acrescentou nenhuma.
+  - **Nosso ambiente, não o MR:** dependências que não instalam param a revisão como falha de ambiente, antes de qualquer comentário, com "Repetir" no painel. Uma revisão cujos testes nem rodaram não conta, e o mesmo commit é revisado de novo.
 - **De quem é a revisão** (`assignTo`, opcional): os cards desse usuário não são revisados. Um card que a revisão pega passa a ser dele, então o histórico do quadro mostra quem revisou e quando. Com ajustes, o card volta ao dono anterior; aprovado, fica com ele.
 - **De novo:** um commit novo no MR é revisado de novo enquanto o card está na coluna; o mesmo commit, nunca duas vezes. Nada é commitado nem enviado, e a pasta da tarefa é descartada depois do comentário.
 - **Separado:** as revisões ficam numa issue própria (`<card>:review`), então a tarefa de construção do card, o "Refazer card" e as etapas do board não as enxergam.
