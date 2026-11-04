@@ -16,6 +16,7 @@ import { TaskCost1780000000010 } from './migrations/1780000000010-task-cost';
 import { RunUsage1780000000011 } from './migrations/1780000000011-run-usage';
 import { CardRestart1780000000012 } from './migrations/1780000000012-card-restart';
 import { LessonSuggestions1780000000013 } from './migrations/1780000000013-lesson-suggestions';
+import { BoardEvents1780000000014 } from './migrations/1780000000014-board-events';
 /**
  * Connections per process. In the worker each running task holds one (its session lock) for the
  * whole run, so the companies' worker.concurrency must fit in it (checked when the worker starts).
@@ -46,6 +47,7 @@ export function databaseOptions(): DataSourceOptions {
       RunUsage1780000000011,
       CardRestart1780000000012,
       LessonSuggestions1780000000013,
+      BoardEvents1780000000014,
     ],
     synchronize: false,
     // A full pool fails the query after 30s instead of hanging the worker.

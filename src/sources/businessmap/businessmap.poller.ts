@@ -7,6 +7,7 @@ import { latestTask, OrchestratorService } from '../../tasks/orchestrator.servic
 import { BusinessmapSource, Tenant, TenantHost, tenants } from '../../tenants/tenants';
 import { GitlabHost } from '../../hosts/gitlab.host';
 import { mergeRequestOfCard } from '../../reviews/review-card';
+import { recordMoves } from './journal';
 import type { IngestResult } from '../jira/jira.poller';
 import { BmCard, BusinessmapClient } from './businessmap.client';
 import { htmlToText, normalizeLabel, repositoryFromLink } from './text';
@@ -79,6 +80,7 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
           });
         }
         if (source.review) await this.pollReviews(tenant, source, client);
+        if (source.journal) await this.journal(tenant, source, client);
       } finally {
         await lock.query('SELECT pg_advisory_unlock(hashtext($1))', [key]);
       }
@@ -249,6 +251,27 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
     return this.exclusive(`${tenant.id}/${source.id}`, () =>
       this.ingest(tenant, source, client, card, tags, route, again),
     );
+  }
+  /** Last journal pass per source: the next one asks only for the cards changed since. */
+  private readonly journaled = new Map<string, Date>();
+  /** The board's journal: the moves since the last pass (all the cards on the first one). */
+  private async journal(tenant: Tenant, source: BusinessmapSource, client: BusinessmapClient) {
+    const key = `${tenant.id}/${source.id}`;
+    const now = new Date();
+    const last = this.journaled.get(key);
+    try {
+      // A margin over the last pass: a card changed while it ran is read again (no event twice).
+      const since = last ? new Date(last.getTime() - 120000) : undefined;
+      const cards = await client.inWorkflows(source.journal!.workflows, since);
+      await recordMoves(this.db, { tenantId: tenant.id, source: source.id }, cards, now);
+      this.journaled.set(key, now);
+    } catch (error) {
+      log('businessmap.journal_failed', {
+        tenant: tenant.id,
+        source: source.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
   /** Cards in the review columns: their merge request is reviewed, once per commit. */
   private async pollReviews(tenant: Tenant, source: BusinessmapSource, client: BusinessmapClient) {

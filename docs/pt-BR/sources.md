@@ -36,6 +36,10 @@ sources:
 - **O card acompanha a tarefa** (`moves`, opcional): `gate` quando começa uma fase do método marcada `board: gate` (por exemplo, esperando a aprovação do operador), `building` para `board: building`, `built` quando a entrega termina (ensaio incluído), `review` quando o PR abre. Um move recusado vai para o log; a tarefa segue.
 - **Tarefa:** chave = id do card, corpo = descrição (HTML → texto) + títulos dos cards pai/relacionados. Anexos do card ainda não são lidos.
 
+### Diário do quadro
+
+Com `journal: { workflows: [311] }`, cada ciclo também registra, só em leitura, os cards desses fluxos vistos numa coluna, raia ou dono diferente da última vez (`board_events`; a primeira passada é o ponto de partida, e depois só os cards alterados desde a passada anterior são consultados). `npm run board:journal -- <empresa> <origem> [horas]` mostra os movimentos do período, quantas vezes cada um aconteceu e o tempo mediano que os cards ficaram em cada coluna: o fluxo real do quadro, antes de decidir o que automatizar.
+
 ### Code review do merge request do card
 
 Com `review`, um card que entra numa das `columns` tem o merge request do GitLab revisado, seja quem for o dono do card (`owners` restringe). Nenhum método participa.

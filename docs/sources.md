@@ -36,6 +36,10 @@ sources:
 - **Card follows the task** (`moves`, optional): `gate` when a method phase marked `board: gate` starts (e.g. waiting for the operator's approval), `building` for `board: building`, `built` when the delivery is done (a rehearsal included), `review` when the PR opens. A refused move is logged; the task goes on.
 - **Task:** key = card id, body = description (HTML → text) + titles of the parent/related cards. Card attachments are not read yet.
 
+### The board's journal
+
+With `journal: { workflows: [311] }`, every poll also records, read-only, the cards of those workflows seen in another column, lane or owner than last time (`board_events`, the first pass being the starting point; after it only the cards changed since the last pass are asked for). `npm run board:journal -- <tenant> <source> [hours]` shows the moves of the period, how often each happened and the median time cards stayed in each column: the board's real flow, before deciding what to automate.
+
 ### Code review of a card's merge request
 
 With `review`, a card that enters one of its `columns` has its GitLab merge request reviewed, whoever owns the card (`owners` narrows it). No method takes part.

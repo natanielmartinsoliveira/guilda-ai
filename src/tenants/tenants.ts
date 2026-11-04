@@ -253,6 +253,11 @@ const businessmapSource = z
         reviewer: z.number().int().positive().optional(),
       })
       .optional(),
+    /**
+     * The board's journal: every move (column, lane, owner) of the cards of these workflows,
+     * observed on each poll and kept (board_events). Read-only on the board.
+     */
+    journal: z.object({ workflows: z.array(z.number().int().positive()).min(1) }).optional(),
     /** Custom field (type link) holding the card's GitLab repository. */
     repositoryField: z.number().int().positive(),
     /**

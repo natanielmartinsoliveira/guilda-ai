@@ -3,6 +3,8 @@ import { normalizeLabel } from './text';
 export interface BmCard {
   card_id: number;
   board_id?: number;
+  workflow_id?: number;
+  lane_id?: number;
   title?: string;
   description?: string | null;
   /** 1 backlog, 2 requested, 3 in progress, 4 done, 5 archive. */
@@ -71,6 +73,26 @@ export class BusinessmapClient {
       seen.add(c.card_id);
       return true;
     });
+  }
+  /** Every card of these workflows (open or closed), only those changed since `since` if given. */
+  inWorkflows(workflows: number[], since?: Date) {
+    return this.list({
+      workflow_ids: workflows.join(','),
+      ...(since ? { last_modified_from: since.toISOString().replace(/\.\d+Z$/, 'Z') } : {}),
+    });
+  }
+  /** The board's columns (id → name, with the parent's name for a sub-column). */
+  async columnNames() {
+    const cols = await this.get<{ column_id: number; name: string; parent_column_id?: number }[]>(
+      `/boards/${this.source.boardId}/columns`,
+    );
+    const byId = new Map((cols ?? []).map((c) => [c.column_id, c]));
+    return new Map(
+      (cols ?? []).map((c) => {
+        const parent = c.parent_column_id ? byId.get(c.parent_column_id) : undefined;
+        return [c.column_id, parent ? `${parent.name} / ${c.name}` : c.name];
+      }),
+    );
   }
   /** The open cards in these columns of the board (a review trigger, say). */
   inColumns(columns: number[]) {

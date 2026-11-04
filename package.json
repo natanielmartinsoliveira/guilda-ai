@@ -24,11 +24,12 @@
     "public:check": "ts-node src/public/public-check-cli.ts",
     "setup": "ts-node src/setup/setup-cli.ts",
     "web:password": "ts-node src/web/password-cli.ts",
-    "build:web": "if [ -f web/package.json ]; then npm --prefix web ci && npm --prefix web run build; else echo 'web/ ainda n\u00e3o existe (etapa 3b)'; fi",
+    "build:web": "if [ -f web/package.json ]; then npm --prefix web ci && npm --prefix web run build; else echo 'web/ ainda não existe (etapa 3b)'; fi",
     "mcp": "node dist/mcp/server.js",
     "start:all": "bash scripts/run-all.sh",
     "services:install": "bash scripts/install-services.sh",
-    "format": "prettier --write src test"
+    "format": "prettier --write src test",
+    "board:journal": "ts-node src/sources/businessmap/journal-cli.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",

@@ -293,7 +293,28 @@ export class LessonSuggestion extends Base {
   @Column({ type: 'jsonb', default: () => "'[]'" }) taskIds!: string[];
   @Column({ default: 'open' }) status!: 'open' | 'saved' | 'dismissed';
 }
+/**
+ * The board's journal (a source with `journal`): a card seen in a column, lane and owner other
+ * than it was last seen in, and where it came from. Read from the board, never written to it.
+ */
+@Entity('board_events')
+@Index(['tenantId', 'source', 'cardId', 'at'])
+export class BoardEvent extends Base {
+  @Column() tenantId!: string;
+  @Column() source!: string;
+  @Column('integer') cardId!: number;
+  @Column('integer') workflowId!: number;
+  @Column({ type: 'integer', nullable: true }) laneId!: number | null;
+  @Column('integer') columnId!: number;
+  @Column({ type: 'integer', nullable: true }) ownerId!: number | null;
+  /** Where it was before; null on the first sighting (the journal's starting point). */
+  @Column({ type: 'integer', nullable: true }) previousColumnId!: number | null;
+  @Column({ type: 'integer', nullable: true }) previousOwnerId!: number | null;
+  @Column({ type: 'varchar', length: 300 }) title!: string;
+  @Column({ type: 'timestamptz' }) at!: Date;
+}
 export const entities = [
+  BoardEvent,
   Project,
   Issue,
   Task,
