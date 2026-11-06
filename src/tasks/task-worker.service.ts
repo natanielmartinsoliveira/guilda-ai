@@ -65,6 +65,7 @@ const promoted = (rehearsal: unknown) =>
   !!(rehearsal as { promoted?: boolean } | undefined)?.promoted;
 import type { DecisionQuestion } from '../database/entities';
 import { mapBrief } from '../methods/brief';
+import { failingTests, onlyPreexisting } from './test-failures';
 import { knowledgeList, uploadKnowledge } from '../knowledge/knowledge';
 import {
   mergeRequestComment,
@@ -1087,7 +1088,16 @@ export class TaskWorkerService implements OnModuleInit {
             passed: [...passed],
             ...(r.success ? {} : { failed: g.step, command: g.command, detail, stdout: tail }),
           };
-        if (!r.success) return { ...r, step: g.step, command: g.command, detail };
+        // Only tests that already failed on the base: the change did not break them.
+        const preexisting =
+          !r.success && g.step === 'test'
+            ? onlyPreexisting(
+                `${r.stdout}\n${r.stderr}`,
+                (state.baseline as { failures?: string[] } | undefined)?.failures,
+              )
+            : undefined;
+        if (preexisting) state.validation = { ...(state.validation as object), preexisting };
+        else if (!r.success) return { ...r, step: g.step, command: g.command, detail };
         passed.push(g.step);
       }
       if (gate.length > 1) state.quality = { passed };
@@ -1135,7 +1145,13 @@ export class TaskWorkerService implements OnModuleInit {
       throw new TaskError(
         validation.step === 'test'
           ? // From a workspace the output often comes on stdout only: its tail says what failed.
-            `Tests failed: ${(validation.stderr.trim() || validation.stdout.trim().split('\n').slice(-30).join('\n')).slice(-3000)}`
+            `Tests failed: ${[
+              validation.stdout.trim().split('\n').slice(-30).join('\n'),
+              validation.stderr.trim(),
+            ]
+              .filter(Boolean)
+              .join('\n')
+              .slice(-3000)}`
           : `Quality gate failed (${validation.step}): ${validation.detail ?? validation.stderr}`,
       );
   }
@@ -1150,7 +1166,12 @@ export class TaskWorkerService implements OnModuleInit {
     const r = await this.command(task, ctx, ctx.cfg.test, 'tester', false);
     await this.git.revertSideEffects(task, before);
     const output = redact(`${r.stdout}\n${r.stderr}`.trim()).slice(-6000);
-    job.result!.baseline = { exitCode: r.exitCode, ...(r.success ? {} : { output }) };
+    // The tests failing before any change, by name: they never count against the change.
+    const failures = r.success ? [] : [...failingTests(`${r.stdout}\n${r.stderr}`)];
+    job.result!.baseline = {
+      exitCode: r.exitCode,
+      ...(r.success ? {} : { output, ...(failures.length ? { failures } : {}) }),
+    };
     if (r.success) return undefined;
     return t('baseline.failing', { command: ctx.cfg.test.join(' '), output });
   }
@@ -1650,7 +1671,16 @@ export class TaskWorkerService implements OnModuleInit {
       : this.defaultPrBody(task, issue, steps);
     // The method's reading of the change, when its route has one.
     const analysis = task.result.analysis as string | undefined;
-    const fullBody = analysis ? `${body}\n\n## ${t('pr.analysis')}\n\n${analysis}` : body;
+    // Tests that already failed before the change: named, so nobody blames the change for them.
+    const preexisting = (task.result.validation as { preexisting?: string[] } | undefined)
+      ?.preexisting;
+    const fullBody = [
+      body,
+      ...(preexisting?.length
+        ? [`## ${t('pr.preexisting')}\n\n${preexisting.map((n) => `- \`${n}\``).join('\n')}`]
+        : []),
+      ...(analysis ? [`## ${t('pr.analysis')}\n\n${analysis}`] : []),
+    ].join('\n\n');
     const pr = await ctx.host.ensurePullRequest(ctx.cfg.repository, {
       branch: task.branch,
       base: target,

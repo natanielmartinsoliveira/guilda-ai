@@ -742,6 +742,45 @@ describe('code review of a merge request (REVIEW task)', () => {
     expect(x.github.commentOnPullRequest).toHaveBeenCalledTimes(1);
   });
 });
+describe('tests that already failed on the base', () => {
+  const PRE = '1) Tests\\Unit\\OrderTest::test_restore\nERRORS!';
+  test('failing only where the base failed: the change passes, without the fixer, and says so', async () => {
+    const x = await setup({ baselineTests: true });
+    x.sandbox.run.mockResolvedValue({ success: false, stdout: PRE, stderr: '', exitCode: 2 });
+    await x.worker.handle(x.message, x.channel);
+    const task = await db.getRepository(Task).findOneByOrFail({ id: x.task.id });
+    expect(task.status).toBe('SUCCESS');
+    expect(task.result!.baseline).toMatchObject({
+      failures: ['Tests\\Unit\\OrderTest::test_restore'],
+    });
+    expect(task.result!.validation).toMatchObject({
+      preexisting: ['Tests\\Unit\\OrderTest::test_restore'],
+    });
+    // the coder only: no fixer for failures that came before the change
+    expect(x.agents.execute).toHaveBeenCalledTimes(1);
+    const body = x.github.ensurePullRequest.mock.calls[0][1].body as string;
+    expect(body).toContain(
+      '## Testes que já falhavam antes desta mudança (não contam contra ela)\n\n- `Tests\\Unit\\OrderTest::test_restore`',
+    );
+  });
+  test('a new failing test still goes to the fixer', async () => {
+    const x = await setup({ baselineTests: true });
+    x.sandbox.run
+      .mockResolvedValueOnce({ success: false, stdout: PRE, stderr: '', exitCode: 2 })
+      .mockResolvedValue({
+        success: false,
+        stdout: `${PRE}\n2) Tests\\Unit\\EmailTest::test_valid`,
+        stderr: 'Xdebug: could not connect',
+        exitCode: 2,
+      });
+    await x.worker.handle(x.message, x.channel);
+    const task = await db.getRepository(Task).findOneByOrFail({ id: x.task.id });
+    expect(task.status).not.toBe('SUCCESS');
+    expect(x.agents.execute.mock.calls.length).toBeGreaterThan(1);
+    // the message names the failing test, not only the stderr noise
+    if (task.status === 'FAILED') expect(task.error).toContain('EmailTest::test_valid');
+  });
+});
 test('failed tests prevent commit, push and PR; delivery rejected', async () => {
   const x = await setup();
   x.sandbox.run.mockResolvedValue({

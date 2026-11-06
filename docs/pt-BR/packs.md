@@ -124,7 +124,7 @@ Cada etapa roda como o `test` (mesmo lugar, sem rede). Uma etapa que falha volta
 
 ### Testes na base
 
-`baselineTests: true` (no projeto, no `projectDefaults` ou numa stack) roda os testes na base preparada antes do agente, no fluxo do motor. Um teste que já falha ali chega ao prompt do agente, com o comando e a saída: um card que pede testes, ou a correção deles, passa a dizer o que está quebrado sem você explicar. O resultado fica na tarefa (`baseline`). Desligado por padrão: custa uma execução a mais da suíte.
+`baselineTests: true` (no projeto, no `projectDefaults` ou numa stack) roda os testes na base preparada antes do agente, no fluxo do motor. Um teste que já falha ali chega ao prompt do agente, com o comando e a saída: um card que pede testes, ou a correção deles, passa a dizer o que está quebrado sem você explicar. O resultado fica na tarefa (`baseline`), com os nomes dos testes que falharam quando o executor os imprime (PHPUnit, Jest, Vitest, pytest, Go). Depois da mudança, uma suíte que falha só nesses testes passa: o corretor não é chamado por causa deles, e o pull request os lista como testes que já falhavam antes da mudança. Qualquer falha nova, ou uma cujo nome não dá para ler, continua indo para o corretor. Desligado por padrão: custa uma execução a mais da suíte.
 
 ### Acrescentar um projeto: `npm run project:add`
 

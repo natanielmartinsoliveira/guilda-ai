@@ -2,6 +2,7 @@
 export const ptBR = {
   'telegram.task': 'tarefa',
   'method.whichRoute': 'Qual rota esta tarefa segue?',
+  'pr.preexisting': 'Testes que já falhavam antes desta mudança (não contam contra ela)',
   'pr.analysis': 'Leitura do método',
   'review.mr.approved': '✅ Revisão da Guilda: aprovado',
   'review.mr.changes': '⚠️ Revisão da Guilda: ajustes',

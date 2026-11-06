@@ -3,6 +3,7 @@ import type { MessageKey } from './pt-BR';
 export const en: Record<MessageKey, string> = {
   'telegram.task': 'task',
   'method.whichRoute': 'Which route does this task follow?',
+  'pr.preexisting': 'Tests that already failed before this change (not counted against it)',
   'pr.analysis': "The method's reading",
   'review.mr.approved': '✅ Guilda review: approved',
   'review.mr.changes': '⚠️ Guilda review: changes requested',
