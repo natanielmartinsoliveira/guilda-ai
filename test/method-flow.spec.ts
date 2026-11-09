@@ -568,7 +568,11 @@ describe('a route that fixes the suite (baseline: improve)', () => {
       failures: ['Tests\\Unit\\ATest::test_a', 'Tests\\Unit\\BTest::test_b'],
     });
     expect(task.result!.validation).toMatchObject({ preexisting: ['Tests\\Unit\\ATest::test_a'] });
-    expect(x.prompts().filter((p) => p.role === 'fixer')).toHaveLength(2);
+    const fixers = x.prompts().filter((p) => p.role === 'fixer');
+    expect(fixers).toHaveLength(2);
+    // the fixer gets every failing test by cause, not only the end of the output
+    expect(fixers[0].prompt).toContain('Testes que falham (2), por causa:');
+    expect(fixers[1].prompt).toContain('Testes que falham (1), por causa:');
   });
   test('a delivery that fixed none of the base failures is not accepted', async () => {
     const x = await setup('suite', { project: { baselineTests: true } });

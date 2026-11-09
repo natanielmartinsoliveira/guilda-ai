@@ -118,7 +118,7 @@ phases:
 
 ## Fixing the suite: `baseline: improve`
 
-By default (`baseline: discount`), a test that already failed on the base (the project's `baselineTests`) never counts against the delivery. A card whose job **is** fixing those tests needs the opposite: a standard-flow route with `baseline: improve` makes them the target. The fixer gets them even when no new test fails, round after round (`fixes`), until a round fixes none of them. The delivery is accepted when no new test fails and fewer of the base's tests fail than before, and it lists the ones left for the next round. A delivery that fixed none of them is not accepted.
+By default (`baseline: discount`), a test that already failed on the base (the project's `baselineTests`) never counts against the delivery. A card whose job **is** fixing those tests needs the opposite: a standard-flow route with `baseline: improve` makes them the target. The fixer gets them even when no new test fails, round after round (`fixes`), until a round fixes none of them. The delivery is accepted when no new test fails and fewer of the base's tests fail than before, and it lists the ones left for the next round. A delivery that fixed none of them is not accepted. In every round the fixer gets all the failing tests grouped by cause (the first line of each message; PHPUnit's blocks carry it), then the end of the output, and the first agent gets the same with the baseline.
 
 ## Briefs: deciding quickly
 

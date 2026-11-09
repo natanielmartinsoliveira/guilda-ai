@@ -122,7 +122,7 @@ phases:
 
 ## Consertar a suíte: `baseline: improve`
 
-Por padrão (`baseline: discount`), um teste que já falhava na base (o `baselineTests` do projeto) nunca conta contra a entrega. Um card cujo trabalho **é** consertar esses testes precisa do contrário: uma rota do fluxo padrão com `baseline: improve` os torna a meta. O corretor os recebe mesmo quando nenhum teste novo falha, rodada após rodada (`fixes`), até uma rodada não consertar nenhum. A entrega é aceita quando nenhum teste novo falha e menos testes da base falham do que antes, e ela lista os que sobraram para a próxima rodada. Uma entrega que não consertou nenhum não é aceita.
+Por padrão (`baseline: discount`), um teste que já falhava na base (o `baselineTests` do projeto) nunca conta contra a entrega. Um card cujo trabalho **é** consertar esses testes precisa do contrário: uma rota do fluxo padrão com `baseline: improve` os torna a meta. O corretor os recebe mesmo quando nenhum teste novo falha, rodada após rodada (`fixes`), até uma rodada não consertar nenhum. A entrega é aceita quando nenhum teste novo falha e menos testes da base falham do que antes, e ela lista os que sobraram para a próxima rodada. Uma entrega que não consertou nenhum não é aceita. Em cada rodada, o corretor recebe todos os testes que falham agrupados pela causa (a primeira linha de cada mensagem, que os blocos do PHPUnit trazem) e depois o final da saída; o primeiro agente recebe o mesmo junto com a linha de base.
 
 ## Resumos: decidir rápido
 

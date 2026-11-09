@@ -65,7 +65,7 @@ const promoted = (rehearsal: unknown) =>
   !!(rehearsal as { promoted?: boolean } | undefined)?.promoted;
 import type { DecisionQuestion } from '../database/entities';
 import { mapBrief } from '../methods/brief';
-import { failingTests, onlyPreexisting } from './test-failures';
+import { failingTests, failureDigest, onlyPreexisting } from './test-failures';
 import { knowledgeList, uploadKnowledge } from '../knowledge/knowledge';
 import {
   mergeRequestComment,
@@ -1136,7 +1136,12 @@ export class TaskWorkerService implements OnModuleInit {
     ) {
       await this.stage(job, entity, 'FIXING');
       const failed = validation.success && lastPreexisting ? lastPreexisting : validation;
-      const output = `${failed.stdout}\n${failed.stderr}`.slice(-12000);
+      // Every failing test by cause first (the whole run), then the end of the output.
+      const full = `${failed.stdout}\n${failed.stderr}`;
+      const digest = failureDigest(full);
+      const output = digest
+        ? `${digest}\n\n${full.slice(-(12000 - digest.length))}`
+        : full.slice(-12000);
       const fixInput: RouterInput = {
         ...agentInput,
         prompt: await this.render(ctx, 'fixer.md', {
@@ -1194,7 +1199,12 @@ export class TaskWorkerService implements OnModuleInit {
     const before = await this.git.changedPaths(task);
     const r = await this.command(task, ctx, ctx.cfg.test, 'tester', false);
     await this.git.revertSideEffects(task, before);
-    const output = redact(`${r.stdout}\n${r.stderr}`.trim()).slice(-6000);
+    const digest = r.success ? '' : failureDigest(`${r.stdout}\n${r.stderr}`, 4000);
+    const output = redact(
+      digest
+        ? `${digest}\n\n${`${r.stdout}\n${r.stderr}`.trim().slice(-4000)}`
+        : `${r.stdout}\n${r.stderr}`.trim().slice(-6000),
+    );
     // The tests failing before any change, by name: they never count against the change.
     const failures = r.success ? [] : [...failingTests(`${r.stdout}\n${r.stderr}`)];
     job.result!.baseline = {

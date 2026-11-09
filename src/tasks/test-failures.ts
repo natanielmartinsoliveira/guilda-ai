@@ -30,3 +30,41 @@ export function onlyPreexisting(output: string, baseline: string[] | undefined) 
   if (!now.size || [...now].some((t) => !baseline.includes(t))) return undefined;
   return [...now];
 }
+/**
+ * The failing tests grouped by cause: the first line of each failure's message (numbers made
+ * N, so the same mistake in two places is one cause). PHPUnit's numbered blocks carry it; a
+ * runner whose failures this cannot read gives its test names under one unreadable cause.
+ */
+export function failureGroups(output: string) {
+  const lines = output.split('\n');
+  const groups = new Map<string, Set<string>>();
+  const add = (cause: string, test: string) =>
+    groups.set(cause, (groups.get(cause) ?? new Set()).add(test));
+  for (let i = 0; i < lines.length; i++) {
+    const m = /^\s*\d+\) ([\w\\]+::\w+)/.exec(lines[i]);
+    if (!m) continue;
+    let j = i + 1;
+    while (j < lines.length && !lines[j].trim()) j++;
+    const message = (lines[j] ?? '').trim().replace(/\d+/g, 'N').slice(0, 160);
+    add(message || '(sem mensagem)', m[1]);
+  }
+  if (!groups.size) for (const t of failingTests(output)) add('(causa não legível)', t);
+  return [...groups]
+    .map(([cause, tests]) => ({ cause, tests: [...tests] }))
+    .sort((a, b) => b.tests.length - a.tests.length);
+}
+/** The failing tests by cause, as a short text for an agent (the largest causes first). */
+export function failureDigest(output: string, max = 6000) {
+  const groups = failureGroups(output);
+  if (!groups.length) return '';
+  const total = groups.reduce((n, g) => n + g.tests.length, 0);
+  const lines = [`Testes que falham (${total}), por causa:`];
+  for (const g of groups) {
+    const names = g.tests.map((t) => t.replace(/^Tests\\/, '')).join(', ');
+    lines.push(
+      `- ${g.cause} (${g.tests.length}): ${names.length > 600 ? `${names.slice(0, 600)}…` : names}`,
+    );
+  }
+  const text = lines.join('\n');
+  return text.length > max ? `${text.slice(0, max)}\n…` : text;
+}
