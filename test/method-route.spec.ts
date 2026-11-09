@@ -72,6 +72,7 @@ test("the tenant listing tells the front each project's method and its routes", 
     'adopt',
     'cleanup',
     'direct',
+    'suite',
   ]);
   expect(list[0].projects[0].routes[0].label).toBe('Funcionalidade nova (especificação → entrega)');
 });

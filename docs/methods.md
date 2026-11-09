@@ -31,7 +31,7 @@ env: # environment of the agent and the scripts (an empty value is not passed)
   PYTHONPATH: '{{options.pythonPath}}'
 timeoutMinutes: 240
 commits: method # method: the method commits; files left over at the end are a failure
-revisions: refuse # refuse: a change request on a task of the method is refused
+revisions: refuse # refuse: a change request on a task of one of the method's own routes is refused (standard-flow routes take them)
 agent: # what the method's agent needs with nobody to approve it
   addDirs: ['~/.claude/plugins'] # folders it may read ("~/" = the workspace HOME)
   allowedTools: ['Bash(python3 -B:*)', 'Bash(git status:*)'] # Claude permission rules
@@ -59,6 +59,11 @@ routes:
     before: [hooks/direct.py]
     append: prompts/direct-rule.md
     after: prompts/direct-after.md # read-only, after the commit: the method's reading ({{FILES}}), to the task and the PR
+  suite:
+    label: …
+    flow: standard
+    baseline: improve # the base's failing tests are the target (with the project's baselineTests)
+    fixes: 4 # fixer rounds (default: TEST_FIX_ATTEMPTS)
 triage: # before the route question: a suggestion, the person still picks
   rules:
     - {
@@ -110,6 +115,10 @@ phases:
 | `within`  | Pending files outside the path become a question; the answer goes to `notes` and the phase runs again.                                                                                                                                                                                                                                                                             |
 | `ask`     | A question with one option. The chosen option (identical text, or a plain approval such as "ok", "aprovado", "pode seguir", 👍 — the option's text is what is quoted) becomes `{{AUTHORIZATION}}`, makes the `commit` of `chosen` and goes to `next`; any other text goes to `notes` and to `other.next` (per route, with `default`).                                              |
 | `hook`    | Runs a script of the method.                                                                                                                                                                                                                                                                                                                                                       |
+
+## Fixing the suite: `baseline: improve`
+
+By default (`baseline: discount`), a test that already failed on the base (the project's `baselineTests`) never counts against the delivery. A card whose job **is** fixing those tests needs the opposite: a standard-flow route with `baseline: improve` makes them the target. The fixer gets them even when no new test fails, round after round (`fixes`), until a round fixes none of them. The delivery is accepted when no new test fails and fewer of the base's tests fail than before, and it lists the ones left for the next round. A delivery that fixed none of them is not accepted.
 
 ## Briefs: deciding quickly
 

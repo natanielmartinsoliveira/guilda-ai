@@ -25,7 +25,7 @@ const CODER = {
   protect: ['/workspaces'],
 };
 const SPEC = 'docs/spec';
-type Route = 'feature' | 'screen' | 'fix' | 'adopt' | 'cleanup' | 'direct';
+type Route = 'feature' | 'screen' | 'fix' | 'adopt' | 'cleanup' | 'direct' | 'suite';
 type Script = {
   analyse?: string[];
   deliver?: string[];
@@ -36,6 +36,8 @@ type Script = {
   config?: Record<string, unknown>;
   /** The project's knowledge folders (paths of the fixture pack). */
   knowledge?: { path: string; about: string }[];
+  /** More project settings (baselineTests…). */
+  project?: Record<string, unknown>;
   /** Files the rehearsal changed since its base (promotion). */
   changed?: string[];
   /** The base branch changed the same files since the rehearsal (promotion). */
@@ -164,6 +166,7 @@ async function setup(route: Route | undefined, script: Script = {}) {
         delivery: 'rehearsal',
         method: EXAMPLE_METHOD,
         knowledge: script.knowledge ?? [],
+        ...script.project,
       },
     } as any;
   });
@@ -540,6 +543,61 @@ test('a missing result mark is a stop, never a delivery', async () => {
   const task = await x.reload();
   expect(task.status).toBe('WAITING');
   expect((await x.open()).questions![0].text).toContain('Terminei.');
+});
+describe('a route that fixes the suite (baseline: improve)', () => {
+  const A = '1) Tests\\Unit\\ATest::test_a';
+  const B = '2) Tests\\Unit\\BTest::test_b';
+  /** The project's test command answers these outputs in turn (the last one repeats). */
+  function tests(x: Awaited<ReturnType<typeof setup>>, outputs: string[]) {
+    const real = x.ws.run.getMockImplementation()!;
+    let n = 0;
+    x.ws.run.mockImplementation(async (argv: string[], opts?: { input?: string }) => {
+      if (argv[0] !== 'npm') return real(argv, opts ?? {});
+      const out = outputs[Math.min(n++, outputs.length - 1)];
+      return { success: !out, exitCode: out ? 2 : 0, stdout: out, stderr: '' };
+    });
+  }
+  test("the base's failures are the target: fixer rounds until one fixes nothing; fewer than on the base is accepted", async () => {
+    const x = await setup('suite', { project: { baselineTests: true } });
+    // base: A and B fail; after the coder: still both; round 1 fixes B; round 2 fixes nothing
+    tests(x, [`${A}\n${B}`, `${A}\n${B}`, A, A]);
+    await x.run();
+    const task = await x.reload();
+    expect(task.status).toBe('SUCCESS');
+    expect(task.result!.baseline).toMatchObject({
+      failures: ['Tests\\Unit\\ATest::test_a', 'Tests\\Unit\\BTest::test_b'],
+    });
+    expect(task.result!.validation).toMatchObject({ preexisting: ['Tests\\Unit\\ATest::test_a'] });
+    expect(x.prompts().filter((p) => p.role === 'fixer')).toHaveLength(2);
+  });
+  test('a delivery that fixed none of the base failures is not accepted', async () => {
+    const x = await setup('suite', { project: { baselineTests: true } });
+    tests(x, [`${A}\n${B}`]);
+    await x.run();
+    const task = await x.reload();
+    expect(task.status).toBe('FAILED');
+    expect(task.error).toMatch(/fixed none of the 2 tests failing on the base/);
+    expect(x.prompts().filter((p) => p.role === 'fixer')).toHaveLength(1);
+  });
+});
+test('a standard-flow route takes adjustments even when the method refuses them on its own routes', async () => {
+  const x = await setup('direct', { config: { spec_root: SPEC, direct_edits: true } });
+  await x.run();
+  expect((await x.reload()).status).toBe('SUCCESS');
+  const { Revision } = await import('../src/database/entities');
+  const revision = await db.getRepository(Revision).save({
+    taskId: x.task.id,
+    number: 1,
+    instructions: 'muda x',
+    origin: 'api',
+    status: 'PENDING',
+    attempts: 0,
+    stage: 'QUEUED',
+  } as any);
+  await x.reviseRun(revision.id);
+  const saved = await db.getRepository(Revision).findOneByOrFail({ id: revision.id });
+  expect(saved.error ?? '').not.toMatch(/"fix" route/);
+  expect(saved.status).toBe('SUCCESS');
 });
 test('a method that refuses revisions never patches a task: the fix route is a new task', async () => {
   const x = await setup('screen');

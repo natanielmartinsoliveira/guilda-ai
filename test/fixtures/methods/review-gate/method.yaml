@@ -74,6 +74,12 @@ routes:
     # the method's own read-only reading of what the core delivered
     after: prompts/direct-after.md
     evidence: true
+  # Fixes the suite: the base's failing tests are the target, not a pass (three fixer rounds).
+  suite:
+    label: { en: "Fix the test suite", pt-BR: "Consertar a suíte de testes" }
+    flow: standard
+    baseline: improve
+    fixes: 3
 phases:
   spec:
     steps:

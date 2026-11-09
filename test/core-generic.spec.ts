@@ -88,6 +88,10 @@ const ALLOWED: Record<string, { words: string[]; why: string }> = {
     why: 'test files of every language (FooTest.php) are told apart from code',
   },
   'src/tenants/tenants.ts': { words: ['php'], why: 'an example semgrep ruleset in a comment' },
+  'src/tasks/test-failures.ts': {
+    words: ['phpunit', 'pytest'],
+    why: 'the failing-test formats of every usual runner, read from any project',
+  },
   'src/projects/pack-init.ts': {
     words: ['php'],
     why: 'an example semgrep ruleset in the generated comment',

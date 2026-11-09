@@ -30,7 +30,7 @@ env: # ambiente do agente e dos scripts (valor vazio não é passado)
   PYTHONPATH: '{{options.pythonPath}}'
 timeoutMinutes: 240
 commits: method # method: o método commita; sobra de arquivo no fim é falha
-revisions: refuse # refuse: pedido de ajuste numa tarefa do método é recusado
+revisions: refuse # refuse: pedido de ajuste numa tarefa de uma rota do próprio método é recusado (rotas do fluxo padrão aceitam)
 agent: # o que o agente do método precisa sem ninguém para aprovar
   addDirs: ['~/.claude/plugins'] # pastas que ele pode ler ("~/" = HOME do workspace)
   allowedTools: ['Bash(python3 -B:*)', 'Bash(git status:*)'] # regras de permissão do Claude
@@ -58,6 +58,11 @@ routes:
     before: [hooks/checa-alvo.py]
     append: prompts/regra-de-superficie.md
     after: prompts/leitura-final.md # somente leitura, depois do commit: a leitura do método ({{FILES}}), vai para a tarefa e o PR
+  suite:
+    label: …
+    flow: standard
+    baseline: improve # os testes que já falham na base são a meta (com o baselineTests do projeto)
+    fixes: 4 # rodadas do corretor (padrão: TEST_FIX_ATTEMPTS)
 triage: # antes da pergunta de rota: uma sugestão, a pessoa continua escolhendo
   rules:
     - {
@@ -114,6 +119,10 @@ phases:
 | `within`  | Arquivos pendentes fora do caminho viram pergunta; a resposta entra em `notes` e a fase roda de novo.                                                                                                                                                                                                                                                               |
 | `ask`     | Pergunta com uma opção. A opção escolhida (texto idêntico, ou uma aprovação simples como "ok", "aprovado", "pode seguir", 👍 — o que vai citado é o texto da opção) vira `{{AUTHORIZATION}}`, faz o `commit` de `chosen` e vai para `next`; outro texto entra em `notes` e vai para `other.next` (por rota, com `default`).                                         |
 | `hook`    | Roda um script do método.                                                                                                                                                                                                                                                                                                                                           |
+
+## Consertar a suíte: `baseline: improve`
+
+Por padrão (`baseline: discount`), um teste que já falhava na base (o `baselineTests` do projeto) nunca conta contra a entrega. Um card cujo trabalho **é** consertar esses testes precisa do contrário: uma rota do fluxo padrão com `baseline: improve` os torna a meta. O corretor os recebe mesmo quando nenhum teste novo falha, rodada após rodada (`fixes`), até uma rodada não consertar nenhum. A entrega é aceita quando nenhum teste novo falha e menos testes da base falham do que antes, e ela lista os que sobraram para a próxima rodada. Uma entrega que não consertou nenhum não é aceita.
 
 ## Resumos: decidir rápido
 

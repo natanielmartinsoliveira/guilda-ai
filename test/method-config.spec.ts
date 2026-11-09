@@ -14,9 +14,19 @@ const PACK = `    packDir: ${FIXTURES}`;
 const withMethod = (method: string, extra = PACK) =>
   yaml(`${CODER_PROJECT}\n        method: ${method}`, extra);
 
-test('the example method loads with its six routes', () => {
+test('the example method loads with its seven routes', () => {
   const m = loadMethod(FIXTURES, 'review-gate');
-  expect(Object.keys(m.routes)).toEqual(['feature', 'screen', 'fix', 'adopt', 'cleanup', 'direct']);
+  expect(Object.keys(m.routes)).toEqual([
+    'feature',
+    'screen',
+    'fix',
+    'adopt',
+    'cleanup',
+    'direct',
+    'suite',
+  ]);
+  expect(routeOf(m, 'suite')).toMatchObject({ flow: 'standard', baseline: 'improve', fixes: 3 });
+  expect(routeOf(m, 'direct').baseline).toBe('discount');
   expect(routeOf(m, 'feature').start).toBe('spec');
   expect(routeOf(m, 'direct').flow).toBe('standard');
   expect(methodRoutes(m, 'en').find((r) => r.id === 'adopt')!.label).toMatch(/^Adopt existing/);

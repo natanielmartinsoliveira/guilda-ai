@@ -150,6 +150,10 @@ interface ChangeSpec {
   front?: FrontPhase;
   /** Runs once the change is committed, before push or the end of a rehearsal. */
   afterCommit?(): Promise<void>;
+  /** What the base's failing tests are to the delivery (a standard-flow route's baseline). */
+  baseline?: 'discount' | 'improve';
+  /** Rounds of the fixer (a standard-flow route's fixes; default TEST_FIX_ATTEMPTS). */
+  fixes?: number;
 }
 interface FrontPhase {
   /** Where the design comes from; may stop for the operator (before any AI is spent). */
@@ -1051,7 +1055,10 @@ export class TaskWorkerService implements OnModuleInit {
       ...(quality?.typecheck ? [{ step: 'typecheck', command: quality.typecheck }] : []),
       ...(quality?.coverage ? [{ step: 'coverage', ...quality.coverage }] : []),
     ];
+    // The last run that failed only in the base's tests (its output feeds an improving fixer).
+    let lastPreexisting: { stdout: string; stderr: string } | undefined;
     const runTests = async () => {
+      lastPreexisting = undefined;
       await this.stage(job, entity, 'TESTS');
       const passed: string[] = [];
       for (const g of gate) {
@@ -1096,8 +1103,10 @@ export class TaskWorkerService implements OnModuleInit {
                 (state.baseline as { failures?: string[] } | undefined)?.failures,
               )
             : undefined;
-        if (preexisting) state.validation = { ...(state.validation as object), preexisting };
-        else if (!r.success) return { ...r, step: g.step, command: g.command, detail };
+        if (preexisting) {
+          state.validation = { ...(state.validation as object), preexisting };
+          lastPreexisting = r;
+        } else if (!r.success) return { ...r, step: g.step, command: g.command, detail };
         passed.push(g.step);
       }
       if (gate.length > 1) state.quality = { passed };
@@ -1113,17 +1122,27 @@ export class TaskWorkerService implements OnModuleInit {
     };
     let validation = await runTests();
     // Failing tests go back to the agent, a bounded number of times. Its edits are kept
-    // (no reset): the fix builds on them.
-    const maxFixes = config().TEST_FIX_ATTEMPTS;
-    for (let fix = 1; !validation.success && agentInput && fix <= maxFixes; fix++) {
+    // (no reset): the fix builds on them. Improving, the base's failures are the target too.
+    const maxFixes = spec.fixes ?? config().TEST_FIX_ATTEMPTS;
+    const improve = spec.baseline === 'improve';
+    const remaining = () =>
+      (state.validation as { preexisting?: string[] } | undefined)?.preexisting?.length ?? 0;
+    const atBase = (state.baseline as { failures?: string[] } | undefined)?.failures?.length ?? 0;
+    let best = remaining() || atBase;
+    for (
+      let fix = 1;
+      (!validation.success || (improve && remaining() > 0)) && agentInput && fix <= maxFixes;
+      fix++
+    ) {
       await this.stage(job, entity, 'FIXING');
-      const output = `${validation.stdout}\n${validation.stderr}`.slice(-12000);
+      const failed = validation.success && lastPreexisting ? lastPreexisting : validation;
+      const output = `${failed.stdout}\n${failed.stderr}`.slice(-12000);
       const fixInput: RouterInput = {
         ...agentInput,
         prompt: await this.render(ctx, 'fixer.md', {
           ATTEMPT: String(fix),
           MAX: String(maxFixes),
-          COMMAND: validation.command.join(' '),
+          COMMAND: (validation.command ?? []).join(' '),
           OUTPUT: redact(validation.detail ? `${validation.detail}\n${output}` : output),
           TASK_PROMPT: agentInput.prompt,
         }),
@@ -1140,7 +1159,17 @@ export class TaskWorkerService implements OnModuleInit {
         state.message = auditable(run.result.message.slice(-20000));
       state.changes = await this.git.validateChanges(task);
       validation = await runTests();
+      // Improving: a round that fixed none of the base's tests ends the rounds.
+      if (improve && validation.success) {
+        if (remaining() >= best) break;
+        best = remaining();
+      }
     }
+    // Improving: the delivery must leave fewer of the base's tests failing than it found.
+    if (improve && validation.success && atBase && remaining() >= atBase)
+      throw new TaskError(
+        `Tests failed: the delivery fixed none of the ${atBase} tests failing on the base`,
+      );
     if (!validation.success)
       throw new TaskError(
         validation.step === 'test'
@@ -1475,6 +1504,8 @@ export class TaskWorkerService implements OnModuleInit {
         commitMessage,
         // After the commit, before anything leaves: the method's reading of what the core
         // delivered (its after prompt), then the test evidence.
+        baseline: standardRoute?.route.baseline,
+        fixes: standardRoute?.route.fixes,
         ...(standardRoute && (standardRoute.route.evidence || standardRoute.route.after)
           ? {
               afterCommit: async () => {
@@ -1954,14 +1985,14 @@ export class TaskWorkerService implements OnModuleInit {
   }
   async revise(task: Task, revision: Revision) {
     // A method may refuse adjustments (e.g. a change after delivery is a new task on its route).
+    // A standard-flow route is the core's own flow: it takes adjustments like any task.
     const rctx = await this.context(task);
-    if (rctx.cfg.method) {
-      const runner = this.methodRunner(task, rctx);
-      if (runner.method.revisions === 'refuse')
-        throw new TaskError(
-          runner.message('revisionRefused', 'This method does not take adjustments'),
-        );
-    }
+    const runner = rctx.cfg.method ? this.methodRunner(task, rctx) : undefined;
+    const standardRoute = runner?.route.flow === 'standard' ? runner : undefined;
+    if (runner && !standardRoute && runner.method.revisions === 'refuse')
+      throw new TaskError(
+        runner.message('revisionRefused', 'This method does not take adjustments'),
+      );
     // A rehearsal is adjusted in its own workspace folder: no PR, nothing fetched or pushed.
     // A promoted one is a PR delivery: adjusted like any other.
     const rehearsal = promoted(task.result?.rehearsal)
@@ -1994,6 +2025,8 @@ export class TaskWorkerService implements OnModuleInit {
       job: revision,
       entity: Revision,
       ctx,
+      baseline: standardRoute?.route.baseline,
+      fixes: standardRoute?.route.fixes,
       prepareBase: async () => {
         await this.git.prepare(task, project.defaultBranch, ctx.remote, {
           hidden: ctx.cfg.hiddenFiles,

@@ -32,6 +32,15 @@ const route = z.object({
    * the pull request, and never blocks the delivery.
    */
   after: inside.optional(),
+  /**
+   * standard flow, with the project's baselineTests: what the base's failing tests are to the
+   * delivery. discount (default): not the change's doing, never counted against it. improve:
+   * the target (a card that fixes the suite): the fixer works on them, and the delivery is
+   * accepted when no new test fails and fewer fail than on the base.
+   */
+  baseline: z.enum(['discount', 'improve']).default('discount'),
+  /** standard flow: rounds of the fixer (default: the instance's TEST_FIX_ATTEMPTS). */
+  fixes: z.number().int().min(0).max(10).optional(),
 });
 const regex = z.string().refine((s) => {
   try {
