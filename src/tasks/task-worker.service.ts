@@ -1207,6 +1207,10 @@ export class TaskWorkerService implements OnModuleInit {
     );
     // The tests failing before any change, by name: they never count against the change.
     const failures = r.success ? [] : [...failingTests(`${r.stdout}\n${r.stderr}`)];
+    // Fixing the suite needs to know what fails: a run that fails naming no test (it crashed or
+    // was killed) would read as a clean base and leave the agent nothing to do.
+    if (!r.success && !failures.length && spec.baseline === 'improve')
+      throw new TaskError(t('baseline.unreadable', { exit: String(r.exitCode), output }));
     job.result!.baseline = {
       exitCode: r.exitCode,
       ...(r.success ? {} : { output, ...(failures.length ? { failures } : {}) }),

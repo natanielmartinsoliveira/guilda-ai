@@ -8,6 +8,7 @@ import { AgentRouter } from '../src/agents/agent-router.service';
 import { Decision, LessonSuggestion, Task } from '../src/database/entities';
 import { authorization, authorizationFor, METHOD_TELEMETRY } from './fixtures/method-ws';
 import { config } from '../src/config';
+import { failureKind } from '../src/tasks/failure-kind';
 let db: DataSource;
 beforeEach(async () => {
   db = await database();
@@ -582,6 +583,15 @@ describe('a route that fixes the suite (baseline: improve)', () => {
     expect(task.status).toBe('FAILED');
     expect(task.error).toMatch(/fixed none of the 2 tests failing on the base/);
     expect(x.prompts().filter((p) => p.role === 'fixer')).toHaveLength(1);
+  });
+  test('a base run that fails naming no test stops as the environment, before any agent', async () => {
+    const x = await setup('suite', { project: { baselineTests: true } });
+    tests(x, ['PHPUnit 10.5\n..F..E....  915 / 1036 ( 88%)\nE.FE..']);
+    await x.run();
+    const task = await x.reload();
+    expect(task.status).toBe('FAILED');
+    expect(failureKind(task.error)).toBe('environment');
+    expect(x.prompts()).toHaveLength(0);
   });
 });
 test('a standard-flow route takes adjustments even when the method refuses them on its own routes', async () => {

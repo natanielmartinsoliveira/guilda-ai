@@ -13,7 +13,7 @@ const KINDS: [Exclude<FailureKind, 'other'>, RegExp][] = [
   ['timeout', /Process timed out|Output limit exceeded|\btimed out\b|tempo esgotado/i],
   [
     'environment',
-    /command not found|: not found\b|No such file or directory|Cannot connect to the Docker daemon|pull access denied|manifest unknown|Unable to find image|permission denied|EACCES|ENOENT|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|getaddrinfo|network is unreachable|Could not resolve host|Could not read from remote repository|Host key verification failed|Coder inacess|coder login|Sessão do Coder|Workspace \S+ parado|not logged in|Ambiente do workspace|Dependency preparation failed/i,
+    /command not found|: not found\b|No such file or directory|Cannot connect to the Docker daemon|pull access denied|manifest unknown|Unable to find image|permission denied|EACCES|ENOENT|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|getaddrinfo|network is unreachable|Could not resolve host|Could not read from remote repository|Host key verification failed|Coder inacess|coder login|Sessão do Coder|Workspace \S+ parado|not logged in|Ambiente do workspace|Dependency preparation failed|without a readable result|sem resultado legível/i,
   ],
   [
     'config',
