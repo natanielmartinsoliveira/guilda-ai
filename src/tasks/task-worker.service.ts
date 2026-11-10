@@ -1064,6 +1064,19 @@ export class TaskWorkerService implements OnModuleInit {
       for (const g of gate) {
         const before = await this.git.changedPaths(task);
         let r = await this.command(task, ctx, g.command, 'tester', false);
+        // Naming no failing test where the base named some, the run ended before its summary
+        // (crashed or killed): once more, before it reads as the change's fault.
+        const atBase = (state.baseline as { failures?: string[] } | undefined)?.failures;
+        if (
+          !r.success &&
+          g.step === 'test' &&
+          atBase?.length &&
+          !failingTests(`${r.stdout}\n${r.stderr}`).size
+        ) {
+          log('tests.unreadable_rerun', { taskId: task.id, exitCode: r.exitCode });
+          await this.git.revertSideEffects(task, before);
+          r = await this.command(task, ctx, g.command, 'tester', false);
+        }
         // Tests may delete fixtures or write files: that is not part of the change.
         const reverted = await this.git.revertSideEffects(task, before);
         let detail: string | undefined;

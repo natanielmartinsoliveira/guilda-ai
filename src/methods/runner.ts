@@ -229,6 +229,8 @@ export class MethodRunner {
         project: this.ctx.cfg.id,
         slug: this.task.branch,
         route: this.routeId,
+        // method: the method's phases; standard: the core flow (it starts from the base tip).
+        flow: this.route.flow,
         root: ws.root,
         // The commit the task started from (what this task added is what changed since).
         base: this.task.result?.baseSha,

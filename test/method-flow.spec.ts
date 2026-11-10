@@ -574,6 +574,12 @@ describe('a route that fixes the suite (baseline: improve)', () => {
     // the fixer gets every failing test by cause, not only the end of the output
     expect(fixers[0].prompt).toContain('Testes que falham (2), por causa:');
     expect(fixers[1].prompt).toContain('Testes que falham (1), por causa:');
+    // the method's hooks know the route runs the core flow
+    const prepare = x.ws.run.mock.calls.find(([argv]) => String(argv[1]).endsWith('prepare.py'));
+    expect(JSON.parse(String((prepare![1] as { input?: string }).input))).toMatchObject({
+      route: 'suite',
+      flow: 'standard',
+    });
   });
   test('a delivery that fixed none of the base failures is not accepted', async () => {
     const x = await setup('suite', { project: { baselineTests: true } });
@@ -583,6 +589,16 @@ describe('a route that fixes the suite (baseline: improve)', () => {
     expect(task.status).toBe('FAILED');
     expect(task.error).toMatch(/fixed none of the 2 tests failing on the base/);
     expect(x.prompts().filter((p) => p.role === 'fixer')).toHaveLength(1);
+  });
+  test('a run that ends before its summary runs once more instead of going to the fixer', async () => {
+    const x = await setup('suite', { project: { baselineTests: true } });
+    // base: A and B; after the coder the run dies mid-way, then names only A; round 1 fixes nothing
+    tests(x, [`${A}\n${B}`, 'PHPUnit 10.5\n..E.  549 / 1034 ( 53%)\n....', A, A]);
+    await x.run();
+    expect((await x.reload()).status).toBe('SUCCESS');
+    const fixers = x.prompts().filter((p) => p.role === 'fixer');
+    expect(fixers).toHaveLength(1);
+    expect(fixers[0].prompt).toContain('Testes que falham (1), por causa:');
   });
   test('a base run that fails naming no test stops as the environment, before any agent', async () => {
     const x = await setup('suite', { project: { baselineTests: true } });
