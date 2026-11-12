@@ -62,9 +62,12 @@ async function setup(route: Route | undefined, script: Script = {}) {
   let head = 'a'.repeat(40);
   // The task folder's uncommitted files, as git status would list them.
   let tree: string[] = [];
+  let stashed: string[] = [];
   const git = {
     prepare: jest.fn(),
     git: jest.fn(async (_t: unknown, args: string[]) => {
+      if (args[0] === 'stash' && args[1] === 'push') [stashed, tree] = [tree, []];
+      if (args[0] === 'stash' && args[1] === 'pop') [tree, stashed] = [stashed, []];
       // Promotion: what the rehearsal changed, and whether the base branch moved under it.
       if (args[0] === 'diff' && args.includes('--name-only'))
         return (script.changed ?? []).join('\0');
@@ -681,6 +684,30 @@ test('cleanup: remove only comments of the listed files, commit them by pathspec
   ]);
   expect(x.ws.run).toHaveBeenCalledWith(['npm', 'test'], expect.anything());
   expect((await x.reload()).status).toBe('SUCCESS');
+});
+test('a method route with baselineTests measures its base before the tests: what failed there never counts', async () => {
+  const A = '1) Tests\\Unit\\ATest::test_a';
+  const x = await setup('cleanup', {
+    deliverLeaves: ['app/Order.php'],
+    project: { baselineTests: true },
+  });
+  const real = x.ws.run.getMockImplementation()!;
+  x.ws.run.mockImplementation(async (argv: string[], opts?: { input?: string }) =>
+    argv[0] === 'npm'
+      ? { success: false, exitCode: 2, stdout: A, stderr: '' }
+      : real(argv, opts ?? {}),
+  );
+  await x.run();
+  await x.answerOpen(authorizationFor('cleanup', x.task.branch));
+  await x.run();
+  const task = await x.reload();
+  expect(task.status).toBe('SUCCESS');
+  expect(task.result!.baseline).toMatchObject({ failures: ['Tests\\Unit\\ATest::test_a'] });
+  expect(task.result!.validation).toMatchObject({ preexisting: ['Tests\\Unit\\ATest::test_a'] });
+  // the files took the base's content and HEAD came back afterwards; the branch never moved
+  const calls = x.git.git.mock.calls.map(([, args]) => args.join(' '));
+  expect(calls).toContain(`checkout ${String(task.result!.baseSha)} -- .`);
+  expect(calls).toContain('reset -q --hard HEAD');
 });
 test('cleanup with nothing changed fails without an empty commit (focus 4)', async () => {
   const x = await setup('cleanup', { deliverLeaves: [] });

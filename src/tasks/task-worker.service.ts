@@ -659,6 +659,47 @@ export class TaskWorkerService implements OnModuleInit {
     }
     return tests;
   }
+  /**
+   * A method's own phases run before the project's tests, so its base was never measured: with
+   * baselineTests, the tests run once on the commit the task started from, and what already
+   * failed there never counts against the delivery. The branch never moves (the workspace's
+   * guard): the work not committed yet is stashed (some routes commit after the tests), the files
+   * take the base's content, the ones the task added go away, and HEAD and the stash come back
+   * afterwards.
+   */
+  private async methodBaseline(spec: ChangeSpec) {
+    const { task, job, ctx } = spec;
+    const state = job.result!;
+    if (!ctx.cfg.baselineTests || state.baseline || !state.baseSha) return;
+    const base = String(state.baseSha);
+    const added = (
+      await this.git.git(task, ['diff', '--name-only', '--diff-filter=A', base, 'HEAD'])
+    )
+      .split('\n')
+      .filter(Boolean);
+    const pending = (await this.git.git(task, ['status', '--porcelain'])).trim() !== '';
+    if (pending)
+      await this.git.git(task, [
+        'stash',
+        'push',
+        '-q',
+        '--include-untracked',
+        '-m',
+        'guilda baseline',
+      ]);
+    try {
+      await this.git.git(task, ['checkout', base, '--', '.']);
+      try {
+        if (added.length)
+          await this.git.git(task, ['rm', '-q', '--ignore-unmatch', '--', ...added]);
+        await this.baseline(spec);
+      } finally {
+        await this.git.git(task, ['reset', '-q', '--hard', 'HEAD']);
+      }
+    } finally {
+      if (pending) await this.git.git(task, ['stash', 'pop', '-q']);
+    }
+  }
   /** Telegram: the rehearsal is ready to be checked in the workspace. Best effort. */
   private async announceRehearsal(task: Task, rehearsal: unknown, revision?: number) {
     if (!telegramEnabled()) return;
@@ -1862,6 +1903,7 @@ export class TaskWorkerService implements OnModuleInit {
         stage: (t, stage) => this.stage(t, Task, stage),
         record: (t, attempts, provider) => this.record(t, attempts as never, provider as never),
         tests: async () => {
+          await this.methodBaseline(spec);
           await this.testAndFix(spec);
           await this.checkAndFix(spec);
         },
