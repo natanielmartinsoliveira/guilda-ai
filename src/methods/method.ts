@@ -70,7 +70,15 @@ const step = z.union([
   z.object({ discard: z.string().min(1) }).strict(),
   z.object({ agent: inside, answersTo: z.enum(['answers', 'notes']).default('answers') }).strict(),
   z
-    .object({ within: z.object({ path: z.string().min(1), question: inside, option: inside }) })
+    .object({
+      within: z.object({
+        path: z.string().min(1),
+        /** Other folders the step may write in too (e.g. the method's own work folder). */
+        also: z.array(z.string().min(1)).default([]),
+        question: inside,
+        option: inside,
+      }),
+    })
     .strict(),
   z
     .object({

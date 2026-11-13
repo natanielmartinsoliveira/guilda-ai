@@ -89,6 +89,7 @@ phases:
         answersTo: notes
       - within:
           path: "{{vars.spec_root}}"
+          also: ["work/{{slug}}", "{{vars.unset_root}}"]
           question: prompts/outside-question.md
           option: prompts/outside-option.md
     next: gate

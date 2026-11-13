@@ -477,7 +477,14 @@ export class MethodRunner {
             );
         } else if ('within' in step) {
           const path = this.interp(step.within.path);
-          const outside = (await this.pending()).filter((f) => !under(f, path));
+          // A folder that renders empty (a variable the project leaves unset) allows nothing,
+          // never everything.
+          const also = step.within.also
+            .map((p) => this.interp(p).replace(/^\.\/|\/+$/g, ''))
+            .filter((p) => p !== '' && p !== '.' && !p.startsWith('/'));
+          const outside = (await this.pending()).filter(
+            (f) => !under(f, path) && !also.some((p) => under(f, p)),
+          );
           if (outside.length)
             await ask(
               {

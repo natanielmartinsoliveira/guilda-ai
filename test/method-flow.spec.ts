@@ -430,6 +430,21 @@ test('a specification step that writes outside the specification root is a stop,
   expect(question).toContain('outside the specification root');
   expect(x.git.commitPaths).not.toHaveBeenCalled();
 });
+test("the method's own work folder of the task is allowed beside the specification root; an unset one allows nothing", async () => {
+  const script: { analyseWrites: string[] } = { analyseWrites: [] };
+  const x = await setup('feature', script);
+  // the fixture names the work folder after the task's slug (its branch)
+  script.analyseWrites = [`${SPEC}/a.md`, `work/${x.task.branch}/draft.json`];
+  await x.run();
+  expect((await x.open()).questions![0].text).not.toContain('outside the specification root');
+});
+test("another task's work folder, or one an unset variable leaves empty, is still outside", async () => {
+  const x = await setup('feature', { analyseWrites: [`${SPEC}/a.md`, 'work/other-task/x.json'] });
+  await x.run();
+  const question = (await x.open()).questions![0].text;
+  expect(question).toContain('outside the specification root');
+  expect(question).toContain('work/other-task/x.json');
+});
 test('a delivery that leaves files uncommitted fails, listing them; the AI Dev Team commits nothing', async () => {
   const x = await setup('screen', { deliverLeaves: ['app/Leftover.php'] });
   await x.run();
