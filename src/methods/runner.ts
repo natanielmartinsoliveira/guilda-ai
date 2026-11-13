@@ -502,8 +502,12 @@ export class MethodRunner {
               const commit = step.ask.chosen.commit;
               if (commit && (!commit.routes || commit.routes.includes(this.routeId))) {
                 const paths = commit.paths.map((p) => this.interp(p));
-                if ((await this.pendingUnder(paths)).length)
-                  await deps.git.commitPaths(task, paths, this.interp(commit.message), author);
+                const pending = await this.pendingUnder(paths);
+                // Only the paths with changes: git add fails on one that matches nothing (a work
+                // folder the analysis never wrote).
+                const changed = paths.filter((p) => pending.some((f) => under(f, p)));
+                if (changed.length)
+                  await deps.git.commitPaths(task, changed, this.interp(commit.message), author);
               }
               ms.phase = nextOf(step.ask.chosen.next);
               continue phases;

@@ -104,7 +104,8 @@ phases:
           files: { path: "{{vars.spec_root}}", routes: [feature] }
           chosen:
             commit:
-              paths: ["{{vars.spec_root}}"]
+              # a work folder the analysis may not write: left out of the commit when untouched
+              paths: ["{{vars.spec_root}}", "work/{{slug}}"]
               message: "spec {{slug}}"
               routes: [feature]
             next: deliver

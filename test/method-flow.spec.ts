@@ -296,7 +296,8 @@ test('feature: the specification step leaves the specification for review; adjus
   expect(x.prompts()[1].prompt).toContain('include the business customer case');
   await x.answerOpen(authorization(x.task.branch, true));
   await x.run();
-  // the approval commits the specification root alone, under the method's message
+  // the approval commits the specification root alone (the untouched work folder stays out),
+  // under the method's message
   expect(x.git.commitPaths).toHaveBeenCalledTimes(1);
   expect(x.git.commitPaths.mock.calls[0]).toEqual([
     expect.objectContaining({ id: x.task.id }),
