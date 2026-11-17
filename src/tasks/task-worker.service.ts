@@ -108,7 +108,8 @@ const messageSchema = z
   })
   .refine((m) => (m.type === 'REVISE') === !!m.revisionId);
 /** One commit per sub-task, named after its card so the tracker links it. */
-const stepCommit = (key: string, title: string) => `feat(ai): ${key} ${title}`.slice(0, 200);
+export const stepCommit = (key: string, title: string, pattern?: string) =>
+  (pattern ? prTitle(pattern, key, title) : `feat(ai): ${key} ${title}`).slice(0, 200);
 /** Tasks and revisions share status, attempts, stage and result semantics. */
 type Job = Task | Revision;
 type JobEntity = typeof Task | typeof Revision;
@@ -1488,10 +1489,12 @@ export class TaskWorkerService implements OnModuleInit {
         ? frontSection(stepBody, formatsFor(ctx.tenant, ctx.cfg).card)
         : undefined;
     const commitMessage = story
-      ? stepCommit(issue.externalKey, issue.title)
+      ? stepCommit(issue.externalKey, issue.title, cfg.commitMessage)
       : steps.length
-        ? stepCommit(steps[0].key, steps[0].title)
-        : `feat(ai): implement ${issue.externalKey}`;
+        ? stepCommit(steps[0].key, steps[0].title, cfg.commitMessage)
+        : cfg.commitMessage
+          ? stepCommit(issue.externalKey, issue.title, cfg.commitMessage)
+          : `feat(ai): implement ${issue.externalKey}`;
     await this.screenCard(task, stepBody);
     if (cfg.method && !meta.route) await this.chooseRoute(task, ctx);
     // A method route runs the method's phases; a standard-flow route of a method runs the core
@@ -2135,8 +2138,13 @@ export class TaskWorkerService implements OnModuleInit {
       },
       commitMessage:
         step >= 0
-          ? stepCommit(steps[step].key, steps[step].title)
-          : `fix(ai): ${issue.externalKey} revision ${revision.number}`,
+          ? stepCommit(steps[step].key, steps[step].title, ctx.cfg.commitMessage)
+          : ctx.cfg.commitMessage
+            ? `${stepCommit(issue.externalKey, issue.title, ctx.cfg.commitMessage)} (revision ${revision.number})`.slice(
+                0,
+                200,
+              )
+            : `fix(ai): ${issue.externalKey} revision ${revision.number}`,
     });
     if (rehearsal) {
       // The rehearsal now points at the adjusted commit and the whole change since its base.

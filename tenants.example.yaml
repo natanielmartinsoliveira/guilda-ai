@@ -167,6 +167,8 @@ tenants:
         repository: globex-workspace/portal
         defaultBranch: master
         branch: 'feature/{key}' # {key}: the card key; {id}: the task id
+        # Commit message ({key}, {title}); default "feat(ai): <key> <title>".
+        commitMessage: 'feat({key}): {title}'
         # The team's PR template (relative to this file) and each branch's environment URL.
         pullRequest:
           template: templates/pr.md

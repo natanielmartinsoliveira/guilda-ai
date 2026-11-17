@@ -477,6 +477,11 @@ const project = z
     checks: checks.optional(),
     /** Extra rules for the agent in every prompt of this project (e.g. translations). */
     instructions: z.string().max(20000).optional(),
+    /**
+     * Commit message: {key} and {title}, like pullRequest.title (e.g. "feat({key}): {title}").
+     * Default "feat(ai): <key> <title>" per sub-task and "feat(ai): implement <key>" otherwise.
+     */
+    commitMessage: z.string().min(1).max(200).optional(),
     pullRequest: z
       .object({
         /** Markdown file (absolute, or relative to tenants.yaml) with {{PLACEHOLDERS}}. */
