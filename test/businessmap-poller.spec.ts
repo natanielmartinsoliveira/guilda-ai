@@ -259,6 +259,27 @@ describe('BusinessmapPoller', () => {
     }
   });
 
+  test("while the account's hour budget is down to the reserve, a poll reads nothing", async () => {
+    const x = setup({ 107: card(107) });
+    let saving = true;
+    class SavingPoller extends BusinessmapPoller {
+      protected client() {
+        return x.client as unknown as BusinessmapClient;
+      }
+      protected saving() {
+        return saving;
+      }
+    }
+    const orchestrator = new OrchestratorService(db, new TenantRegistry());
+    const accept = jest.spyOn(orchestrator, 'accept');
+    const poller = new SavingPoller(db, orchestrator);
+    await poller.poll(tenant, source);
+    expect(x.client.candidates).not.toHaveBeenCalled();
+    expect(accept).not.toHaveBeenCalled();
+    saving = false;
+    await poller.poll(tenant, source);
+    expect(accept).toHaveBeenCalledTimes(1);
+  });
   test('a failing card does not stop the others; a failing board does not throw', async () => {
     const x = setup({ 105: card(105), 106: card(106) });
     x.client.card.mockImplementationOnce(async () => {

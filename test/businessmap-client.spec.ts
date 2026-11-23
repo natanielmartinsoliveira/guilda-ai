@@ -1,4 +1,5 @@
 import { BusinessmapClient } from '../src/sources/businessmap/businessmap.client';
+import { BusinessmapGate } from '../src/sources/businessmap/businessmap.gate';
 import { htmlToText, normalizeLabel, repositoryFromLink } from '../src/sources/businessmap/text';
 import { BusinessmapSource } from '../src/tenants/tenants';
 
@@ -165,4 +166,51 @@ test('previousOwner: the newest earlier version of the card with another owner',
   ).toBe(true);
   pages['/api/v2/cards/7/revisions'] = [{ revision: 3 }];
   expect(await client.previousOwner(7, 291)).toBeUndefined();
+});
+
+test('through its gate: tags are read once per ten minutes, identical card reads share one request, a short 429 is retried', async () => {
+  let now = 0;
+  const sleeps: number[] = [];
+  const gate = new BusinessmapGate({
+    now: () => now,
+    sleep: async (ms) => {
+      sleeps.push(ms);
+      now += ms;
+    },
+  });
+  let limited = true;
+  const http = api({
+    '/api/v2/tags': () => [{ tag_id: 7, label: 'ai-dev-team' }],
+    '/api/v2/cards/5': () => ({ card_id: 5 }),
+  });
+  const withLimit = jest.fn(async (url: string | URL, init?: RequestInit) => {
+    if (new URL(String(url)).pathname === '/api/v2/cards/9' && limited) {
+      limited = false;
+      return new Response(JSON.stringify({ error: { details: { retry_after: 3 } } }), {
+        status: 429,
+      });
+    }
+    if (new URL(String(url)).pathname === '/api/v2/cards/9')
+      return new Response(JSON.stringify({ data: { card_id: 9 } }));
+    return http(url, init);
+  });
+  const client = new BusinessmapClient(source, withLimit as unknown as typeof fetch, gate);
+  const other = new BusinessmapClient(source, withLimit as unknown as typeof fetch, gate);
+  const calls = (path: string) =>
+    withLimit.mock.calls.filter((c) => new URL(String(c[0])).pathname === path).length;
+
+  await client.tags();
+  await other.tags();
+  expect(calls('/api/v2/tags')).toBe(1);
+  now += 10 * 60_000;
+  expect((await client.tags()).get(7)).toBe('ai-dev-team');
+  expect(calls('/api/v2/tags')).toBe(2);
+
+  const [a, b] = await Promise.all([client.card(5), other.card(5)]);
+  expect([a.card_id, b.card_id]).toEqual([5, 5]);
+  expect(calls('/api/v2/cards/5')).toBe(1);
+
+  expect((await client.card(9)).card_id).toBe(9);
+  expect(calls('/api/v2/cards/9')).toBe(2);
+  expect(sleeps).toEqual([3000]);
 });

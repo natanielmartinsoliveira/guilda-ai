@@ -10,6 +10,7 @@ import { mergeRequestOfCard } from '../../reviews/review-card';
 import { recordMoves } from './journal';
 import type { IngestResult } from '../jira/jira.poller';
 import { BmCard, BusinessmapClient } from './businessmap.client';
+import { gateFor } from './businessmap.gate';
 import { htmlToText, normalizeLabel, repositoryFromLink } from './text';
 /**
  * Polls Businessmap boards, read-only: cards in the trigger columns or with the trigger tag
@@ -29,6 +30,13 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
   /** Overridable in tests. */
   protected client(source: BusinessmapSource) {
     return new BusinessmapClient(source);
+  }
+  /**
+   * True while the account's hour budget is down to the gate's reserve: polls wait, so the last
+   * requests are left for what a person is waiting on. Overridable in tests.
+   */
+  protected saving(source: BusinessmapSource) {
+    return gateFor(source.baseUrl, source.token).saving();
   }
   /** Overridable in tests. */
   protected gitlab(host: Extract<TenantHost, { type: 'gitlab' }>) {
@@ -59,6 +67,14 @@ export class BusinessmapPoller implements OnModuleInit, OnModuleDestroy {
       ]);
       if (!locked) return;
       try {
+        if (this.saving(source)) {
+          log('businessmap.poll_skipped', {
+            tenant: tenant.id,
+            source: source.id,
+            reason: 'rate_limit_reserve',
+          });
+          return;
+        }
         const client = this.client(source);
         const { owners } = source.trigger;
         // Only the configured owners' cards (others in the same column belong to other people).

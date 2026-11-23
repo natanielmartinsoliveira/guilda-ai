@@ -1,4 +1,5 @@
 import { BusinessmapSource } from '../../tenants/tenants';
+import { BusinessmapGate, gateFor } from './businessmap.gate';
 import { normalizeLabel } from './text';
 export interface BmCard {
   card_id: number;
@@ -17,28 +18,43 @@ export interface BmCard {
 }
 /** Sections from here on are closed (done, archive). */
 const CLOSED = 4;
+/** The account's tags change rarely: read them at most this often. */
+const TAGS_CACHE_MS = 10 * 60_000;
 /**
  * Businessmap API v2. Reads the board; it writes only a card's column (`moves`, a review's
  * `approved`) and owner (back to its owner after a review), and only when the source configures them.
+ * Every request goes through the account's gate (one at a time, within the board's rate limit);
+ * a client with its own transport (a test's) gets a gate of its own unless one is given.
  */
 export class BusinessmapClient {
   constructor(
     private readonly source: BusinessmapSource,
     private readonly http: typeof fetch = fetch,
+    private readonly gate: BusinessmapGate = http === fetch
+      ? gateFor(source.baseUrl, source.token)
+      : new BusinessmapGate(),
   ) {}
-  private async get<T>(path: string, query: Record<string, string> = {}): Promise<T> {
+  private get<T>(path: string, query: Record<string, string> = {}, cacheMs = 0): Promise<T> {
     const url = new URL(`${this.source.baseUrl}/api/v2${path}`);
     for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
-    const res = await this.http(url, {
-      method: 'GET',
-      headers: { apikey: this.source.token, Accept: 'application/json' },
-    });
-    if (!res.ok) throw new Error(`Businessmap GET ${path}: HTTP ${res.status}`);
-    return ((await res.json()) as { data: T }).data;
+    return this.gate.read(
+      url.toString(),
+      async () => {
+        const res = await this.gate.send(() =>
+          this.http(url, {
+            method: 'GET',
+            headers: { apikey: this.source.token, Accept: 'application/json' },
+          }),
+        );
+        if (!res.ok) throw new Error(`Businessmap GET ${path}: HTTP ${res.status}`);
+        return ((await res.json()) as { data: T }).data;
+      },
+      cacheMs,
+    );
   }
   /** Tag id → label, for the whole account. */
   async tags() {
-    const list = await this.get<{ tag_id: number; label: string }[]>('/tags');
+    const list = await this.get<{ tag_id: number; label: string }[]>('/tags', {}, TAGS_CACHE_MS);
     return new Map((list ?? []).map((t) => [t.tag_id, t.label]));
   }
   private async list(filter: Record<string, string>) {
@@ -120,15 +136,17 @@ export class BusinessmapClient {
     await this.patch(cardId, { owner_user_id: userId });
   }
   private async patch(cardId: number, body: Record<string, number>) {
-    const res = await this.http(`${this.source.baseUrl}/api/v2/cards/${cardId}`, {
-      method: 'PATCH',
-      headers: {
-        apikey: this.source.token,
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
+    const res = await this.gate.send(() =>
+      this.http(`${this.source.baseUrl}/api/v2/cards/${cardId}`, {
+        method: 'PATCH',
+        headers: {
+          apikey: this.source.token,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      }),
+    );
     if (!res.ok) throw new Error(`Businessmap PATCH /cards/${cardId}: HTTP ${res.status}`);
   }
   card(id: number) {
