@@ -501,6 +501,8 @@ const project = z
          * the card.
          */
         botComments: z.boolean().default(false),
+        /** Whether the outcome of each revision is commented on the PR (it is by default). */
+        revisionComments: z.boolean().default(true),
       })
       .prefault({}),
     /** Where the task's working copy lives: this machine (default) or a Coder workspace. */

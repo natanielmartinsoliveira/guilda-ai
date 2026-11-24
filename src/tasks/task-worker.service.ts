@@ -2164,6 +2164,7 @@ export class TaskWorkerService implements OnModuleInit {
   private async commentRevision(task: Task, revision: Revision) {
     try {
       const ctx = await this.context(task);
+      if (!ctx.cfg.pullRequest.revisionComments) return;
       const pr = await this.db.getRepository(PullRequest).findOneBy({ taskId: task.id });
       if (!pr) return;
       const request = revision.instructions.slice(0, 300).replace(/\n/g, '\n> ');

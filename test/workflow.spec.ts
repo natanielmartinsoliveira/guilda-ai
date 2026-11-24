@@ -241,6 +241,32 @@ describe('revisions ("/ai ..." on the PR)', () => {
     expect(text).toContain('2. Renomear a tabela: não apliquei, fora do escopo do card.');
     expect(text).not.toContain('<resposta>');
   });
+  test('with revisionComments off, a revision is pushed without a comment on the PR', async () => {
+    const x = await done();
+    const current = x.registry.project as jest.Mock;
+    const base = current.getMockImplementation()!;
+    current.mockImplementation((t: string, p: string) => {
+      const ctx = base(t, p);
+      return {
+        ...ctx,
+        project: {
+          ...ctx.project,
+          pullRequest: { ...ctx.project.pullRequest, revisionComments: false },
+        },
+      };
+    });
+    const revision = await x.orchestrator.requestRevision(
+      'acme',
+      { taskId: x.task.id },
+      { instructions: 'Rename hello to greet', origin: 'api' },
+    );
+    await x.worker.handle(revisionMessage(x.task, revision.id), x.channel);
+    expect((await db.getRepository(Revision).findOneByOrFail({ id: revision.id })).status).toBe(
+      'SUCCESS',
+    );
+    expect(x.git.push).toHaveBeenCalled();
+    expect(x.github.commentOnPullRequest).not.toHaveBeenCalled();
+  });
   test('later revisions see the earlier ones and a failure is reported on the PR', async () => {
     const x = await done();
     const first = await x.orchestrator.requestRevision(
